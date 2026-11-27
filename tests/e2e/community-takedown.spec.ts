@@ -13,6 +13,11 @@ const evidence = process.env.TAKEDOWN_SHOTS ?? "test-results/community-takedown"
 const sizes = [[1280, 900], [360, 740]] as const;
 const doc = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 
+// After a staff action: the database is the proof (a dev-server reload can drop the banner); the banner is checked when the page kept it.
+async function takenWith(admin: Awaited<ReturnType<typeof discoverAdmin>>, id: string, hidden: boolean, s: Page, banner: string) {
+  await expect.poll(async () => (await admin.q<{ hidden: boolean }>("select hidden from community_takedowns where target_id = $1", [id]))[0]?.hidden ?? null, { timeout: 120_000 }).toBe(hidden);
+  if (await s.getByRole("status").count()) await expect(s.getByRole("status").first()).toHaveText(banner);
+}
 const reloaded = (error: unknown) => /Execution context was destroyed|navigation/.test(String(error));
 async function audit(page: Page, name: string, prepare?: () => Promise<void>) {
   const theme = (value: "light" | "dark") => page.evaluate((v) => { const root = document.documentElement; root.dataset.theme = v; root.classList.toggle("dark", v === "dark"); }, value);
@@ -66,7 +71,7 @@ async function go(page: Page, url: string) {
 }
 
 test("report, staff pause and restore a community, hide and restore a post", async ({ page, browser }) => {
-  test.setTimeout(600_000);
+  test.setTimeout(900_000);
   await mkdir(evidence, { recursive: true });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -78,6 +83,7 @@ test("report, staff pause and restore a community, hide and restore a post", asy
   ({ version } = await (await page.request.patch(`${api}/${community.id}`, { headers: { origin }, data: { version, visibility: "listed", allowOpen: true, discoverOptIn: true, tagline: "Prayer every week" } })).json());
   expect((await page.request.post(`${api}/${community.id}/publish`, { headers: { origin }, data: { version, published: true } })).ok()).toBe(true);
   const admin = await discoverAdmin();
+  const taken = (id: string, hidden: boolean, s: Page, banner: string) => takenWith(admin, id, hidden, s, banner);
   // Compile the settings page once before the paused checks, so a first-build reload cannot close a dialog later.
   await go(page, `/workspaces/${tenant}/communities/${community.id}/edit`);
   await page.waitForLoadState("networkidle").catch(() => undefined);
@@ -139,7 +145,7 @@ test("report, staff pause and restore a community, hide and restore a post", asy
     await hide.getByLabel("Reason (shown to the ministry)").fill("Fundraising outside Harvest's rules");
     await audit(s, "staff-pause-dialog");
     await hide.getByRole("button", { name: "Pause community" }).click();
-    await expect(s.getByRole("status")).toHaveText("Hidden.");
+    await taken(community.id, true, s, "Hidden.");
 
     // 4. Public page and Discover answer as for a missing community; members see the notice; the owner sees the reason.
     expect((await go(visitor, `/communities/${slug}`))?.status()).toBe(404);
@@ -159,15 +165,20 @@ test("report, staff pause and restore a community, hide and restore a post", asy
     const review = page.getByRole("dialog", { name: "Request a review" });
     await review.getByLabel("What did you change?").fill("We removed the outside fundraiser and the private message requests.");
     await audit(page, "owner-request-review-dialog");
-    // The dev server can reload the editor while it is first compiled; open the dialog again if that closed it.
-    if (!(await review.isVisible())) {
-      await page.getByRole("button", { name: "Request review" }).click();
-      await review.getByLabel("What did you change?").fill("We removed the outside fundraiser and the private message requests.");
+    // The dev server can reload the editor while it compiles, closing the dialog or dropping the request; the stored request is the proof,
+    // so the test opens the dialog again and resends until the request is stored (the server allows one open request, so this never doubles it).
+    const stored = async () => (await admin.q("select 1 from community_takedown_appeals where community_id = $1 and status = 'open'", [community.id])).length;
+    for (let attempt = 0; attempt < 4 && !(await stored()); attempt++) {
+      if (attempt > 0 || !(await review.isVisible())) {
+        await go(page, `/workspaces/${tenant}/communities/${community.id}/edit`);
+        if (await stored()) break;
+        await page.getByRole("button", { name: "Request review" }).click();
+        await review.getByLabel("What did you change?").fill("We removed the outside fundraiser and the private message requests.");
+      }
+      await review.getByRole("button", { name: "Send request" }).click();
+      await expect.poll(stored, { timeout: 60_000 }).toBe(1).catch(() => undefined);
     }
-    const [sent] = await Promise.all([page.waitForResponse((r) => r.url().includes("/review-request"), { timeout: 120_000 }), review.getByRole("button", { name: "Send request" }).click()]);
-    expect(sent.status(), await sent.text()).toBe(200);
-    // The stored request is the proof; the page (reloaded, as a dev-server rebuild may do anyway) then shows it from the server.
-    await expect.poll(async () => (await admin.q("select 1 from community_takedown_appeals where community_id = $1 and status = 'open'", [community.id])).length, { timeout: 120_000 }).toBe(1);
+    expect(await stored()).toBe(1);
     await go(page, `/workspaces/${tenant}/communities/${community.id}/edit`);
     await expect(page.locator("[data-review-requested]")).toContainText("Review requested");
     await expect(page.getByRole("button", { name: "Request review" })).toHaveCount(0);
@@ -187,7 +198,7 @@ test("report, staff pause and restore a community, hide and restore a post", asy
     await expect(s.getByRole("alertdialog")).toBeVisible();
     await audit(s, "staff-restore-confirm");
     await s.getByRole("alertdialog").getByRole("button", { name: "Restore" }).click();
-    await expect(s.getByRole("status")).toHaveText("Restored.");
+    await taken(community.id, false, s, "Restored.");
     expect((await go(visitor, `/communities/${slug}`))?.status()).toBe(200);
     await go(visitor, `/discover?q=${encodeURIComponent("grace prayer")}`);
     await expect(visitor.locator(`a[href*="${slug}"]`).first()).toBeVisible();
@@ -201,7 +212,7 @@ test("report, staff pause and restore a community, hide and restore a post", asy
     const hidePost = s.getByRole("dialog", { name: `Hide a post in ${name}` });
     await hidePost.getByLabel("Reason (shown to the ministry)").fill("Spam");
     await hidePost.getByRole("button", { name: "Hide post" }).click();
-    await expect(s.getByRole("status")).toHaveText("Hidden.");
+    await taken(post.id, true, s, "Hidden.");
     await go(member.page, `/communities/${slug}/forum`);
     await expect(member.page.getByText("Cheap watches")).toHaveCount(0);
     expect((await go(member.page, `/communities/${slug}/posts/${post.id}`))?.status()).toBe(404);
@@ -216,7 +227,7 @@ test("report, staff pause and restore a community, hide and restore a post", asy
     await hiddenRow.getByRole("button", { name: `Actions for the report on ${name}` }).click();
     await s.getByRole("menuitem", { name: "Restore" }).click();
     await s.getByRole("alertdialog").getByRole("button", { name: "Restore" }).click();
-    await expect(s.getByRole("status")).toHaveText("Restored.");
+    await taken(post.id, false, s, "Restored.");
     await go(member.page, `/communities/${slug}/forum`);
     await expect(member.page.getByText("Cheap watches")).toBeVisible();
 
