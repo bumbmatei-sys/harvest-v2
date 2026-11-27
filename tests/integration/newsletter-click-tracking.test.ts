@@ -308,6 +308,33 @@ it("withholds a small day, the period total and that campaign's row, and every c
   }
 });
 
+it("never lets a campaign's link totals reveal a withheld day: top links count only shown days", async () => {
+  // Review regression: one campaign to 6 people; 10 clicks on one day (5 per link), then 3 clicks on one link the next day. Before the fix the
+  // links read 8 and 5 while every day was withheld, so the hidden figures could be recovered.
+  const shownDay = new Date(Date.now() - 5 * 86_400_000).toISOString().slice(0, 10), hiddenDay = new Date(Date.now() - 4 * 86_400_000).toISOString().slice(0, 10);
+  const client = await fixture.admin.connect();
+  let campaign = "";
+  try {
+    campaign = await seedCampaign(client, { tenant: people.tenant, user: people.owner, name: "Two days", days: [{ day: shownDay, accepted: 6 }] });
+    for (const [index, url] of [links.a, links.b].entries()) await client.query("insert into newsletter_click_links(tenant_id,campaign_id,revision,link_index,url) values($1,$2,1,$3,$4)", [people.tenant, campaign, index, url]);
+    const add = (link: number, day: string, count: number) => Promise.all(Array.from({ length: count }, () => client.query(
+      "insert into newsletter_clicks(tenant_id,campaign_id,revision,delivery_id,link_index,clicked_at) values($1,$2,1,$3,$4,$5::timestamptz)", [people.tenant, campaign, randomUUID(), link, `${day}T12:00:00Z`])));
+    await add(0, shownDay, 5); await add(1, shownDay, 5); await add(0, hiddenDay, 3);
+    const { clicks } = await newsletterCampaignAnalytics(fixture.db, people.owner, people.tenant, campaign);
+    expect(clicks!.total).toBeNull();
+    // A small day withholds every day of that campaign (the differencing rule), so no link may show a figure either.
+    expect(clicks!.days.find((row) => row.day === hiddenDay)?.clicks).toBeNull();
+    expect(clicks!.days.find((row) => row.day === shownDay)?.clicks).toBeNull();
+    const shownDays = clicks!.days.reduce((sum, row) => sum + (row.clicks ?? 0), 0);
+    const linkTotal = clicks!.links.reduce((sum, link) => sum + link.clicks, 0);
+    expect(linkTotal).toBeLessThanOrEqual(shownDays);
+    expect(clicks!.links).toEqual([]);
+  } finally {
+    if (campaign) await client.query("delete from newsletter_clicks where campaign_id=$1", [campaign]);
+    client.release();
+  }
+});
+
 it("rolls click rows older than 90 days into anonymous counts and deletes them, from the worker only", async () => {
   expect(await purgeNewsletterClicks(fixture.workerPool, workerEnv)).toBeNull();
   expect(await purgeNewsletterClicks(fixture.workerPool, { ...retention, NODE_ENV: "production" })).toBeNull();
