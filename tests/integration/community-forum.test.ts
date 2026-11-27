@@ -115,7 +115,11 @@ it("uploads covers and attachments, releases them only on a clean scan in produc
 });
 
 it("pages the forum in pages of 50", async () => {
-  for (let i = 0; i < 51; i++) await post("g-two", { title: `Page test ${i}` });
+  // Ten new posts per person per 10 minutes (0129): age the author's earlier posts between batches; their order is kept.
+  for (let i = 0; i < 51; i++) {
+    if (i % 5 === 0) await f.admin.query("update community_posts set created_at = created_at - interval '1 hour' where author_id = 'g-two'");
+    await post("g-two", { title: `Page test ${i}` });
+  }
   const first = await listPosts(f.db, "g-one", "grace-forum");
   expect(first.posts).toHaveLength(50);
   expect(first.hasMore).toBe(true);
