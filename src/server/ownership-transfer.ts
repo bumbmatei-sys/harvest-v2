@@ -10,12 +10,15 @@ export const transferInput = z.discriminatedUnion("action", [
   z.object({ action: z.literal("offer"), recipientUserId: z.string().min(1).max(128) }).strict(),
   z.object({ action: z.enum(["accept", "decline", "cancel"]), offerId: z.uuid() }).strict(),
 ]);
-type Transfer = z.infer<typeof transferInput> | { action: "status"; offerId?: string };
+type Mutation = z.infer<typeof transferInput>;
+type Status = { action: "status"; offerId?: string };
 type TransferOutcome = {
   outcome: string; id?: string; fromUserId?: string; toUserId?: string; expiresAt?: string;
 };
 
-export async function ownershipTransfer(db: Database, actor: string, tenant: string, input: Transfer) {
+export function ownershipTransfer(db: Database, actor: string, tenant: string, input: Mutation): Promise<TransferOutcome>;
+export function ownershipTransfer(db: Database, actor: string, tenant: string, input: Status): Promise<TransferOutcome | null>;
+export async function ownershipTransfer(db: Database, actor: string, tenant: string, input: Mutation | Status) {
   const tenantId = z.uuid().parse(tenant);
   const id = "offerId" in input && input.offerId !== undefined ? z.uuid().parse(input.offerId) : null;
   const who = "recipientUserId" in input ? input.recipientUserId : null;

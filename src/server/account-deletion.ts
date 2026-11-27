@@ -24,7 +24,7 @@ const transferSteps = (ministries: SoleOwnerMinistry[]) => ministries.map(({ id,
   id, name, transferEndpoint: `/api/workspaces/${id}/ownership-transfer`,
 }));
 const soleOwnerConflict = (ministries: SoleOwnerMinistry[]) => new AccessError(409, message("Errors.deleteAccountSoleOwner"), {
-  code: "SOLE_OWNER", ministries: ministries.length, ownershipTransfers: transferSteps(ministries),
+  code: "SOLE_OWNER", ministries: ministries.length, transferDetailsEndpoint: "/api/account/delete",
 });
 export async function accountDeletionBlockers(db: Database, userId: string) {
   return { ownershipTransfers: transferSteps(await soleOwnerMinistries(db, userId)) };
