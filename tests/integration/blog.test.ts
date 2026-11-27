@@ -6,7 +6,8 @@ import { changeBlogPostState, createBlogPost, deleteBlogPost, getBlog, getBlogPo
   publicBlogPost, saveBlogPost, saveBlogSettings } from "../../src/server/blog";
 import { sweepBlogSchedule } from "../../src/server/blog-publish-worker";
 import { changeMemberAccess } from "../../src/server/access";
-import { putMember } from "../../src/server/workspaces";
+import { createWorkspace, putMember } from "../../src/server/workspaces";
+import { getBioPage } from "../../src/server/link-in-bio";
 import { chargePublicRead, publicReadLimits } from "../../src/server/public-read-limit";
 import { withTenant } from "../../src/server/tenancy";
 import { noNetwork, seedPeople } from "./social-layer-fixture";
@@ -242,5 +243,71 @@ describe("public reads", () => {
     for (let i = 0; i < publicReadLimits.blog; i++) expect(await chargePublicRead(f.db, "blog", visitor, now, false)).toEqual({ limited: false });
     expect(await chargePublicRead(f.db, "blog", visitor, now, false)).toMatchObject({ limited: true });
     expect(await chargePublicRead(f.db, "blog", "another-visitor", now, false)).toEqual({ limited: false });
+  });
+});
+
+describe("review fixes (#315)", () => {
+  it("never lets the owner-role file policy show a draft's picture or a non-image, even with both flags set by hand", async () => {
+    const draftPicture = await file(p.tenant, p.owner);
+    const draft = await write(p.owner, p.tenant, "Draft with a picture", { coverFileId: draftPicture });
+    expect(draft.coverFileId).toBe(draftPicture);
+    const client = await f.admin.connect();
+    try {
+      await client.query("begin");
+      await client.query(`set local role ${f.migrationOwner}`);
+      const visible = async (id: string) => {
+        await client.query("select set_config('app.blog_public_tenant', $1, true), set_config('app.blog_public_file', $2, true)", [p.tenant, id]);
+        return (await client.query("select id from public.files where id = $1", [id])).rows.length;
+      };
+      expect(await visible(draftPicture)).toBe(0);
+      expect(await visible(pdf)).toBe(0);
+      expect(await visible(otherPicture)).toBe(0);
+      // A picture of a published article is visible (it is public anyway).
+      const live = await publish(p.owner, p.tenant, "Published with a picture", { coverFileId: picture });
+      expect(live.coverFileId).toBe(picture);
+      expect(await visible(picture)).toBe(1);
+      await client.query("rollback");
+    } finally { client.release(); }
+  });
+
+  it("keeps the blog address fixed after every article is deleted", async () => {
+    await f.db.insert(users).values({ id: "blog-lock-owner", name: "blog-lock-owner", email: "blog-lock-owner@example.invalid", emailVerified: true });
+    const tenant = (await createWorkspace(f.db, "blog-lock-owner", "Lock test ministry")).tenantId;
+    const before = (await getBlog(f.db, "blog-lock-owner", tenant)).settings;
+    expect(before.handleLocked).toBe(false);
+    const live = await publish("blog-lock-owner", tenant, "Only article");
+    await deleteBlogPost(f.db, "blog-lock-owner", tenant, live.id, live.version);
+    const after = (await getBlog(f.db, "blog-lock-owner", tenant)).settings;
+    // Marking the blog does not move its version, so the owner's open settings stay current.
+    expect(after).toMatchObject({ handleLocked: true, version: before.version });
+    expect(await status(saveBlogSettings(f.db, "blog-lock-owner", tenant, { version: after.version, handle: "lock-test-renamed", title: "Lock" }))).toBe(409);
+    // The marker cannot be cleared or moved by the app.
+    await expect(withTenant(f.db, "blog-lock-owner", tenant, "blog:manage", (tx) => tx.execute(sql`update blog_settings set first_published_at = null where tenant_id = ${tenant}::uuid`))).rejects.toThrow();
+  });
+
+  it("stamps a manual publish with the database clock, whatever the caller sends", async () => {
+    const post = await write(p.owner, p.tenant, "Clock check");
+    await withTenant(f.db, p.owner, p.tenant, "blog:manage", (tx) => tx.execute(sql`update blog_posts set status = 'published', published_at = '2001-01-01T00:00:00Z', version = version + 1 where id = ${post.id}::uuid`));
+    const { post: done } = await getBlogPost(f.db, p.owner, p.tenant, post.id);
+    expect(Math.abs(new Date(done.publishedAt!).getTime() - Date.now())).toBeLessThan(5 * 60_000);
+  });
+
+  it("marks the blog when the worker publishes its first article", async () => {
+    await f.db.insert(users).values({ id: "blog-worker-owner", name: "blog-worker-owner", email: "blog-worker-owner@example.invalid", emailVerified: true });
+    const tenant = (await createWorkspace(f.db, "blog-worker-owner", "Worker mark ministry")).tenantId;
+    const post = await write("blog-worker-owner", tenant, "Scheduled first");
+    await changeBlogPostState(f.db, "blog-worker-owner", tenant, post.id, { action: "schedule", version: post.version, at: new Date(Date.now() + 3_600_000).toISOString() });
+    await f.admin.query("alter table blog_posts disable trigger blog_posts_guard");
+    await f.admin.query("update blog_posts set publish_at = now() - interval '1 minute' where id = $1", [post.id]);
+    await f.admin.query("alter table blog_posts enable trigger blog_posts_guard");
+    expect(await sweepBlogSchedule(f.workerPool)).toEqual({ published: 1 });
+    expect((await getBlog(f.db, "blog-worker-owner", tenant)).settings.handleLocked).toBe(true);
+  });
+
+  it("uses the ministry's link-in-bio handle as the blog address when there is one", async () => {
+    await f.db.insert(users).values({ id: "blog-bio-owner", name: "blog-bio-owner", email: "blog-bio-owner@example.invalid", emailVerified: true });
+    const tenant = (await createWorkspace(f.db, "blog-bio-owner", "Hope Chapel Lisbon")).tenantId;
+    const bio = await getBioPage(f.db, "blog-bio-owner", tenant);
+    expect((await getBlog(f.db, "blog-bio-owner", tenant)).settings.handle).toBe(bio.handle);
   });
 });

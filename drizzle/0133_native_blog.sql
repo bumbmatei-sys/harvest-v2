@@ -39,6 +39,7 @@ CREATE TABLE "blog_settings" (
 	"title" text NOT NULL,
 	"intro" text,
 	"version" integer DEFAULT 1 NOT NULL,
+	"first_published_at" timestamp with time zone,
 	"created_by" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -82,12 +83,14 @@ DO $$ BEGIN
   IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'harvest_worker') THEN EXECUTE 'REVOKE ALL ON public.blog_settings, public.blog_posts FROM harvest_worker'; END IF;
 END $$;--> statement-breakpoint
 GRANT SELECT, INSERT ON public.blog_settings TO harvest_app;--> statement-breakpoint
-GRANT UPDATE (handle, title, intro, version, updated_at) ON public.blog_settings TO harvest_app;--> statement-breakpoint
+GRANT UPDATE (handle, title, intro, version, updated_at, first_published_at) ON public.blog_settings TO harvest_app;--> statement-breakpoint
 GRANT SELECT, INSERT, DELETE ON public.blog_posts TO harvest_app;--> statement-breakpoint
 GRANT UPDATE (slug, title, excerpt, body, image_ids, cover_file_id, share_file_id, seo_title, seo_description, status, publish_at, published_at, scheduled_by,
   version, updated_by, updated_at) ON public.blog_posts TO harvest_app;--> statement-breakpoint
-CREATE POLICY blog_settings_staff ON public.blog_settings TO harvest_app
-  USING (public.blog_can(tenant_id)) WITH CHECK (public.blog_can(tenant_id) AND created_by = nullif(current_setting('app.user_id', true), ''));--> statement-breakpoint
+CREATE POLICY blog_settings_read ON public.blog_settings FOR SELECT TO harvest_app USING (public.blog_can(tenant_id));--> statement-breakpoint
+CREATE POLICY blog_settings_create ON public.blog_settings FOR INSERT TO harvest_app
+  WITH CHECK (public.blog_can(tenant_id) AND created_by = nullif(current_setting('app.user_id', true), ''));--> statement-breakpoint
+CREATE POLICY blog_settings_update ON public.blog_settings FOR UPDATE TO harvest_app USING (public.blog_can(tenant_id)) WITH CHECK (public.blog_can(tenant_id));--> statement-breakpoint
 CREATE POLICY blog_posts_read ON public.blog_posts FOR SELECT TO harvest_app USING (public.blog_can(tenant_id));--> statement-breakpoint
 CREATE POLICY blog_posts_create ON public.blog_posts FOR INSERT TO harvest_app
   WITH CHECK (public.blog_can(tenant_id) AND created_by = nullif(current_setting('app.user_id', true), ''));--> statement-breakpoint
@@ -97,13 +100,27 @@ CREATE POLICY blog_posts_remove ON public.blog_posts FOR DELETE TO harvest_app U
 CREATE FUNCTION public.blog_settings_guard() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
   IF TG_OP = 'UPDATE' THEN
-    IF NEW.tenant_id <> OLD.tenant_id OR NEW.created_by <> OLD.created_by OR NEW.created_at <> OLD.created_at OR NEW.version <> OLD.version + 1 THEN
+    IF NEW.tenant_id <> OLD.tenant_id OR NEW.created_by <> OLD.created_by OR NEW.created_at <> OLD.created_at THEN
       RAISE EXCEPTION 'invalid blog update' USING ERRCODE = '23514';
     END IF;
-    IF NEW.handle <> OLD.handle AND EXISTS (SELECT FROM public.blog_posts p WHERE p.tenant_id = OLD.tenant_id AND p.first_published_at IS NOT NULL) THEN
+    -- The marker: set once, by the article trigger below, when the blog's first article is first published; never changed or cleared afterwards, so
+    -- deleting every article later does not free the address. Setting it alone does not move the version (the owner's open settings stay current).
+    IF NEW.first_published_at IS DISTINCT FROM OLD.first_published_at THEN
+      IF OLD.first_published_at IS NOT NULL OR NEW.first_published_at IS NULL OR NOT EXISTS (SELECT FROM public.blog_posts p
+          WHERE p.tenant_id = OLD.tenant_id AND p.first_published_at IS NOT NULL) THEN
+        RAISE EXCEPTION 'invalid blog update' USING ERRCODE = '23514';
+      END IF;
+      IF NEW.version <> OLD.version OR NEW.handle <> OLD.handle OR NEW.title <> OLD.title OR NEW.intro IS DISTINCT FROM OLD.intro THEN
+        RAISE EXCEPTION 'invalid blog update' USING ERRCODE = '23514';
+      END IF;
+      RETURN NEW;
+    END IF;
+    IF NEW.version <> OLD.version + 1 THEN RAISE EXCEPTION 'invalid blog update' USING ERRCODE = '23514'; END IF;
+    -- A first publish updates this row (the marker) in its own transaction, so a concurrent address change waits for it and then sees the marker.
+    IF NEW.handle <> OLD.handle AND OLD.first_published_at IS NOT NULL THEN
       RAISE EXCEPTION 'the blog address is fixed once an article is published' USING ERRCODE = '23514';
     END IF;
-  ELSIF NEW.version <> 1 THEN
+  ELSIF NEW.version <> 1 OR NEW.first_published_at IS NOT NULL THEN
     RAISE EXCEPTION 'invalid blog' USING ERRCODE = '23514';
   END IF;
   RETURN NEW;
@@ -136,6 +153,8 @@ BEGIN
         OR (OLD.status = 'scheduled' AND NEW.status IN ('draft', 'published')) OR (OLD.status = 'published' AND NEW.status = 'draft')) THEN
       RAISE EXCEPTION 'article state cannot change that way' USING ERRCODE = '23514';
     END IF;
+    -- A manual publish is stamped with the database clock, whatever the caller sent.
+    IF NOT worker AND NEW.status = 'published' AND OLD.status <> 'published' THEN NEW.published_at := pg_catalog.now(); END IF;
     IF NOT worker AND NEW.status = 'scheduled' AND NEW.publish_at IS DISTINCT FROM OLD.publish_at
       AND (NEW.publish_at <= pg_catalog.now() OR NEW.publish_at > pg_catalog.now() + interval '366 days') THEN
       RAISE EXCEPTION 'the publish time must be in the coming year' USING ERRCODE = '23514';
@@ -158,6 +177,15 @@ BEGIN
 END $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.blog_posts_guard() FROM PUBLIC;--> statement-breakpoint
 CREATE TRIGGER blog_posts_guard BEFORE INSERT OR UPDATE ON public.blog_posts FOR EACH ROW EXECUTE FUNCTION public.blog_posts_guard();--> statement-breakpoint
+-- After an article's first publish (by the app or the worker), mark the blog: its address is fixed from now on, even if every article is deleted later.
+CREATE FUNCTION public.blog_posts_mark_blog() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+  UPDATE public.blog_settings SET first_published_at = NEW.first_published_at WHERE tenant_id = NEW.tenant_id AND first_published_at IS NULL;
+  RETURN NULL;
+END $$;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.blog_posts_mark_blog() FROM PUBLIC;--> statement-breakpoint
+CREATE TRIGGER blog_posts_mark_blog AFTER UPDATE OF status ON public.blog_posts FOR EACH ROW
+  WHEN (OLD.first_published_at IS NULL AND NEW.first_published_at IS NOT NULL) EXECUTE FUNCTION public.blog_posts_mark_blog();--> statement-breakpoint
 -- Owner-role policies for the public definers: each reads only what the transaction-local flags its entry function set name (one blog by its address or
 -- ministry, that ministry's published articles, one picture of them). The entry functions clear every app.* flag first and restore them afterwards.
 DO $$
@@ -167,12 +195,20 @@ BEGIN
     USING (handle = nullif(current_setting('app.blog_public_handle', true), '') OR %s)$p$, current_user, scope);
   EXECUTE format($p$CREATE POLICY blog_public_definer ON public.blog_posts FOR SELECT TO %I USING (%s AND status = 'published')$p$, current_user, scope);
   EXECUTE format($p$CREATE POLICY blog_public_definer ON public.files FOR SELECT TO %I
-    USING (%s AND id = nullif(current_setting('app.blog_public_file', true), '')::uuid)$p$, current_user, scope);
+    USING (%s AND id = nullif(current_setting('app.blog_public_file', true), '')::uuid AND status = 'ready' AND NOT social_upload
+      AND mime IN ('image/jpeg', 'image/png', 'image/webp') AND EXISTS (SELECT FROM public.blog_posts p WHERE p.tenant_id = files.tenant_id AND p.status = 'published'
+        AND (p.cover_file_id = files.id OR p.share_file_id = files.id OR files.id = ANY (p.image_ids))))$p$, current_user, scope);
 END $$;--> statement-breakpoint
 -- The worker publishes due articles only while blog_publish_due has switched app.blog_publish on, only in the worker's own session.
 -- Reading covers both states: an updated row must stay visible to the reader (PostgreSQL checks the new row against SELECT policies too).
 CREATE POLICY blog_publish_read ON public.blog_posts FOR SELECT TO PUBLIC
   USING (current_user <> 'harvest_app' AND session_user = 'harvest_worker' AND current_setting('app.blog_publish', true) = 'on' AND status IN ('scheduled', 'published'));--> statement-breakpoint
+-- The worker's first publish also sets the blog's marker (blog_posts_mark_blog); it may read and mark the blogs of the articles it publishes, nothing else.
+CREATE POLICY blog_publish_mark_read ON public.blog_settings FOR SELECT TO PUBLIC
+  USING (current_user <> 'harvest_app' AND session_user = 'harvest_worker' AND current_setting('app.blog_publish', true) = 'on');--> statement-breakpoint
+CREATE POLICY blog_publish_mark ON public.blog_settings FOR UPDATE TO PUBLIC
+  USING (current_user <> 'harvest_app' AND session_user = 'harvest_worker' AND current_setting('app.blog_publish', true) = 'on' AND first_published_at IS NULL)
+  WITH CHECK (current_user <> 'harvest_app' AND session_user = 'harvest_worker' AND current_setting('app.blog_publish', true) = 'on' AND first_published_at IS NOT NULL);--> statement-breakpoint
 CREATE POLICY blog_publish_write ON public.blog_posts FOR UPDATE TO PUBLIC
   USING (current_user <> 'harvest_app' AND session_user = 'harvest_worker' AND current_setting('app.blog_publish', true) = 'on' AND status = 'scheduled')
   WITH CHECK (current_user <> 'harvest_app' AND session_user = 'harvest_worker' AND current_setting('app.blog_publish', true) = 'on' AND status = 'published');--> statement-breakpoint
