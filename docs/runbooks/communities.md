@@ -128,13 +128,14 @@ To change a write limit after #303: a new migration that recreates the trigger w
 
 ## 6. Erasure and rights requests
 
-No self-service account deletion exists. There is no export of a person's community data. Handle every request through the ministry's privacy owner, using the same steps as `docs/runbooks/connect-rights-requests.md` (receive, verify, confirm scope, act, check, close). Retention periods and the policy for public contributions (G2) are drafted in `docs/decisions/hc-02-policy-pack.md` §11 (founder direction 27 Nov: posts, replies and channel messages stay as "Former member"; DMs are deleted with the account by the `chat-erasure` hook below); the gate stays UNAPPROVED.
+A signed-in person can download their own data and delete their own account from `/account/profile` (`docs/acceptance/your-data.md`). Handle every other request through the ministry's privacy owner, using the same steps as `docs/runbooks/connect-rights-requests.md` (receive, verify, confirm scope, act, check, close). Retention periods and the policy for public contributions (G2) are drafted in `docs/decisions/hc-02-policy-pack.md` §11 (founder direction 27 Nov: posts, replies and channel messages stay as "Former member"; DMs are deleted with the account by the `chat-erasure` hook below); the gate stays UNAPPROVED.
 
-What the database does when a user row is deleted:
+What self-serve account deletion does (`public.account_delete`, migration 0136; the account row stays as a scrubbed tombstone):
 
 - **Removed:** memberships, applications, likes, warnings, appeals, notifications, email delivery rows, exit records, channel memberships, read state, reactions, private-message participation and blocks, Discover reports filed by the person.
-- **Kept without the author:** forum posts and replies, channel messages and private messages (`author_id` becomes null), reports filed by the person (reporter becomes null), moderation history.
-- **Not built:** the `chat-erasure` hook that would delete a deleted person's private messages (`docs/setup/feature-flags.md`). Until it exists, private-message text outlives the account until the 30-day purge removes deleted messages only.
+- **Kept without the author ("Former member"):** forum posts and replies, channel messages, files attached to posts, reports filed by the person (reporter becomes null), moderation history.
+- **Deleted (the `chat-erasure` hook):** every private message the person sent. The other participant keeps their own messages, in a conversation shown as "Former member". DM report evidence snapshots keep their 180-day retention.
+- **On leaving a community:** posts, replies and channel messages in that community are detached at once ("Former member"); private messages keep their author but the other participant sees "Former member".
 
 What members can do themselves:
 
