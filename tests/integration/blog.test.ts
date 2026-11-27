@@ -231,7 +231,7 @@ describe("public reads", () => {
 
   it("clears every app.* flag any owner-role policy reads", async () => {
     const { rows: [fn] } = await f.admin.query("select prosrc from pg_proc where proname = 'blog_scope_clear'");
-    const flags = (await f.admin.query(`select distinct m[1] as flag from pg_policies p, regexp_matches(coalesce(qual,'')||coalesce(with_check,''), '(app\\.[a-z_]+)', 'g') m
+    const flags = (await f.admin.query(`select distinct m[1] as flag from pg_policies p, regexp_matches(coalesce(qual,'')||coalesce(with_check,''), '(app\\.[a-z0-9_]+)', 'g') m
       where not ('harvest_app' = any(p.roles))`)).rows.map((r) => r.flag as string);
     expect(flags.length).toBeGreaterThan(30);
     expect(flags.filter((flag) => !fn.prosrc.includes(`'${flag}'`)).sort()).toEqual([]);
