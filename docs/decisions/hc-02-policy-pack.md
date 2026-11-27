@@ -290,7 +290,7 @@ Before leaving, they can delete their own posts. They can also ask the ministry 
 - Account deletion clears the author on posts, replies and chat messages (`ON DELETE SET NULL` on `author_id`: `drizzle/0038_community_forum.sql`, `drizzle/0057_community_chat.sql`), so the name and photo no longer join.
 - Volunteered profile fields are erased after leaving; leave reasons are deleted with the person: C23 items 13.1 and 13.2, `src/server/community-joining.ts` (`leaveCommunity`).
 
-**Built (migration 0137, `docs/acceptance/your-data.md`).**
+**Built (migration 0135, `docs/acceptance/your-data.md`).**
 - On leaving a community: posts, replies and channel messages in that community are detached from the author and show "Former member". DMs keep their author (so account deletion can still delete them); the other participant sees "Former member" because the name is shown only while the person is an active member.
 - On account deletion: posts, replies and channel messages are detached ("Former member"); the `chat-erasure` hook deletes every DM the person sent; reactions and likes are deleted.
 - The forum shows "Former member" for a detached author (chat and DM screens already did).
