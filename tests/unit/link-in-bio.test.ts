@@ -129,7 +129,7 @@ describe("header and tabs (rework, 25 Nov)", () => {
     expect(isLegacyTabId("home")).toBe(true); expect(isLegacyTabId("abcdefgh")).toBe(false);
   });
   it("keeps the database's block rule in step with the application's", () => {
-    const sql = readFileSync("drizzle/0132_bio_tabs_layout.sql", "utf8");
+    const sql = readFileSync("drizzle/0134_bio_tabs_layout.sql", "utf8");
     expect(sql).toMatch(/coalesce\(p_published->>'layout', 'tabs'\) = 'single'/);
     expect(sql).toMatch(/p_kind = 'cover' AND \(page\.published->>'cover'\) = 'false'/);
     expect(sql.split("\n").filter((line) => !line.startsWith("--")).join("\n")).not.toMatch(/SECURITY DEFINER/);
@@ -181,7 +181,7 @@ describe("new block types (rework PR 2)", () => {
     expect(parse({ type: "form", title: "", slug: "prayer-request" }).success).toBe(false);
   });
   it("keeps the database's click list and catalog rule in step", () => {
-    const sql = readFileSync("drizzle/0134_bio_blocks.sql", "utf8");
+    const sql = readFileSync("drizzle/0135_bio_blocks.sql", "utf8");
     const listed = sql.match(/b->>'type' IN \(([^)]*)\)\n\s*AND \(b->>'type' <> 'live'/)![1].match(/'([^']+)'/g)!.map((w) => w.slice(1, -1));
     expect(listed.sort()).toEqual([...bioClickTypes].sort());
     expect(sql).toMatch(/c\.state = 'published' AND c\.visibility <> 'hidden'/);

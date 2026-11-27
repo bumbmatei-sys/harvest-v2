@@ -15,6 +15,8 @@ import { CatalogTypeArt } from "@/components/catalog/catalog-type-art";
 import { DownloadList } from "@/components/catalog/download-list";
 import { EnrolButton } from "@/components/catalog/enrol-button";
 import { publicPath, type CatalogKind } from "@/lib/catalog";
+import { continueLesson, percentComplete } from "@/lib/course-progress";
+import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 
 const missing = (error: unknown) => { if (error instanceof AccessError && error.status === 404) return null; throw error; };
@@ -58,10 +60,24 @@ export async function CatalogPublicPage({ slug, kind }: { slug: string; kind: Ca
         <p className="text-2xl font-semibold">{t("free")}</p>
         {content
           ? kind === "course"
-            ? <><p className="text-sm text-muted-foreground">{t("enrolled")}</p><Button asChild className="min-h-11 w-full"><Link href={`/courses/${slug}/learn`}><BookOpen aria-hidden="true" />{t("start")}</Link></Button></>
+            ? <CourseProgress slug={slug} lessons={content.lessons} completed={content.completed ?? []} />
             : <p className="text-sm text-muted-foreground">{t("owned")}</p>
           : <EnrolButton slug={slug} kind={kind} signedIn={Boolean(session)} signInHref={`/sign-in?personal=1&next=${encodeURIComponent(here)}`} />}
       </CardContent></Card></aside>
     </div>
   </PublicFrame>;
+}
+
+/** The enrolled learner's stored progress: a percentage of published lessons and a link to where they left off (or to the first lesson). */
+async function CourseProgress({ slug, lessons, completed }: { slug: string; lessons: { id: string }[]; completed: string[] }) {
+  const t = await getTranslations("CatalogPublic");
+  const done = lessons.filter((lesson) => completed.includes(lesson.id)).length, percent = percentComplete(done, lessons.length);
+  const next = continueLesson(lessons, completed), href = `/courses/${slug}/learn${next ? `?lesson=${next}` : ""}`;
+  return <>
+    <p className="text-sm text-muted-foreground">{t("enrolled")}</p>
+    <div className="space-y-2"><Progress value={percent} aria-label={t("percentComplete", { percent })} />
+      <p className="text-sm font-medium tabular-nums">{t("percentComplete", { percent })}</p></div>
+    <Button asChild className="min-h-11 w-full"><Link href={href}><BookOpen aria-hidden="true" />{t(done > 0 ? "continue" : "start")}</Link></Button>
+    <Button asChild variant="outline" className="min-h-11 w-full"><Link href="/account/notes" prefetch={false}>{t("myNotes")}</Link></Button>
+  </>;
 }
