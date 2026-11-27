@@ -16,7 +16,7 @@ import { freeCatalogEnabled } from "@/server/free-catalog-mode";
 
 export const metadata = { robots: { index: false, follow: false } };
 // Keep the composer above the on-screen keyboard instead of letting the keyboard cover it.
-export const viewport = { interactiveWidget: "resizes-content" } as const;
+export const viewport = { interactiveWidget: "resizes-content", viewportFit: "cover" } as const;
 
 export default async function MessagesPage({ params, searchParams }: {
   params: Promise<{ slug: string }>;

@@ -127,7 +127,9 @@
       "owner": "owner",
       "admin": "admin",
       "member": "member",
-      "viewer": "viewer"
+      "viewer": "viewer",
+      "collaborator": "collaborator",
+      "guest": "guest"
     }
   },
   "ComponentsAccessState": {
@@ -163,7 +165,9 @@
       "owner": "Owner",
       "admin": "Admin",
       "member": "Member",
-      "viewer": "Viewer"
+      "viewer": "Viewer",
+      "collaborator": "Collaborator",
+      "guest": "Guest"
     },
     "contacts": "Contacts",
     "files": "Storage",

@@ -44,12 +44,12 @@ Approved 2026-11-16 ("Approved all"). Recorded in `src/lib/ui-provenance.ts` and
 
 - No visual change to existing screens beyond the two consumers above; CopyLink and other ad-hoc success messages still use inline text (candidates for later PRs).
 - The 12 future palettes are not in the registry; toast, scrollbars and toggles use only existing semantic tokens, so they inherit them.
-- Tier of `spinner1`, `scroll-area1` and `drawer1` recorded as free without a per-item price flag (see `docs/ui-sources.md`).
+- Tier of `spinner1`, `scroll-area1` and `drawer1` recorded as free without a per-item price flag (see `docs/ui-sources.md`). Closed 26 Nov 2026: confirmed Free on the kit pages (see follow-ups).
 - No merge, deployment or production activation.
 
 ## Follow-ups
 
 - Move the Toaster from the root layout into the workspace layout (or mount it lazily on the first `notify` call) before more public-page weight accrues.
-- Tier of `spinner1`, `scroll-area1` and `drawer1` could not be proven from public pages (the site states 559 of 564 components are free and 5 are pro, without naming them). They are recorded as free on that basis; the founder accepted the licence and public-repository consequences (CLAUDE.md, 16 Nov).
+- Closed 26 Nov 2026 (Kit leftovers, `docs/acceptance/kit-leftovers.md`): the kit's category Markdown pages list `spinner1`, `scroll-area1` and `drawer1` (and `toast1`) as Free. Original note: tier of `spinner1`, `scroll-area1` and `drawer1` could not be proven from public pages (the site states 559 of 564 components are free and 5 are pro, without naming them). They are recorded as free on that basis; the founder accepted the licence and public-repository consequences (CLAUDE.md, 16 Nov).
 - `kit-bottom-sheet-example.tsx` carries the standard provenance header (the provenance test requires it) although `drawer1` is reference-only; its record in `src/lib/ui-provenance.ts` and `docs/ui-sources.md` says no kit code was used.
 - Guards added in review: nested `action`/`cancel` labels and spreads in toast options are checked; `sonner` may be imported only by `src/lib/toast.ts` and `src/components/ui/sonner.tsx` (`checkSonnerBoundary`, wired into `scripts/check-source.ts`).

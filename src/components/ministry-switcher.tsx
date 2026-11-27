@@ -5,19 +5,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Building2, Check, ChevronsUpDown, Plus } from "lucide-react";
-import { ministryHref, ministryInitials, ministryMatches, shouldShowMinistrySearch, type SwitcherMinistry } from "@/lib/ministry-switcher";
+import { ministryHref, ministryInitials, ministryMatches, shouldShowMinistrySearch, switcherRoleKey, type SwitcherMinistry } from "@/lib/ministry-switcher";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 
 const itemClass = "min-h-11 lg:min-h-0 gap-3 py-2 lg:py-1.5";
-const roleKeys = ["owner", "admin", "member", "viewer"] as const;
-
 function useRoleDetail() {
   const t = useTranslations("ComponentsAppShell");
   return (item: SwitcherMinistry) => {
-    const role = (roleKeys as readonly string[]).includes(item.role) ? t(`roles.${item.role as typeof roleKeys[number]}`) : item.role;
+    const key = switcherRoleKey(item.role);
+    const role = key ? t(`roles.${key}`) : item.role;
     return item.memberCount === undefined ? role : t("roleAndMembers", { role, members: t("memberCount", { count: item.memberCount }) });
   };
 }

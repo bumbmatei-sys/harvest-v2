@@ -94,7 +94,10 @@ test("create an ad: nine steps in three groups, validation, live preview, draft 
   await expect(page.getByText("Draft saved").first()).toBeVisible();
   await page.reload();
   await expect(page.getByText("Your unfinished draft was restored.")).toBeVisible();
-  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Spring concert");
+  // The reload keeps the step in the address (?step=, shell slice S8), so the restored draft opens on the Ad step it was left on.
+  await expect(page).toHaveURL(/[?&]step=ad(&|$)/);
+  await expect(page.getByRole("heading", { name: "Spring concert", level: 1 })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Headline", exact: true })).toHaveValue("Spring concert");
   await expect(page.getByText("Draft saved").first()).toBeVisible();
 
   // Step 09: check with the network, then launch (created paused). Finished steps carry the green check.

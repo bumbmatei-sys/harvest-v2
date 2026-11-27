@@ -1,5 +1,5 @@
 import { GeistSans } from "geist/font/sans";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
 import "@fontsource/inter/latin-400.css";
@@ -17,6 +17,8 @@ import { RegisterServiceWorker } from "@/components/register-service-worker";
 import { Toaster } from "@/components/ui/sonner";
 import { themeStyles } from "@/lib/theme-registry";
 import "./globals.css";
+/** Edge to edge (founder, 26 Nov): pages draw under the notch and home bar; each shell, bar and sheet keeps its content clear with env(safe-area-inset-*). */
+export const viewport: Viewport = { viewportFit: "cover" };
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("Metadata");
   return { title: t("title"), description: t("description"), icons: { icon: "/icons/icon-192.png", apple: "/icons/icon-192.png" } };

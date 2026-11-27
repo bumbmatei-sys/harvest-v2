@@ -11,6 +11,8 @@ import { Stepper, type StepperStep } from "@/components/stepper";
 import { EditorStepBar } from "@/components/editor/editor-step-bar";
 import { useEditorContext } from "@/components/editor/editor-context";
 import { editorStepState, type EditorContextData } from "@/lib/editor-context";
+import { useStepParam } from "@/hooks/use-step-param";
+import { scrollToTop } from "@/components/wizard-layout";
 
 /** `attention` marks a step that needs the user's input (shown beside done and not started in the editing sidebar). */
 export type EditorStep = StepperStep & { attention?: boolean };
@@ -25,13 +27,22 @@ export type EditorSidebarInfo = Pick<EditorContextData, "typeLabel" | "status" |
  * via shared shadcn components. Without the shell's editing sidebar (flag off) the steps are the shared Stepper (`nav` layout): a scrollable bar on small
  * screens and the preview in a sheet. With `sidebar` and the shell hosting editors (shell slice 3a, behind HARVEST_SHELL_MODES) the steps move into the
  * shell's editing sidebar; below 1024px a "Step n of m" bar with an All steps sheet replaces them, and the in-page step list is not rendered.
- * Data, saving and permissions stay with the consumer.
+ * `?step=<id>` (shell slice S8) opens that step when it is known and not locked, and the address follows every step change; pass
+ * `stepParam={false}` for an editor whose steps must not be linkable. Data, saving and permissions stay with the consumer.
  */
-export function EditorShell({ breadcrumb, title, status, actions, steps, current, onStep, stepsLabel, preview, livePreview, previewLabel, sidebar, children }: {
+export function EditorShell({ breadcrumb, title, status, actions, steps, current, onStep, stepsLabel, preview, livePreview, previewLabel, sidebar, stepParam = true, children }: {
   breadcrumb?: React.ReactNode; title: string; status?: React.ReactNode; actions?: React.ReactNode;
   steps: readonly EditorStep[]; current: string; onStep: (id: string) => void; stepsLabel: string;
-  preview?: React.ReactNode; livePreview?: LivePreview; previewLabel: string; sidebar?: EditorSidebarInfo; children: React.ReactNode;
+  preview?: React.ReactNode; livePreview?: LivePreview; previewLabel: string; sidebar?: EditorSidebarInfo; stepParam?: boolean; children: React.ReactNode;
 }) {
+  const root = useRef<HTMLDivElement>(null);
+  // A step opened from the address gets focus on its heading (WizardLayout's), or on the editor title when the step has none.
+  const focusStep = useCallback(() => {
+    const target = root.current?.querySelector<HTMLElement>('[data-slot="wizard-heading"]') ?? root.current?.querySelector<HTMLElement>("[data-editor-heading]");
+    if (!target) return;
+    scrollToTop(target); target.focus({ preventScroll: true });
+  }, []);
+  useStepParam({ steps, current, onStep, focus: focusStep, enabled: stepParam });
   const data: EditorContextData | null = sidebar ? {
     title, typeLabel: sidebar.typeLabel, status: sidebar.status, back: sidebar.back, openPage: sidebar.openPage, dirty: sidebar.dirty, stepsLabel, current,
     steps: steps.map((step) => ({ id: step.id, label: step.label, state: editorStepState(step), badge: step.badge, ...(step.group ? { group: step.group } : {}) })),
@@ -46,12 +57,12 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
   const closeSheet = useCallback((then?: () => void) => { setAfter(then ? { run: then } : null); setSheetOpen(false); }, []);
   // The column replaces the sheet: a sheet left open while the viewport grows must not reopen when it shrinks again.
   if (column && sheetOpen) setSheetOpen(false);
-  if (hosted && data && livePreview) return <div className="min-w-0 space-y-6" data-editor-hosted data-editor-live-preview>
+  if (hosted && data && livePreview) return <div ref={root} className="min-w-0 space-y-6" data-editor-hosted data-editor-live-preview>
     <EditorStepBar context={data} onStep={onStep} onPreview={openSheet} />
     <header className="space-y-3">
       {breadcrumb}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3"><h1 className="truncate text-[28px] font-semibold tracking-tight">{title}</h1>{status}</div>
+        <div className="flex min-w-0 items-center gap-3"><h1 tabIndex={-1} data-editor-heading className="truncate text-[28px] font-semibold tracking-tight outline-none">{title}</h1>{status}</div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" className="min-h-11 max-lg:hidden xl:hidden" onClick={openSheet}><Eye aria-hidden="true" />{previewLabel}</Button>
           {actions}
@@ -63,7 +74,7 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
       {column && <aside aria-label={previewLabel} data-editor-preview className="min-w-0"><div className="sticky top-4">{livePreview("column", { close: closeSheet })}</div></aside>}
     </div>
     <Sheet open={sheetOpen && !column} onOpenChange={(open) => { if (open) openSheet(); else closeSheet(); }}>
-      <SheetContent showCloseButton={false} aria-describedby={undefined} className="h-dvh w-full gap-0 p-0 sm:max-w-full lg:max-w-md"
+      <SheetContent showCloseButton={false} aria-describedby={undefined} className="h-dvh w-full gap-0 p-0 pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] sm:max-w-full lg:max-w-md"
         onCloseAutoFocus={(event) => { event.preventDefault(); if (after) { const { run } = after; setAfter(null); run(); } else opener.current?.focus(); }}>
         <SheetHeader className="flex-row items-center justify-between gap-2 border-b py-2 pr-2">
           <SheetTitle>{t("previewDraft")}</SheetTitle>
@@ -73,11 +84,11 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
       </SheetContent>
     </Sheet>
   </div>;
-  if (hosted && data) return <div className="min-w-0 space-y-6" data-editor-hosted>
+  if (hosted && data) return <div ref={root} className="min-w-0 space-y-6" data-editor-hosted>
     <header className="space-y-3">
       {breadcrumb}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3"><h1 className="truncate text-[28px] font-semibold tracking-tight">{title}</h1>{status}</div>
+        <div className="flex min-w-0 items-center gap-3"><h1 tabIndex={-1} data-editor-heading className="truncate text-[28px] font-semibold tracking-tight outline-none">{title}</h1>{status}</div>
         <div className="flex flex-wrap items-center gap-2">
           {preview && <Sheet><SheetTrigger asChild><Button variant="outline" className="min-h-11 xl:hidden"><Eye aria-hidden="true" />{previewLabel}</Button></SheetTrigger>
             <SheetContent className="w-full overflow-y-auto sm:max-w-md"><SheetHeader><SheetTitle>{previewLabel}</SheetTitle></SheetHeader><div className="p-4">{preview}</div></SheetContent></Sheet>}
@@ -94,11 +105,11 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground" data-editor-preview-label>{previewLabel}</p>{preview}</div></aside>}
     </div>
   </div>;
-  return <div className="min-w-0 space-y-6">
+  return <div ref={root} className="min-w-0 space-y-6">
     <header className="space-y-3">
       {breadcrumb}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3"><h1 className="truncate text-[28px] font-semibold tracking-tight">{title}</h1>{status}</div>
+        <div className="flex min-w-0 items-center gap-3"><h1 tabIndex={-1} data-editor-heading className="truncate text-[28px] font-semibold tracking-tight outline-none">{title}</h1>{status}</div>
         <div className="flex flex-wrap items-center gap-2">
           {preview && <Sheet><SheetTrigger asChild><Button variant="outline" className="min-h-11 xl:hidden"><Eye aria-hidden="true" />{previewLabel}</Button></SheetTrigger>
             <SheetContent className="w-full overflow-y-auto sm:max-w-md"><SheetHeader><SheetTitle>{previewLabel}</SheetTitle></SheetHeader><div className="p-4">{preview}</div></SheetContent></Sheet>}

@@ -251,7 +251,7 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
   const channelName = confirm && channels.find(item => item.id === confirm.id)?.name;
   const newButton = manage && <Button variant="outline" size="icon" className="size-11 shrink-0 rounded-full" disabled={manage.busy || !manage.canCreate} onClick={manage.onNew} aria-label={t("newChannel")}><Plus aria-hidden="true" /></Button>;
   // On phones the community header and bottom bar are hidden (CommunityShell chatView), so the chat fills the screen.
-  return <div className="flex h-dvh min-h-64 min-w-0 overflow-hidden bg-background pt-[env(safe-area-inset-top)] md:h-[calc(100dvh-3.5rem)] md:pt-0">
+  return <div className="flex h-[calc(100dvh-env(safe-area-inset-top))] min-h-64 min-w-0 overflow-hidden bg-background md:h-[calc(100dvh-3.5rem-env(safe-area-inset-top))]">
     <section className={cn("min-h-0 w-full min-w-0 flex-col border-r lg:flex lg:w-96 lg:shrink-0", showMobileThread && channel ? "hidden" : "flex md:hidden")}>
       <div className="flex min-h-16 shrink-0 items-center gap-2 px-4">
         <Button asChild variant="ghost" size="icon" className="-ms-2 size-11 md:hidden"><Link href={`/communities/${slug}`} prefetch={false} aria-label={t("backToCommunity")}><ArrowLeft aria-hidden="true" /></Link></Button>
