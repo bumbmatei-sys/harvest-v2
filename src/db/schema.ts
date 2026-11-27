@@ -32,6 +32,12 @@ export const userProfiles = pgTable("user_profiles", {
   onboardingSkippedAt: timestamp("onboarding_skipped_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [check("user_profile_city_region", sql`${t.cityRegion} is null or length(${t.cityRegion}) between 1 and 200`)]);
+// "Your data" (27 Nov): one row per self-serve export, for the rolling rate limit. Written only by public.account_export (0134); the app role has no grant.
+export const accountExportRequests = pgTable("account_export_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("account_export_requests_user_idx").on(t.userId, t.requestedAt)]);
 export const sessions = pgTable("sessions", {
   id: text("id").primaryKey(), token: text("token").notNull().unique(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),

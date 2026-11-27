@@ -787,7 +787,8 @@
     "newsletterImageUnavailable": "An image in this email is not available. Choose it again.",
     "newsletterImageSuggestionUnavailable": "A thumbnail suggestion is not available.",
     "waysToGiveLimit": "This ministry already has the most ways to give allowed.",
-    "campaignNotFound": "Campaign not found"
+    "campaignNotFound": "Campaign not found",
+    "dataExportLimited": "You can download your data 3 times an hour. Try again later."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
@@ -10619,5 +10620,15 @@
     "unavailable": "Course no longer available",
     "open": "Open lesson",
     "updated": "Updated {date, date, medium}"
+  },
+  "YourData": {
+    "title": "Your data",
+    "downloadHelp": "A JSON file of your profile, memberships, posts, messages, courses and files. File links in it expire after an hour.",
+    "download": "Download my data",
+    "preparing": "Preparing…",
+    "downloaded": "Your data was downloaded.",
+    "downloadFailed": "Could not prepare your data. Try again.",
+    "limited": "You can download your data 3 times an hour. Try again later.",
+    "newslettersNote": "Newsletter subscriptions belong to each ministry's contact list and are not linked to your account. Use the unsubscribe link in any email, or ask the ministry."
   }
 }
