@@ -17,6 +17,7 @@ import { createNewsletterSignupFormDraft } from "../../src/server/newsletter-for
 import { getCrmForm } from "../../src/server/crm-forms";
 import { transitionCrmForm } from "../../src/server/crm-form-publication";
 import { withTenant } from "../../src/server/tenancy";
+import { changeMemberAccess } from "../../src/server/access";
 import { signClickToken, verifyClickToken } from "../../src/lib/newsletter-click-token";
 import { testDatabase } from "../database";
 import { seedCampaign } from "../helpers/newsletter-analytics-seed";
@@ -270,6 +271,16 @@ it("reports totals, the UTC day and top links only, withholding small groups, fo
     tx.execute(sql`select public.newsletter_click_report(${people.tenant}::uuid,null,${range.from}::date,${range.until}::date)`))).rejects.toHaveProperty("cause.code", "42501");
   await expect(withTenant(fixture.db, people.owner, people.tenant, "newsletter:analytics", (tx) =>
     tx.execute(sql`select public.newsletter_click_report(${people.other}::uuid,null,${range.from}::date,${range.until}::date)`))).rejects.toHaveProperty("cause.code", "42501");
+  await changeMemberAccess(fixture.db, people.owner, people.tenant, { userId: people.viewer, role: "collaborator", grants: { newsletter: "manage" } });
+  try {
+    await expect(newsletterAnalyticsOverview(fixture.db, people.viewer, people.tenant, 30)).rejects.toMatchObject({ status: 404 });
+    await expect(newsletterCampaignAnalytics(fixture.db, people.viewer, people.tenant, campaignId)).rejects.toMatchObject({ status: 404 });
+    await expect(withTenant(fixture.db, people.viewer, people.tenant, "newsletter:analytics", (tx) =>
+      tx.execute(sql`select public.newsletter_click_report(${people.tenant}::uuid,${campaignId}::uuid,${range.from}::date,${range.until}::date)`)))
+      .rejects.toHaveProperty("cause.code", "42501");
+  } finally {
+    await changeMemberAccess(fixture.db, people.owner, people.tenant, { userId: people.viewer, role: "viewer" });
+  }
   // The other ministry sees none of it.
   const elsewhere = await newsletterAnalyticsOverview(fixture.db, people.outsider, people.other, 30);
   expect(elsewhere.clicks).toMatchObject({ counting: false, total: 0 });

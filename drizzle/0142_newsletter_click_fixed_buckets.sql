@@ -8,7 +8,7 @@ BEGIN
   PERFORM pg_catalog.set_config('app.nl_send_tenant','',true);
   IF p_tenant IS DISTINCT FROM nullif(pg_catalog.current_setting('app.tenant_id',true),'')::uuid OR NOT EXISTS (
     SELECT FROM public.workspace_members m WHERE m.tenant_id=p_tenant AND m.user_id=nullif(pg_catalog.current_setting('app.user_id',true),'')
-      AND public.newsletter_capability(public.access_role(m.tenant_id,m.user_id,'newsletter',m.role_id),'newsletter:analytics')) THEN
+      AND public.newsletter_capability(public.access_role(m.tenant_id,m.user_id,'owner_admin',m.role_id),'newsletter:analytics')) THEN
     RAISE insufficient_privilege;
   END IF;
   IF p_until IS NULL OR p_from IS NULL OR p_until-p_from NOT BETWEEN 1 AND 90 THEN RAISE invalid_parameter_value; END IF;
