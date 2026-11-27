@@ -13,6 +13,13 @@ test("ads overview: stat cards, chart, needs attention, account health, and flag
   await page.setViewportSize({ width: 1280, height: 900 });
   const tenant = await workspace(page);
   await adsSynced(page, tenant);
+  // The in-memory test provider is shared with ads-manager.spec in the same run, which can leave this campaign paused; start from it delivering.
+  const easter = page.getByRole("switch", { name: "Deliver Easter service invitation" });
+  if (!(await easter.isChecked())) {
+    await easter.click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Turn on" }).click();
+    await expect(easter).toBeChecked();
+  }
 
   // The manager links to the overview; the sidebar keeps Ads active on every Ads page.
   await page.getByRole("link", { name: "Overview", exact: true }).click();
