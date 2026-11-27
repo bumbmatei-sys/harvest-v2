@@ -2475,9 +2475,9 @@ export const catalogItems = pgTable("catalog_items", {
 }, (t) => [
   primaryKey({ columns: [t.tenantId, t.id] }), unique().on(t.tenantId, t.id, t.kind),
   check("catalog_item_labels", sql`(${t.kind} = 'course' or (${t.levelLabel} is null and ${t.sectionLabel} is null and ${t.lessonLabel} is null))
-    and (${t.levelLabel} is null or length(trim(${t.levelLabel})) between 1 and 24)
-    and (${t.sectionLabel} is null or length(trim(${t.sectionLabel})) between 1 and 24)
-    and (${t.lessonLabel} is null or length(trim(${t.lessonLabel})) between 1 and 24)`),
+    and (${t.levelLabel} is null or (length(trim(${t.levelLabel})) between 1 and 24 and ${t.levelLabel} = btrim(${t.levelLabel}) and ${t.levelLabel} !~ '[[:cntrl:]]'))
+    and (${t.sectionLabel} is null or (length(trim(${t.sectionLabel})) between 1 and 24 and ${t.sectionLabel} = btrim(${t.sectionLabel}) and ${t.sectionLabel} !~ '[[:cntrl:]]'))
+    and (${t.lessonLabel} is null or (length(trim(${t.lessonLabel})) between 1 and 24 and ${t.lessonLabel} = btrim(${t.lessonLabel}) and ${t.lessonLabel} !~ '[[:cntrl:]]'))`),
   check("catalog_item_kind", sql`${t.kind} in ('course','download')`),
   check("catalog_item_state", sql`${t.state} in ('draft','published','archived')`),
   check("catalog_item_visibility", sql`${t.visibility} in ('hidden','unlisted','listed')`),

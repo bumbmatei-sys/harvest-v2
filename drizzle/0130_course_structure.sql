@@ -70,9 +70,9 @@ ALTER TABLE "catalog_sections" ADD CONSTRAINT "catalog_sections_tenant_id_item_i
 ALTER TABLE "catalog_sections" ADD CONSTRAINT "catalog_sections_tenant_id_item_id_level_id_catalog_levels_tenant_id_item_id_id_fk" FOREIGN KEY ("tenant_id","item_id","level_id") REFERENCES "public"."catalog_levels"("tenant_id","item_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "catalog_lessons" ADD CONSTRAINT "catalog_lessons_tenant_id_item_id_section_id_catalog_sections_tenant_id_item_id_id_fk" FOREIGN KEY ("tenant_id","item_id","section_id") REFERENCES "public"."catalog_sections"("tenant_id","item_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "catalog_items" ADD CONSTRAINT "catalog_item_labels" CHECK (("catalog_items"."kind" = 'course' or ("catalog_items"."level_label" is null and "catalog_items"."section_label" is null and "catalog_items"."lesson_label" is null))
-    and ("catalog_items"."level_label" is null or length(trim("catalog_items"."level_label")) between 1 and 24)
-    and ("catalog_items"."section_label" is null or length(trim("catalog_items"."section_label")) between 1 and 24)
-    and ("catalog_items"."lesson_label" is null or length(trim("catalog_items"."lesson_label")) between 1 and 24));--> statement-breakpoint
+    and ("catalog_items"."level_label" is null or (length(trim("catalog_items"."level_label")) between 1 and 24 and "catalog_items"."level_label" = btrim("catalog_items"."level_label") and "catalog_items"."level_label" !~ '[[:cntrl:]]'))
+    and ("catalog_items"."section_label" is null or (length(trim("catalog_items"."section_label")) between 1 and 24 and "catalog_items"."section_label" = btrim("catalog_items"."section_label") and "catalog_items"."section_label" !~ '[[:cntrl:]]'))
+    and ("catalog_items"."lesson_label" is null or (length(trim("catalog_items"."lesson_label")) between 1 and 24 and "catalog_items"."lesson_label" = btrim("catalog_items"."lesson_label") and "catalog_items"."lesson_label" !~ '[[:cntrl:]]')));--> statement-breakpoint
 ALTER TABLE "catalog_lessons" ADD CONSTRAINT "catalog_lesson_video" CHECK (("catalog_lessons"."video_provider" is null and "catalog_lessons"."video_id" is null)
     or ("catalog_lessons"."video_provider" = 'youtube' and "catalog_lessons"."video_id" is not null and "catalog_lessons"."video_id" ~ '^[A-Za-z0-9_-]{11}$')
     or ("catalog_lessons"."video_provider" = 'vk' and "catalog_lessons"."video_id" is not null and "catalog_lessons"."video_id" ~ '^-?[0-9]{1,19}_[0-9]{1,19}(_[A-Za-z0-9]{1,32})?$'));

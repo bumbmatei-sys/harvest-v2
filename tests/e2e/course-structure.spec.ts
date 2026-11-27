@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { expect as baseExpect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
@@ -151,7 +151,8 @@ test("owner names and builds levels and sections with a video lesson; the learne
   await expect.poll(() => requests.length).toBeGreaterThan(0);
   expect(requests.every((url) => new URL(url).hostname === "www.youtube-nocookie.com")).toBe(true);
   await learner.screenshot({ path: `${shots}/learner-playing-1280-light.png` });
-  // A dev-server chunk error ("__webpack_modules__[moduleId] is not a function", then "destination stream errored") on a loaded machine can cut one
-  // streamed AppShell response, which React reports as a hydration mismatch in the shell. That is the dev server, not this page; anything else fails.
-  expect(errors.filter((message) => !message.startsWith("Hydration failed because the server rendered HTML didn't match the client"))).toEqual([]);
+  // A hydration mismatch is ignored only when the dev server also reported a chunk failure in this run ("__webpack_modules__[moduleId] is not a
+  // function" or "destination stream errored", noted by scripts/e2e-server.ts): that cut stream, not this page, is then the cause. Anything else fails.
+  const devChunkFailure = (await readFile(`${process.env.HARVEST_E2E_MAILBOX}.dev-errors`, "utf8").catch(() => "")).trim() !== "";
+  expect(errors.filter((message) => !(devChunkFailure && message.startsWith("Hydration failed because the server rendered HTML didn't match the client")))).toEqual([]);
 });

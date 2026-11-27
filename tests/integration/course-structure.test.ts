@@ -131,6 +131,11 @@ it("rejects bad links, labels, foreign ids, mixed shapes and limits, and the dat
   await expect(f.admin.query("update catalog_lessons set section_id=$1 where item_id=$2 and id=$3", [otherCourse.sections[0].id, id, row.id])).rejects.toMatchObject({ code: "23503" });
   await expect(f.admin.query("update catalog_sections set level_id=$1 where item_id=$2 and id=$3", [otherCourse.levels[0].id, id, section.id])).rejects.toMatchObject({ code: "23503" });
   await expect(f.admin.query("update catalog_items set level_label=$1 where id=$2", ["x".repeat(25), id])).rejects.toMatchObject({ code: "23514" });
+  for (const label of [" Week", "Week ", "\tWeek"])
+    await expect(f.admin.query("update catalog_items set section_label=$1 where id=$2", [label, id])).rejects.toMatchObject({ code: "23514" });
+  // The API trims what it stores.
+  await updateCatalogItem(f.db, owner, tenant, id, { version: 1, draft: { ...draft, labels: { level: "  Module  ", section: " Week", lesson: null } } });
+  expect((await f.admin.query("select level_label, section_label from catalog_items where id=$1", [id])).rows).toEqual([{ level_label: "Module", section_label: "Week" }]);
   await expect(f.admin.query("update catalog_lessons set section_id=null where item_id=$1", [id])).rejects.toMatchObject({ code: "23502" });
 });
 
