@@ -73,6 +73,11 @@ test("write, schedule, publish and read an article publicly", async ({ page }) =
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Saved.").first()).toBeVisible();
   await expect(page.locator("[data-blog-body]")).toBeVisible();
+  // The title, status and Publish now sit in the app header; the composer holds only the title, the cover action, the toolbar and the text.
+  await expect(page.locator("[data-shell-header-trail]")).toContainText("Advent hope for every home");
+  await expect(page.locator("[data-shell-header-trail]").getByRole("button", { name: "Publish now" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add cover" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add picture" })).toBeVisible();
   await audit(page, "editor-write", "[data-blog-body] .docs-prose");
 
   // Settings and SEO: the address came from the title; excerpt and SEO fields feed the search preview.
