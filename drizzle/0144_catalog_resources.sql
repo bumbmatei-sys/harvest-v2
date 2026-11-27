@@ -241,3 +241,18 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.catalog_assets(text,text,uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.catalog_assets(text,text,uuid,uuid) TO harvest_app;
+--> statement-breakpoint
+-- Link in bio catalogue blocks (0140) resolved any non-hidden item. With 'community' (members only) added above, a public bio page must show only
+-- items visible to everyone: listed, unlisted (reachable by link) and public. Patched in place so later changes to the function are kept.
+DO $$
+DECLARE def text; patched text;
+  old text := $o$c.state = 'published' AND c.visibility <> 'hidden'$o$;
+  new text := $n$c.state = 'published' AND c.visibility IN ('listed','unlisted','public')$n$;
+BEGIN
+  def := pg_catalog.pg_get_functiondef('public.bio_public_page_scoped(text)'::regprocedure);
+  patched := pg_catalog.replace(def, old, new);
+  IF pg_catalog.length(patched) - pg_catalog.length(def) <> pg_catalog.length(new) - pg_catalog.length(old) THEN
+    RAISE EXCEPTION 'bio_public_page_scoped: expected exactly one catalogue visibility filter to replace';
+  END IF;
+  EXECUTE patched;
+END $$;

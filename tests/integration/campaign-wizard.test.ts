@@ -33,6 +33,7 @@ async function invite(user: string, draftId: string, input: unknown, tenant = te
 const status = async (promise: Promise<unknown>) => promise.then(() => 200, (error: { status?: number; name?: string }) => error.status ?? (error.name === "ZodError" ? 400 : 500));
 
 beforeAll(async () => {
+  vi.stubEnv("BETTER_AUTH_URL", "https://app.example.invalid");
   fixture = await testDatabase();
   await fixture.db.insert(users).values(["owner-a", "owner-b", "member-a", "member-a2", "admin-a", "viewer-a", "outsider", "temp-a"].map((id) => ({ id, name: id, email: `${id}@example.test` })));
   tenantA = (await createWorkspace(fixture.db, "owner-a", "Wizard A")).tenantId;

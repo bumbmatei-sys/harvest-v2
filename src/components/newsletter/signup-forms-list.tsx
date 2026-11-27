@@ -26,7 +26,7 @@ export type ListChoice = { id: string; name: string; audience: string };
 const tones: Record<SignupFormSummary["status"], StatusTone> = { draft: "neutral", published: "success", unpublished: "warning" };
 
 /** The Sign-up forms list. A new form starts from the newsletter preset of the shared forms builder; everything else about editing happens there. */
-export function SignupFormsList({ tenantId, forms, lists, hostedAvailable }: { tenantId: string; forms: SignupFormSummary[]; lists: ListChoice[]; hostedAvailable: boolean }) {
+export function SignupFormsList({ origin, tenantId, forms, lists, hostedAvailable }: { origin: string; tenantId: string; forms: SignupFormSummary[]; lists: ListChoice[]; hostedAvailable: boolean }) {
   const t = useTranslations("NewsletterForms"), format = useFormatter(), router = useRouter(), request = useRequest();
   const [query, setQuery] = useState(""), [error, setError] = useState(""), [creating, setCreating] = useState(false), [picked, setPicked] = useState<string[]>([]), [busy, setBusy] = useState(false);
   const [archiving, setArchiving] = useState<SignupFormSummary | null>(null);
@@ -59,7 +59,7 @@ export function SignupFormsList({ tenantId, forms, lists, hostedAvailable }: { t
   }
   async function copyLink(form: SignupFormSummary) {
     if (!form.slug) return;
-    const result = await copyText(`${location.origin}${signupPath(form.slug)}`);
+    const result = await copyText(`${origin}${signupPath(form.slug)}`);
     if (result === "copied") notify.success(t("list.linkCopied")); else notify.error(t("list.copyFailed"));
   }
 

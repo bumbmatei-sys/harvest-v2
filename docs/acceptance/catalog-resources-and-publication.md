@@ -1,6 +1,6 @@
 # Course resources and catalogue publication
 
-Working migration `0151_catalog_resources`. The existing non-production catalogue gate applies to all routes below.
+Migration `0144_catalog_resources`. The existing non-production catalogue gate applies to all routes below.
 
 | Route | Contract |
 | --- | --- |
@@ -19,3 +19,6 @@ A draft is available to ministry catalogue editors. An unlisted item is availabl
 Local tests cover two ministries, direct RLS, all visibility states, course and product covers, attachment entitlement, grant expiry and recipient checks, and paged catalogue and author queries. Hosted Neon, real DNS and the real email provider remain unverified. HC-02 activation gates remain **UNAPPROVED**.
 
 Owners and full admins can turn Discover opt-in on or off for courses and products. Harvest staff review is still required before listing. Node and Workers both sign attachment links with the file grant secret.
+
+## Link in bio catalogue blocks (merge with 0140)
+The migration also patches `bio_public_page_scoped` in place: a catalogue block shows only items whose visibility is listed, unlisted or public, so members-only (`community`) items never appear on a public bio page. Test: link-in-bio integration.

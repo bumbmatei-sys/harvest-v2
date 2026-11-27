@@ -1,6 +1,6 @@
 {
-  "id": "aa523966-6139-46fa-9454-3750ffdda58e",
-  "prevId": "3b468b07-3629-4465-9e32-5ed3870f10f3",
+  "id": "4441d37a-dd62-4e6b-b0ec-ea56d01ec586",
+  "prevId": "e9b98093-e068-417d-a9ce-30ad795fd3d2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3948,7 +3948,7 @@
       "checkConstraints": {
         "bio_file_kind": {
           "name": "bio_file_kind",
-          "value": "\"bio_files\".\"kind\" in ('photo','cover')"
+          "value": "\"bio_files\".\"kind\" in ('photo','cover','gallery')"
         },
         "bio_file_mime": {
           "name": "bio_file_mime",
@@ -8743,38 +8743,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.catalog_asset_grants": {
-      "name": "catalog_asset_grants",
-      "schema": "",
-      "columns": {
-        "token": {
-          "name": "token",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "issued_at": {
-          "name": "issued_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.catalog_enrolments": {
       "name": "catalog_enrolments",
       "schema": "",
@@ -9012,19 +8980,6 @@
           "notNull": true,
           "default": "'hidden'"
         },
-        "cover_file_id": {
-          "name": "cover_file_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "price_label": {
-          "name": "price_label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'Free'"
-        },
         "version": {
           "name": "version",
           "type": "integer",
@@ -9091,21 +9046,6 @@
           ],
           "onDelete": "set null",
           "onUpdate": "no action"
-        },
-        "catalog_items_tenant_id_cover_file_id_files_tenant_id_id_fk": {
-          "name": "catalog_items_tenant_id_cover_file_id_files_tenant_id_id_fk",
-          "tableFrom": "catalog_items",
-          "tableTo": "files",
-          "columnsFrom": [
-            "tenant_id",
-            "cover_file_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -9141,10 +9081,6 @@
           "name": "catalog_item_labels",
           "value": "(\"catalog_items\".\"kind\" = 'course' or (\"catalog_items\".\"level_label\" is null and \"catalog_items\".\"section_label\" is null and \"catalog_items\".\"lesson_label\" is null))\n    and (\"catalog_items\".\"level_label\" is null or (length(trim(\"catalog_items\".\"level_label\")) between 1 and 24 and \"catalog_items\".\"level_label\" = btrim(\"catalog_items\".\"level_label\") and \"catalog_items\".\"level_label\" !~ '[[:cntrl:]]'))\n    and (\"catalog_items\".\"section_label\" is null or (length(trim(\"catalog_items\".\"section_label\")) between 1 and 24 and \"catalog_items\".\"section_label\" = btrim(\"catalog_items\".\"section_label\") and \"catalog_items\".\"section_label\" !~ '[[:cntrl:]]'))\n    and (\"catalog_items\".\"lesson_label\" is null or (length(trim(\"catalog_items\".\"lesson_label\")) between 1 and 24 and \"catalog_items\".\"lesson_label\" = btrim(\"catalog_items\".\"lesson_label\") and \"catalog_items\".\"lesson_label\" !~ '[[:cntrl:]]'))"
         },
-        "catalog_item_free_price": {
-          "name": "catalog_item_free_price",
-          "value": "\"catalog_items\".\"price_label\" = 'Free'"
-        },
         "catalog_item_kind": {
           "name": "catalog_item_kind",
           "value": "\"catalog_items\".\"kind\" in ('course','download')"
@@ -9155,7 +9091,7 @@
         },
         "catalog_item_visibility": {
           "name": "catalog_item_visibility",
-          "value": "\"catalog_items\".\"visibility\" in ('hidden','unlisted','listed','community','public')"
+          "value": "\"catalog_items\".\"visibility\" in ('hidden','unlisted','listed')"
         },
         "catalog_item_slug": {
           "name": "catalog_item_slug",
@@ -9172,108 +9108,6 @@
         "catalog_item_version": {
           "name": "catalog_item_version",
           "value": "\"catalog_items\".\"version\" > 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.catalog_lesson_attachments": {
-      "name": "catalog_lesson_attachments",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "item_id": {
-          "name": "item_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "lesson_id": {
-          "name": "lesson_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "file_id": {
-          "name": "file_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "position": {
-          "name": "position",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "catalog_lesson_attachments_tenant_id_item_id_lesson_id_catalog_lessons_tenant_id_item_id_id_fk": {
-          "name": "catalog_lesson_attachments_tenant_id_item_id_lesson_id_catalog_lessons_tenant_id_item_id_id_fk",
-          "tableFrom": "catalog_lesson_attachments",
-          "tableTo": "catalog_lessons",
-          "columnsFrom": [
-            "tenant_id",
-            "item_id",
-            "lesson_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "item_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "catalog_lesson_attachments_tenant_id_file_id_files_tenant_id_id_fk": {
-          "name": "catalog_lesson_attachments_tenant_id_file_id_files_tenant_id_id_fk",
-          "tableFrom": "catalog_lesson_attachments",
-          "tableTo": "files",
-          "columnsFrom": [
-            "tenant_id",
-            "file_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "catalog_lesson_attachments_tenant_id_item_id_lesson_id_file_id_pk": {
-          "name": "catalog_lesson_attachments_tenant_id_item_id_lesson_id_file_id_pk",
-          "columns": [
-            "tenant_id",
-            "item_id",
-            "lesson_id",
-            "file_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "catalog_lesson_attachments_tenant_id_item_id_lesson_id_position_unique": {
-          "name": "catalog_lesson_attachments_tenant_id_item_id_lesson_id_position_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "item_id",
-            "lesson_id",
-            "position"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "catalog_lesson_attachment_position": {
-          "name": "catalog_lesson_attachment_position",
-          "value": "\"catalog_lesson_attachments\".\"position\" between 0 and 19"
         }
       },
       "isRLSEnabled": false
@@ -21139,7 +20973,13 @@
           "name": "task_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "ownership_offer_id": {
+          "name": "ownership_offer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "due_at": {
           "name": "due_at",
@@ -21276,6 +21116,19 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "crm_notifications_ownership_offer_id_workspace_ownership_offers_id_fk": {
+          "name": "crm_notifications_ownership_offer_id_workspace_ownership_offers_id_fk",
+          "tableFrom": "crm_notifications",
+          "tableTo": "workspace_ownership_offers",
+          "columnsFrom": [
+            "ownership_offer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "crm_notifications_tenant_id_task_id_crm_tasks_tenant_id_id_fk": {
           "name": "crm_notifications_tenant_id_task_id_crm_tasks_tenant_id_id_fk",
           "tableFrom": "crm_notifications",
@@ -21304,13 +21157,17 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "crm_notification_target": {
+          "name": "crm_notification_target",
+          "value": "num_nonnulls(\"crm_notifications\".\"task_id\", \"crm_notifications\".\"ownership_offer_id\") = 1 and (\"crm_notifications\".\"kind\" = 'ownership_transfer') = (\"crm_notifications\".\"ownership_offer_id\" is not null)"
+        },
         "crm_notification_kind": {
           "name": "crm_notification_kind",
-          "value": "\"crm_notifications\".\"kind\" in ('task_assigned', 'task_due', 'task_overdue')"
+          "value": "\"crm_notifications\".\"kind\" in ('task_assigned', 'task_due', 'task_overdue', 'ownership_transfer')"
         },
         "crm_notification_due_at": {
           "name": "crm_notification_due_at",
-          "value": "(\"crm_notifications\".\"kind\" = 'task_assigned') = (\"crm_notifications\".\"due_at\" is null)"
+          "value": "(\"crm_notifications\".\"kind\" in ('task_assigned', 'ownership_transfer')) = (\"crm_notifications\".\"due_at\" is null)"
         }
       },
       "isRLSEnabled": false
@@ -40075,6 +39932,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "revision": {
+          "name": "revision",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
         "can_manage_admins": {
           "name": "can_manage_admins",
           "type": "boolean",
@@ -40169,6 +40033,180 @@
         "workspace_member_admins_flag": {
           "name": "workspace_member_admins_flag",
           "value": "\"workspace_members\".\"can_manage_admins\" = false or \"workspace_members\".\"role_id\" = 'admin'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.workspace_ownership_grants": {
+      "name": "workspace_ownership_grants",
+      "schema": "",
+      "columns": {
+        "token": {
+          "name": "token",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_id": {
+          "name": "actor_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issued_at": {
+          "name": "issued_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workspace_ownership_offers": {
+      "name": "workspace_ownership_offers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_user_id": {
+          "name": "from_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "to_user_id": {
+          "name": "to_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_revision": {
+          "name": "from_revision",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "to_revision": {
+          "name": "to_revision",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "workspace_ownership_one_offer": {
+          "name": "workspace_ownership_one_offer",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"workspace_ownership_offers\".\"status\" = 'pending'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workspace_ownership_offers_tenant_id_workspaces_tenant_id_fk": {
+          "name": "workspace_ownership_offers_tenant_id_workspaces_tenant_id_fk",
+          "tableFrom": "workspace_ownership_offers",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "workspace_ownership_offers_from_user_id_users_id_fk": {
+          "name": "workspace_ownership_offers_from_user_id_users_id_fk",
+          "tableFrom": "workspace_ownership_offers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "from_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "workspace_ownership_offers_to_user_id_users_id_fk": {
+          "name": "workspace_ownership_offers_to_user_id_users_id_fk",
+          "tableFrom": "workspace_ownership_offers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "to_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workspace_ownership_distinct_members": {
+          "name": "workspace_ownership_distinct_members",
+          "value": "\"workspace_ownership_offers\".\"from_user_id\" <> \"workspace_ownership_offers\".\"to_user_id\""
+        },
+        "workspace_ownership_offer_status": {
+          "name": "workspace_ownership_offer_status",
+          "value": "\"workspace_ownership_offers\".\"status\" in ('pending','accepted','cancelled','declined','expired','membership_changed')"
         }
       },
       "isRLSEnabled": false
