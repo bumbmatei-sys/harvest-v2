@@ -220,3 +220,44 @@ test("forum: categories, a full post, likes and replies, edits, pinning and remo
   } finally { await author.context.close(); await reader.context.close(); }
   expect(errors).toEqual([]);
 });
+
+// C23 follow-up F2: the About page passes axe at desktop and phone width, light and dark, and every visible action is a 44px target on phone.
+test("about: axe at 1280 and 360, light and dark, 44px actions", async ({ page }) => {
+  test.setTimeout(240000);
+  await mkdir(evidence, { recursive: true });
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await signIn(page);
+  const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Grace Community Church", audience: "church" } })).json()).tenantId as string;
+  const slug = `about-${Date.now().toString(36)}`;
+  const community = (await (await page.request.post(`/api/workspaces/${tenant}/communities`, { headers: { origin }, data: { name: "Bible Study", slug } })).json()) as { id: string };
+  let current = (await (await page.request.get(`/api/workspaces/${tenant}/communities/${community.id}`)).json()) as { version: number };
+  current = await (await page.request.patch(`/api/workspaces/${tenant}/communities/${community.id}`, { headers: { origin },
+    data: { version: current.version, visibility: "listed", allowOpen: true, description: "We read through Romans together.\nEveryone is welcome.", rulesList: ["Be kind", "Stay on topic"] } })).json();
+  expect((await page.request.post(`/api/workspaces/${tenant}/communities/${community.id}/publish`, { headers: { origin }, data: { version: current.version, published: true } })).ok()).toBe(true);
+
+  await page.goto(`/communities/${slug}/about`);
+  await expect(page.getByRole("heading", { name: "About", level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Rules", level: 3 })).toBeVisible();
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    for (const [label, width, height] of [["desktop", 1280, 900], ["phone", 360, 800]] as const) {
+      await page.setViewportSize({ width, height });
+      await page.reload();
+      await expect(page.getByRole("heading", { name: "About", level: 2 })).toBeVisible();
+      await settleForAxe(page);
+      expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      if (label === "phone") {
+        const targets = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("a[href], button, [role=button], [role=link], [role=tab], input, select, textarea")]
+          .filter((el) => { const r = el.getBoundingClientRect(), s = getComputedStyle(el); return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && r.bottom > 0 && r.top < innerHeight * 4; })
+          .map((el) => { const r = el.getBoundingClientRect(); return { name: el.getAttribute("aria-label") ?? el.textContent?.trim() ?? el.tagName, width: Math.round(r.width), height: Math.round(r.height) }; }));
+        // The shell's menu, bell and bottom bar are on the page, so there is always something to measure.
+        expect(targets.length).toBeGreaterThan(3);
+        expect(targets.filter((t) => t.width < 44 || t.height < 44)).toEqual([]);
+      }
+      await page.screenshot({ path: `${evidence}/about-${label}-${scheme}.png`, fullPage: true });
+    }
+  }
+  expect(errors).toEqual([]);
+});

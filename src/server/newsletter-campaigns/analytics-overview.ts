@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Database } from "../../db/client";
 import type { Transaction } from "../../db/client";
 import { newsletterCampaigns, newsletterSettings } from "../../db/schema";
-import { eachDay, hideSmall, periodRange, type AnalyticsOverview, type AnalyticsPeriod, type CampaignAnalytics, type CampaignFigures, type ClickFigures, type Counts } from "../../lib/newsletter-analytics";
+import { audienceGrowth, eachDay, hideSmall, periodRange, type SnapshotRow, type AnalyticsOverview, type AnalyticsPeriod, type CampaignAnalytics, type CampaignFigures, type ClickFigures, type Counts } from "../../lib/newsletter-analytics";
 import { audienceOverview } from "../newsletter-audience";
 import { id as idOf, unavailable, withNewsletter } from "./access";
 import { analyticsIn } from "./analytics";
@@ -54,7 +54,9 @@ export async function newsletterAnalyticsOverview(db: Database, actor: string, w
       if (own.days.length || clicks.campaigns.has(campaign.id)) rows.push({ id: campaign.id, name: campaign.name, state: campaign.state, counts: own.days.length ? counts(own.totals) : { sent: 0, delivered: 0, bounced: 0, complained: 0, unsubscribed: 0 },
         clicks: clicks.campaigns.has(campaign.id) ? clicks.campaigns.get(campaign.id)! : 0 });
     }
-    return { overall, rows, clicks, truncated: candidates.length > maxCampaigns };
+    const snapshots = await tx.execute<SnapshotRow>(sql`
+      select * from public.newsletter_audience_growth(${tenant}::uuid,${range.from}::date,${range.until}::date)`);
+    return { overall, rows, clicks, truncated: candidates.length > maxCampaigns, snapshots: snapshots.rows };
   });
   const byDay = new Map(report.overall.days.map((day) => [day.day, day]));
   const days = eachDay(range).map((day) => {
@@ -64,9 +66,11 @@ export async function newsletterAnalyticsOverview(db: Database, actor: string, w
   const status = (await audienceOverview(db, actor, workspace)).counts;
   return { period, range, generatedAt: now.toISOString(), totals: counts(report.overall.totals), days, campaigns: report.rows, campaignsTruncated: report.truncated,
     audience: { subscribed: hideSmall(status.subscribed), unsubscribed: hideSmall(status.unsubscribed), suppressed: hideSmall(status.suppressed) },
-    clicks: clickFigures(report.clicks, eachDay(range)) };
+    clicks: clickFigures(report.clicks, eachDay(range)),
+    growth: audienceGrowth(range, report.snapshots) };
 }
 
+type Outcomes = { withheld: boolean; archived: boolean; days: { day: string; metric: keyof Counts; count: number }[] };
 const sentStates = ["sending", "sent", "partial", "failed", "cancelled"];
 
 /**
@@ -79,21 +83,31 @@ export async function newsletterCampaignAnalytics(db: Database, actor: string, w
     const [campaign] = await tx.select({ id: newsletterCampaigns.id, name: newsletterCampaigns.name, state: newsletterCampaigns.state })
       .from(newsletterCampaigns).where(and(eq(newsletterCampaigns.id, idOf(campaignId)), eq(newsletterCampaigns.tenantId, tenant)));
     if (!campaign) throw unavailable();
-    const sent = sentStates.includes(campaign.state);
-    return { campaign, report: sent ? await analyticsIn(tx, tenant, range, campaign.id) : null, clicks: sent ? await clicksIn(tx, tenant, range, campaign.id) : null };
+    if (!sentStates.includes(campaign.state)) return { campaign, report: null, outcomes: null, clicks: null };
+    const outcomes = await tx.execute<{ result: Outcomes }>(sql`
+      select public.newsletter_outcome_days(${tenant}::uuid,${campaign.id}::uuid,${range.from}::date,${range.until}::date) as result`);
+    return { campaign, report: await analyticsIn(tx, tenant, range, campaign.id), outcomes: outcomes.rows[0].result, clicks: await clicksIn(tx, tenant, range, campaign.id) };
   });
-  const { campaign, report: data } = report;
-  if (!data) return { campaign, sent: false, range, generatedAt: now.toISOString(), totals: null, days: [], status: null, clicks: null };
+  const { campaign, report: data, outcomes } = report;
+  if (!data || !outcomes) return { campaign, sent: false, range, generatedAt: now.toISOString(), totals: null, days: [], outcomeDays: [], outcomesArchived: false, status: null, clicks: null };
   const byDay = new Map(data.days.map((day) => [day.day, day]));
   const all = eachDay(range), firstIndex = Math.max(0, all.findIndex((day) => byDay.has(day)));
   const days = all.slice(Math.min(firstIndex, all.length - 7)).map((day) => {
     const found = byDay.get(day);
     return { day, counts: found ? counts(found as Report["totals"]) : { sent: 0, delivered: 0, bounced: 0, complained: 0, unsubscribed: 0 } };
   });
+  // Outcome-day counts are shown only when the selection-day totals are visible too (no small cohort anywhere in the campaign).
   const totals = data.totals.visibility === "visible" ? data.totals as Shaped : null;
+  const withheld = outcomes.withheld || !totals, byOutcome = new Map<string, Counts>();
+  for (const row of outcomes.days) {
+    const day = byOutcome.get(row.day) ?? { sent: 0, delivered: 0, bounced: 0, complained: 0, unsubscribed: 0 };
+    day[row.metric] = row.count;
+    byOutcome.set(row.day, day);
+  }
+  const outcomeDays = days.map(({ day }) => ({ day, counts: withheld ? null : byOutcome.get(day) ?? { sent: 0, delivered: 0, bounced: 0, complained: 0, unsubscribed: 0 } }));
   const status = totals ? { selected: totals.selected, skipped: totals.skipped, queued: totals.queued, failed: totals.failed, unknown: totals.unknown, operatorReview: totals.operatorReview,
     accepted: totals.providerAccepted.count ?? 0, delivered: totals.outcomes.delivered.count ?? 0 } : null;
-  return { campaign, sent: true, range, generatedAt: now.toISOString(), totals: counts(data.totals), days, status,
+  return { campaign, sent: true, range, generatedAt: now.toISOString(), totals: counts(data.totals), days, outcomeDays, outcomesArchived: outcomes.archived, status,
     clicks: report.clicks ? clickFigures(report.clicks, days.map((day) => day.day)) : null };
 }
 

@@ -22,7 +22,7 @@ class BodyTooLarge extends Error {}
  * keyed-hashed so no raw address is stored or logged, and it lives in a one-minute counter only. A key derived from the server secret serves clicks, which do not need the
  * synthetic message key. No usable address means no key (and no counting).
  */
-export function bioVisitorKey(request: Request, env: Record<string, string | undefined> = process.env) {
+export function bioVisitorKey(request: Pick<Request, "headers">, env: Record<string, string | undefined> = process.env) {
   const secret = env.BETTER_AUTH_SECRET;
   if (!secret) return null;
   const key = createHash("sha256").update(`link-in-bio-visitor:${secret}`).digest();

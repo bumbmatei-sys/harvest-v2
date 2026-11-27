@@ -6,7 +6,9 @@ export const runtime = "nodejs";
 
 // C15b one-click unsubscribe (RFC 8058): a mail client POSTs here with no session and no Origin, so the signed token is
 // the only credential. The token comes from the query string (the List-Unsubscribe URL) or a JSON body (the confirmation page).
-// The answer is always the same, so nobody can learn whether a token was valid.
+// The answer is always the same, so nobody can learn whether a token was valid. Deliberately not throttled per visitor: one-click
+// POSTs come from mailbox providers' servers, so many real unsubscribes share one address, and they must be honoured. A bad token is
+// rejected offline by its signature before any database call.
 export async function POST(request: Request) {
   if (!communitiesEnabled()) return new Response(null, { status: 404 });
   const url = new URL(request.url);

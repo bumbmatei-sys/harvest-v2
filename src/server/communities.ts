@@ -8,7 +8,7 @@ import { normaliseBannedWords } from "../lib/moderation";
 import { refreshDiscoverListing } from "./discover/refresh";
 import { discoverEligible, emailHash, emailHint, hashSecret, listingFor, newInviteToken } from "../lib/community-listing";
 import { communityStaffRoles, type CommunityRole } from "../lib/community-permissions";
-import { readyToPublish } from "../lib/community-editor";
+import { communityAddressLocked, readyToPublish } from "../lib/community-editor";
 import { message } from "../i18n/messages";
 import { AccessError } from "./permissions";
 import { withTenant, withUser } from "./tenancy";
@@ -44,6 +44,7 @@ const updateInput = z.object({
 const grantInput = z.object({ userId: z.string().min(1).max(200), validUntil: z.iso.datetime().optional(), reason: z.string().trim().min(1).max(200).optional() }).strict();
 const revokeInput = z.object({}).strict();
 
+const addressLockViolation = (error: unknown) => [(error as { cause?: { constraint?: string } })?.cause?.constraint, (error as { constraint?: string })?.constraint].includes("community_address_locked");
 const uniqueViolation = (error: unknown) => (error as { cause?: { code?: string } })?.cause?.code === "23505" || (error as { code?: string })?.code === "23505";
 
 async function ownCommunity(tx: Transaction, tenantId: string, communityId: string) {
@@ -86,8 +87,9 @@ export async function updateCommunity(db: Database, userId: string, workspace: s
   try {
   return await withTenant(db, userId, z.uuid().parse(workspace), "communities:manage", async (tx, tenantId) => {
     const current = await ownCommunity(tx, tenantId, id);
-    // The address is part of every shared link, QR code and invitation: it can change only while the community is a draft.
-    if (changes.slug !== undefined && changes.slug !== current.slug && current.status === "published") throw new AccessError(409, message("Errors.communitySlugLocked"));
+    // The address is part of every shared link, QR code and invitation: it can change only until the community is first published (0128;
+    // the database refuses it too), so an unpublish and republish never breaks a link.
+    if (changes.slug !== undefined && changes.slug !== current.slug && communityAddressLocked(current)) throw new AccessError(409, message("Errors.communitySlugLocked"));
     if (changes.introCategoryId) {
       const [category] = await tx.select({ id: communityCategories.id }).from(communityCategories)
         .where(and(eq(communityCategories.tenantId, tenantId), eq(communityCategories.communityId, id), eq(communityCategories.id, changes.introCategoryId)));
@@ -108,6 +110,8 @@ export async function updateCommunity(db: Database, userId: string, workspace: s
   });
   } catch (error) {
     if (uniqueViolation(error)) throw new AccessError(409, message("Errors.communitySlugTaken"));
+    // A publish that committed between the read above and this write: the database lock refuses the address change.
+    if (addressLockViolation(error)) throw new AccessError(409, message("Errors.communitySlugLocked"));
     throw error;
   }
 }

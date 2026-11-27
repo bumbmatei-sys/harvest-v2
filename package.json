@@ -33,7 +33,8 @@
     "social:publish:test": "tsx scripts/run-social-publisher.ts",
     "newsletter:deliver:test": "tsx scripts/run-newsletter-worker.ts",
     "newsletter:domains:test": "tsx scripts/run-newsletter-worker.ts recheck-domains",
-    "newsletter:purge:test": "tsx scripts/run-newsletter-worker.ts purge"
+    "newsletter:purge:test": "tsx scripts/run-newsletter-worker.ts purge",
+    "newsletter:audience:test": "tsx scripts/run-newsletter-worker.ts audience-snapshot"
   },
   "engines": {
     "node": ">=22"

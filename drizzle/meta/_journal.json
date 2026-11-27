@@ -871,9 +871,30 @@
       "breakpoints": true
     },
     {
+      "idx": 127,
+      "version": "7",
+      "when": 1795746812980,
+      "tag": "0127_newsletter_audience_growth",
+      "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1795752720179,
+      "tag": "0128_community_address_lock",
+      "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1795755001287,
+      "tag": "0129_community_hardening",
+      "breakpoints": true
+    },
+    {
       "idx": 130,
       "version": "7",
-      "when": 1795754006375,
+      "when": 1795761590767,
       "tag": "0130_course_structure",
       "breakpoints": true
     }

@@ -12,7 +12,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { ReportPeriodTabs } from "@/components/crm/reports/report-period-tabs";
 import { ReportStatCards, type ReportStat } from "@/components/crm/reports/report-stat-cards";
 import { ReportTrendCard } from "@/components/crm/reports/report-trend-card";
-import { analyticsPeriods, percent, sortCampaigns, type AnalyticsOverview, type AnalyticsPeriod, type AnalyticsSort, type Counts } from "@/lib/newsletter-analytics";
+import { analyticsPeriods, audienceKeys, percent, sortCampaigns, type AnalyticsOverview, type AnalyticsPeriod, type AnalyticsSort, type Counts } from "@/lib/newsletter-analytics";
 import { defineStatusTones } from "@/lib/status-tone";
 
 const tone = defineStatusTones({ sending: "pending", sent: "success", partial: "warning", cancelled: "neutral", failed: "danger" });
@@ -71,6 +71,15 @@ export function AnalyticsView({ tenantId, overview }: { tenantId: string; overvi
     clicks: cell(campaign.clicks ?? 0),
   } }));
   const date = (value: string) => format.dateTime(new Date(`${value}T12:00:00Z`), { timeZone: "UTC", dateStyle: "medium" });
+  // Audience growth: one snapshot per UTC day. A day without one is "no data yet" (a gap), never zero; a withheld count is "Fewer than 5".
+  const { growth } = overview;
+  const growthSeries = [
+    { key: "subscribed", label: t("audience.subscribed"), color: "var(--chart-2)" }, { key: "unsubscribed", label: t("audience.unsubscribed"), color: "var(--chart-5)" },
+    { key: "suppressed", label: t("audience.suppressed"), color: "var(--chart-4)" },
+  ];
+  const growthPoints = growth.days.map((day) => ({ day: day.day, noData: day.counts === null, values: day.counts ? { ...day.counts } : {} }));
+  const growthNote = growth.firstDay === null ? t("growth.none") : growth.firstDay !== overview.range.from ? t("growth.since", { date: date(growth.firstDay) }) : undefined;
+  const signed = (value: number) => (value > 0 ? "+" : "") + format.number(value);
 
   return <div className="flex min-w-0 flex-col gap-6" data-testid="newsletter-analytics" data-period={overview.period}>
     <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
@@ -91,6 +100,19 @@ export function AnalyticsView({ tenantId, overview }: { tenantId: string; overvi
         </CardContent>
       </Card>
     </>}
+    <ReportTrendCard id="growth" title={t("growth.title")} description={growthNote} caption={t("growth.caption")} dayHeader={t("daily.day")}
+      points={growthPoints} series={growthSeries} noDataLabel={t("growth.noData")}>
+      <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3" data-testid="growth-net">
+        {audienceKeys.map((key) => {
+          const value = growth.net ? growth.net[key] : undefined;
+          return <div key={key} className="flex flex-col gap-1" data-metric={key}>
+            <dt className="text-sm text-muted-foreground">{t("growth.net", { label: t(`audience.${key}`) })}</dt>
+            <dd className="text-2xl font-semibold tabular-nums" data-testid="growth-net-value">{value === undefined ? <span className="text-muted-foreground text-lg">{t("growth.noData")}</span>
+              : value === null ? <span className="text-muted-foreground text-lg" data-testid="report-hidden">{crm("hidden")}</span> : signed(value)}</dd>
+          </div>;
+        })}
+      </dl>
+    </ReportTrendCard>
     <Card data-testid="audience-now">
       <CardHeader>
         <CardTitle>{t("audience.title")}</CardTitle>
