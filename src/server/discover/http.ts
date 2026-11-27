@@ -4,12 +4,15 @@ import { readBoundedJson } from "../request-json";
 import { DiscoverValidationError, invalid } from "./owner";
 import { discoverRouteDeps } from "./gate";
 import { assertDiscoverEnabled, type DiscoverDeps } from "./registry";
+import { throttlePublicRead, type PublicReadScope } from "../public-read-limit";
 
 const headers = { "Cache-Control": "private, no-store" };
-/** Shared wrapper: hard-off check first, then origin and session for writes, one error shape. Public reads need no session. */
-export async function discoverResponse(request: Request, opts: { write: boolean; session: boolean }, run: (db: Database, user: string, deps: DiscoverDeps) => Promise<unknown>, status = 200, deps: DiscoverDeps = discoverRouteDeps()) {
+/** Shared wrapper: hard-off check first, then the optional per-visitor throttle, origin and session for writes, one error shape. Public reads need no session. */
+export async function discoverResponse(request: Request, opts: { write: boolean; session: boolean; throttle?: PublicReadScope }, run: (db: Database, user: string, deps: DiscoverDeps) => Promise<unknown>, status = 200, deps: DiscoverDeps = discoverRouteDeps()) {
   try {
     assertDiscoverEnabled(deps);
+    const limited = opts.throttle ? await throttlePublicRead(request, opts.throttle) : null;
+    if (limited) return limited;
     if (opts.write) verifyOrigin(request);
     const user = opts.session ? await verifiedUser(request) : "";
     return Response.json(await run(getDb(), user, deps), { status, headers });

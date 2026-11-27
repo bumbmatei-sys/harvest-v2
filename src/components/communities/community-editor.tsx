@@ -15,7 +15,7 @@ import { FormSection } from "@/components/form-section";
 import { StickySaveBar } from "@/components/sticky-save-bar";
 import { WizardLayout } from "@/components/wizard-layout";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -42,11 +42,13 @@ import { useCrmRequest } from "@/components/crm/request";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { communityFieldTargets, fieldForControl, type CommunityField, type CommunityPreviewTab, type PreviewViewer } from "@/lib/editor-preview";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
-import { checklistStep, nextSlug, slugFollowsName, comingSoonSteps, communityEditorSteps, publishChecklist, stepNeedsAttention, type CommunityEditorStep } from "@/lib/community-editor";
+import { checklistStep, communityAddressLocked, nextSlug, slugFollowsName, comingSoonSteps, communityEditorSteps, publishChecklist, stepNeedsAttention, type CommunityEditorStep } from "@/lib/community-editor";
 
 export type EditableCommunity = { id: string; slug: string; name: string; tagline: string | null; status: "draft" | "published" | "archived";
   visibility: "listed" | "unlisted" | "hidden"; allowOpen: boolean; allowApply: boolean; allowInvite: boolean; allowEntitlement: boolean; version: number;
-  description: string | null; rulesList: string[]; joinQuestions: Question[]; discoverOptIn: boolean; holdFirstPosts: boolean; bannedWords: string[]; welcomeMessage: string | null; introCategoryId: string | null };
+  description: string | null; rulesList: string[]; joinQuestions: Question[]; discoverOptIn: boolean; holdFirstPosts: boolean; bannedWords: string[]; welcomeMessage: string | null; introCategoryId: string | null;
+  /** Set the first time the community is published, never cleared: the address is then locked for good. */
+  firstPublishedAt?: string | Date | null };
 export type CommunityMember = { userId: string; name: string; role: string; status: string };
 type Fields = Pick<EditableCommunity, "name" | "slug" | "tagline" | "visibility" | "allowOpen" | "allowApply" | "allowInvite" | "allowEntitlement" | "description" | "rulesList" | "joinQuestions" | "discoverOptIn" | "holdFirstPosts" | "bannedWords" | "welcomeMessage" | "introCategoryId">;
 const optionalText = ["tagline", "description", "welcomeMessage"] as const;
@@ -81,6 +83,8 @@ export function CommunityEditor({ initial, members, invites, applications, categ
   const dirty = !same(fields, fieldsOf(data));
   const { destination, setDestination, leave } = useUnsavedChangesGuard(dirty || busy);
   const checklist = publishChecklist(fields);
+  // Locked for good once ever published (an unpublished community keeps its address, so shared links keep working).
+  const addressLocked = communityAddressLocked(data);
   useEffect(() => {
     if (!hosted) return;
     const onFocus = (event: FocusEvent) => setHighlight(event.target instanceof HTMLElement ? fieldForControl(event.target.id) : null);
@@ -158,13 +162,14 @@ export function CommunityEditor({ initial, members, invites, applications, categ
         <Label htmlFor="community-price-paid" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal text-muted-foreground"><RadioGroupItem id="community-price-paid" value="paid" disabled /><span className="flex-1">{t("paid")}</span><Badge variant="secondary">{t("comingSoon")}</Badge></Label>
       </RadioGroup>}
       {step === "basics" && <FormSection title={screens("basicsTitle")}>
-        <Field><FieldLabel htmlFor="community-name">{t("name")}</FieldLabel><Input id="community-name" className="min-h-11" value={fields.name} maxLength={80} required disabled={!writable} onChange={(e) => { const value = e.target.value; set("name", value); if (slugFollows && data.status !== "published") set("slug", nextSlug(fields.slug, value, true)); }} /></Field>
+        <Field><FieldLabel htmlFor="community-name">{t("name")}</FieldLabel><Input id="community-name" className="min-h-11" value={fields.name} maxLength={80} required disabled={!writable} onChange={(e) => { const value = e.target.value; set("name", value); if (slugFollows && !addressLocked) set("slug", nextSlug(fields.slug, value, true)); }} /></Field>
         <Field><FieldLabel htmlFor="community-tagline">{t("tagline")}</FieldLabel><Input id="community-tagline" className="min-h-11" value={fields.tagline ?? ""} maxLength={160} disabled={!writable} onChange={(e) => set("tagline", e.target.value)} /></Field>
         <Field><FieldLabel htmlFor="community-description">{t("description")}</FieldLabel><Textarea id="community-description" rows={4} value={fields.description ?? ""} maxLength={2000} disabled={!writable} onChange={(e) => set("description", e.target.value)} /></Field>
         <Field><FieldLabel htmlFor="community-address">{t("address")}</FieldLabel>
           <InputGroup className="min-h-11"><InputGroupAddon><InputGroupText>{screens("addressPrefix")}</InputGroupText></InputGroupAddon>
-            <InputGroupInput id="community-address" value={fields.slug} maxLength={48} required readOnly={!writable || data.status === "published"}
-              onChange={(e) => { setSlugFollows(false); set("slug", e.target.value.toLowerCase()); }} /></InputGroup></Field>
+            <InputGroupInput id="community-address" value={fields.slug} maxLength={48} required readOnly={!writable || addressLocked} aria-describedby={addressLocked ? "community-address-locked" : undefined}
+              onChange={(e) => { setSlugFollows(false); set("slug", e.target.value.toLowerCase()); }} /></InputGroup>
+          {addressLocked && <FieldDescription id="community-address-locked">{t("addressLocked")}</FieldDescription>}</Field>
       </FormSection>}
       {step === "joining" && <>
         <FormSection as="fieldset" title={t("visibility")}>

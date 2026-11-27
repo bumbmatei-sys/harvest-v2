@@ -15,10 +15,11 @@ export const dynamic = "force-dynamic";
 export type Props = { searchParams: Promise<{ q?: string; open?: string; after?: string }> };
 
 /** The communities-only page, unchanged: it is what `/discover` renders while the unified Discover gate is closed (production today). */
-export async function LegacyDiscover({ searchParams }: Props) {
+export async function LegacyDiscover({ searchParams, limited = false }: Props & { limited?: boolean }) {
   const params = await searchParams, t = await getTranslations("Discover");
   const query = { q: params.q?.slice(0, 80) || undefined, open: params.open === "1", after: params.after?.slice(0, 200) || undefined };
-  const { items, next } = await listDiscover(getDb(), query);
+  // Over the per-visitor Discover limit nothing is read and the page shows its empty state.
+  const { items, next } = limited ? { items: [], next: null } : await listDiscover(getDb(), query);
   const more = new URLSearchParams({ ...(query.q ? { q: query.q } : {}), ...(query.open ? { open: "1" } : {}), ...(next ? { after: next } : {}) });
   const tabs = [["communities", false], ["courses", true], ["products", true]] as const;
   return <PublicFrame personal notice={false}>

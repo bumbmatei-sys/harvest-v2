@@ -69,7 +69,11 @@ it("shows a held first post only on its author's own profile", async () => {
 });
 
 it("pages the activity", async () => {
-  for (let i = 0; i < 22; i++) await savePost(f.db, "p-one", slug, { categoryId: general, title: `Many ${i}`, body: body(`text ${i}`) });
+  // Ten new posts per person per 10 minutes (0129): age the author's earlier posts between batches; their order is kept.
+  for (let i = 0; i < 22; i++) {
+    if (i % 5 === 0) await f.admin.query("update community_posts set created_at = created_at - interval '1 hour' where author_id = 'p-one'");
+    await savePost(f.db, "p-one", slug, { categoryId: general, title: `Many ${i}`, body: body(`text ${i}`) });
+  }
   const one = await memberProfile(f.db, "p-two", slug, "p-one", 1), two = await memberProfile(f.db, "p-two", slug, "p-one", "2");
   expect(one.activity).toHaveLength(20);
   expect(one.hasMore).toBe(true);
