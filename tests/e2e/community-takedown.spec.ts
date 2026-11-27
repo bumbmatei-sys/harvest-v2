@@ -13,21 +13,34 @@ const evidence = process.env.TAKEDOWN_SHOTS ?? "test-results/community-takedown"
 const sizes = [[1280, 900], [360, 740]] as const;
 const doc = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 
+const reloaded = (error: unknown) => /Execution context was destroyed|navigation/.test(String(error));
 async function audit(page: Page, name: string, prepare?: () => Promise<void>) {
+  const theme = (value: "light" | "dark") => page.evaluate((v) => { const root = document.documentElement; root.dataset.theme = v; root.classList.toggle("dark", v === "dark"); }, value);
   for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
-    await page.evaluate((value) => { const root = document.documentElement; root.dataset.theme = value; root.classList.toggle("dark", value === "dark"); }, scheme);
+    await theme(scheme);
     await prepare?.();
     for (const [width, height] of sizes) {
       await page.setViewportSize({ width, height });
-      await settleForAxe(page);
-      expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations, `${name} ${width} ${scheme}`).toEqual([]);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} ${width} ${scheme} scroll`).toBe(true);
-      await page.screenshot({ path: `${evidence}/${name}-${width}-${scheme}.png`, fullPage: true });
+      // The dev server may reload a page when it finishes compiling a chunk; wait for that and check the same size again.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          // A page caught mid-restart of the dev server renders an empty document: load it again.
+          if (await page.evaluate(() => document.body.childElementCount === 0)) { await page.reload(); await page.waitForTimeout(2_000); await theme(scheme); }
+          await settleForAxe(page);
+          expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations, `${name} ${width} ${scheme}`).toEqual([]);
+          expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} ${width} ${scheme} scroll`).toBe(true);
+          await page.screenshot({ path: `${evidence}/${name}-${width}-${scheme}.png`, fullPage: true });
+          break;
+        } catch (error) {
+          if (attempt >= 3 || !(reloaded(error) || /document-title|html-has-lang/.test(String(error)))) throw error;
+          await page.waitForLoadState("load"); await page.waitForTimeout(2_000); await theme(scheme);
+        }
+      }
     }
   }
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
-  await page.evaluate(() => { const root = document.documentElement; root.dataset.theme = "light"; root.classList.remove("dark"); });
+  await theme("light");
   await page.setViewportSize({ width: 1280, height: 900 });
 }
 async function person(browser: Browser, errors: string[], name?: string) {
@@ -37,15 +50,20 @@ async function person(browser: Browser, errors: string[], name?: string) {
   if (name) expect((await page.request.put("/api/account/profile", { headers: { origin }, data: { name, locale: null, cityRegion: null } })).ok()).toBe(true);
   return { context, page, email };
 }
-async function join(page: Page, slug: string, name: string) {
-  await page.goto(`/communities/${slug}`);
-  await page.getByRole("button", { name: "Join", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: `Join ${name}` });
-  await dialog.getByLabel("I confirm I am 18 or older").click();
-  await dialog.getByRole("button", { name: "Join", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/communities/${slug}/forum$`));
+// Joining is covered by the joining specs; here it goes through the same API the join dialog calls, so a dev-server reload cannot lose the dialog.
+async function join(page: Page, slug: string) {
+  const response = await page.request.post(`/api/communities/${slug}/join`, { headers: { origin }, data: { rulesVersion: 0, adult: true } });
+  expect(response.status(), await response.text()).toBeLessThan(300);
 }
-const menu = (page: Page, name: string) => page.getByRole("button", { name: `Actions for the report on ${name}` });
+// The dev server restarts itself near its memory threshold; a navigation that hits the restart is retried rather than failing the run.
+async function go(page: Page, url: string) {
+  for (let attempt = 0; ; attempt++) {
+    try { return await page.goto(url); } catch (error) {
+      if (attempt >= 5 || !/ERR_SOCKET_NOT_CONNECTED|ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|ERR_EMPTY_RESPONSE|ERR_ABORTED|interrupted by another navigation/.test(String(error))) throw error;
+      await page.waitForTimeout(5_000);
+    }
+  }
+}
 
 test("report, staff pause and restore a community, hide and restore a post", async ({ page, browser }) => {
   test.setTimeout(600_000);
@@ -69,7 +87,7 @@ test("report, staff pause and restore a community, hide and restore a post", asy
   const staff = await person(browser, errors);
   try {
     // 1. A visitor reports the public page to Harvest: no account.
-    await visitor.goto(`/communities/${slug}`);
+    await go(visitor, `/communities/${slug}`);
     await visitor.getByRole("button", { name: "Report", exact: true }).click();
     const dialog = visitor.getByRole("dialog", { name: "Report this community to Harvest" });
     await expect(dialog.getByRole("button", { name: "Send report" })).toBeDisabled();
@@ -81,10 +99,10 @@ test("report, staff pause and restore a community, hide and restore a post", asy
     await dialog.getByRole("button", { name: "Done" }).click();
 
     // 2. A member reports a post to Harvest instead of the hosts.
-    await join(author.page, slug, name); await join(member.page, slug, name);
+    await join(author.page, slug); await join(member.page, slug);
     const post = (await (await author.page.request.post(`/api/communities/${slug}/posts`, { headers: { origin },
       data: { categoryId: general, title: "Cheap watches", body: doc("Buy now"), videoUrl: null, coverFileId: null, attachmentIds: [], commentsOff: false, likesOff: false } })).json()) as { id: string };
-    await member.page.goto(`/communities/${slug}/posts/${post.id}`);
+    await go(member.page, `/communities/${slug}/posts/${post.id}`);
     await member.page.getByRole("button", { name: "Report post Cheap watches" }).click();
     const report = member.page.getByRole("dialog", { name: "Report post" });
     await report.getByLabel("Harvest", { exact: true }).click();
@@ -94,12 +112,12 @@ test("report, staff pause and restore a community, hide and restore a post", asy
     await expect(report.getByRole("status")).toHaveText("Thank you. Harvest staff will review it.");
 
     // 3. The staff queue: neutral 404 for everyone else; the admin sees the badge and pauses the community.
-    expect((await visitor.goto("/platform/communities"))?.status()).toBe(404);
-    expect((await member.page.goto("/platform/communities"))?.status()).toBe(404);
+    expect((await go(visitor, "/platform/communities"))?.status()).toBe(404);
+    expect((await go(member.page, "/platform/communities"))?.status()).toBe(404);
     expect((await member.page.request.get("/api/platform/communities/reports")).status()).toBe(404);
     await admin.grantStaff(staff.email, "admin");
     const s = staff.page;
-    await s.goto("/platform/communities");
+    await go(s, "/platform/communities");
     await expect(s.getByRole("heading", { name: "Community reports", level: 1 })).toBeVisible();
     await expect(s.locator("[data-community-open-count]")).toHaveText("2 open reports");
     await expect(s.getByText("Asks for money by private message")).toBeVisible();
@@ -115,51 +133,51 @@ test("report, staff pause and restore a community, hide and restore a post", asy
     await expect(s.getByRole("status")).toHaveText("Hidden.");
 
     // 4. Public page and Discover answer as for a missing community; members see the notice; the owner sees the reason.
-    expect((await visitor.goto(`/communities/${slug}`))?.status()).toBe(404);
-    await visitor.goto(`/discover?q=${encodeURIComponent("grace prayer")}`);
+    expect((await go(visitor, `/communities/${slug}`))?.status()).toBe(404);
+    await go(visitor, `/discover?q=${encodeURIComponent("grace prayer")}`);
     await expect(visitor.getByText(name)).toHaveCount(0);
-    await member.page.goto(`/communities/${slug}/forum`);
+    await go(member.page, `/communities/${slug}/forum`);
     await expect(member.page.locator("[data-harvest-paused]")).toContainText(`${name} is paused while Harvest reviews it.`);
     await expect(member.page.locator("[data-harvest-paused]")).not.toContainText("Fundraising");
     await audit(member.page, "member-paused");
-    await page.goto(`/workspaces/${tenant}/communities/${community.id}/edit`);
+    await go(page, `/workspaces/${tenant}/communities/${community.id}/edit`);
     await expect(page.locator("[data-harvest-paused]")).toContainText("Reason: Fundraising outside Harvest's rules");
     await audit(page, "owner-paused");
 
     // 5. Restore: everything comes back.
-    await s.goto("/platform/communities");
-    await menu(s, name).first().click();
+    await go(s, "/platform/communities");
+    await s.getByRole("row").filter({ hasText: "Asks for money" }).getByRole("button", { name: `Actions for the report on ${name}` }).click();
     await s.getByRole("menuitem", { name: "Restore" }).click();
     await s.getByRole("alertdialog").getByRole("button", { name: "Restore" }).click();
     await expect(s.getByRole("status")).toHaveText("Restored.");
-    expect((await visitor.goto(`/communities/${slug}`))?.status()).toBe(200);
-    await visitor.goto(`/discover?q=${encodeURIComponent("grace prayer")}`);
+    expect((await go(visitor, `/communities/${slug}`))?.status()).toBe(200);
+    await go(visitor, `/discover?q=${encodeURIComponent("grace prayer")}`);
     await expect(visitor.getByText(name).first()).toBeVisible();
-    await member.page.goto(`/communities/${slug}/forum`);
+    await go(member.page, `/communities/${slug}/forum`);
     await expect(member.page.getByText("Cheap watches")).toBeVisible();
 
     // 6. Hide the post: gone for other members, marked for its author and the hosts; then restore it.
-    await s.goto("/platform/communities");
+    await go(s, "/platform/communities");
     await s.getByRole("row").filter({ hasText: "Cheap watches" }).getByRole("button", { name: `Actions for the report on ${name}` }).click();
     await s.getByRole("menuitem", { name: "Hide post" }).click();
     const hidePost = s.getByRole("dialog", { name: `Hide a post in ${name}` });
     await hidePost.getByLabel("Reason (shown to the ministry)").fill("Spam");
     await hidePost.getByRole("button", { name: "Hide post" }).click();
     await expect(s.getByRole("status")).toHaveText("Hidden.");
-    await member.page.goto(`/communities/${slug}/forum`);
+    await go(member.page, `/communities/${slug}/forum`);
     await expect(member.page.getByText("Cheap watches")).toHaveCount(0);
-    expect((await member.page.goto(`/communities/${slug}/posts/${post.id}`))?.status()).toBe(404);
-    await author.page.goto(`/communities/${slug}/posts/${post.id}`);
+    expect((await go(member.page, `/communities/${slug}/posts/${post.id}`))?.status()).toBe(404);
+    await go(author.page, `/communities/${slug}/posts/${post.id}`);
     await expect(author.page.locator("[data-harvest-hidden]")).toHaveText("Hidden by Harvest");
     await audit(author.page, "author-hidden-post");
-    await page.goto(`/communities/${slug}/forum`);
+    await go(page, `/communities/${slug}/forum`);
     await expect(page.locator("[data-harvest-hidden]")).toHaveText("Hidden by Harvest");
-    await s.goto("/platform/communities");
+    await go(s, "/platform/communities");
     await s.getByRole("row").filter({ hasText: "Cheap watches" }).getByRole("button", { name: `Actions for the report on ${name}` }).click();
     await s.getByRole("menuitem", { name: "Restore" }).click();
     await s.getByRole("alertdialog").getByRole("button", { name: "Restore" }).click();
     await expect(s.getByRole("status")).toHaveText("Restored.");
-    await member.page.goto(`/communities/${slug}/forum`);
+    await go(member.page, `/communities/${slug}/forum`);
     await expect(member.page.getByText("Cheap watches")).toBeVisible();
 
     const actions = (await admin.q<{ action: string }>("select action from platform_staff_audit where action like 'community.takedown.%' order by created_at")).map((r) => r.action);
