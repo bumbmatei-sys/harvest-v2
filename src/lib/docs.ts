@@ -50,7 +50,9 @@ const markAttrs: Record<string, Record<string, (value: unknown) => unknown>> = {
  * Sanitises Tiptap JSON: only the node and mark types the editor can produce, only allow-listed attributes, https-only links, hex colours, hard size limits.
  * An unknown node or mark type is refused (never silently kept); an unsafe link is dropped but its text stays. Throws {@link DocContentError}.
  */
-export function sanitizeDocContent(input: unknown): DocContent {
+export type AttrRules = Record<string, (value: unknown) => unknown>;
+export function sanitizeDocContent(input: unknown, extraNodes?: Record<string, AttrRules>): DocContent {
+  const allowed = extraNodes ? { ...nodeAttrs, ...extraNodes } : nodeAttrs;
   let size = 0;
   try { size = new TextEncoder().encode(JSON.stringify(input)).length; } catch { throw new DocContentError("SHAPE"); }
   if (size > docLimits.contentBytes) throw new DocContentError("SIZE");
@@ -61,9 +63,9 @@ export function sanitizeDocContent(input: unknown): DocContent {
     const node = raw as DocNode;
     if (++nodes > docLimits.nodes) throw new DocContentError("SIZE");
     if (depth > docLimits.depth) throw new DocContentError("DEPTH");
-    if (typeof node.type !== "string" || !Object.hasOwn(nodeAttrs, node.type)) throw new DocContentError("TYPE");
+    if (typeof node.type !== "string" || !Object.hasOwn(allowed, node.type)) throw new DocContentError("TYPE");
     const out: DocNode = { type: node.type };
-    const attrs = pick(node.attrs, nodeAttrs[node.type]); if (attrs) out.attrs = attrs;
+    const attrs = pick(node.attrs, allowed[node.type]); if (attrs) out.attrs = attrs;
     if (node.type === "text") {
       if (typeof node.text !== "string" || node.text.length === 0 || node.text.length > docLimits.text) throw new DocContentError("SHAPE");
       out.text = node.text;

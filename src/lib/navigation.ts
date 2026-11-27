@@ -53,7 +53,7 @@ export type NavEntry = {
    */
   exitTo?: string;
 };
-export type NavFeature = "communities" | "catalog" | "events" | "social" | "office" | "newsletter" | "newsletterAutomations" | "docs" | "linkInBio" | "discover" | "giving" | "fundraising";
+export type NavFeature = "communities" | "catalog" | "events" | "social" | "office" | "newsletter" | "newsletterAutomations" | "docs" | "linkInBio" | "blog" | "discover" | "giving" | "fundraising";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
 /** A `pinned` group is rendered without a header, above the other groups (Discover). */
 export type NavGroup = { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon; pinned?: boolean; items: NavItem[] };
@@ -136,7 +136,7 @@ export const navEntries: readonly NavEntry[] = [
   { id: "signupForms", group: "newsletter", mode: "public", label: "signupForms", icon: ClipboardPen, path: "/newsletter/forms", match: under("/newsletter/forms"), permission: "newsletter:manage", feature: "newsletter" },
   { id: "newsletterSender", group: "newsletter", mode: "public", label: "newsletterSender", icon: ShieldCheck, path: "/newsletter/sender", match: under("/newsletter/sender"), permission: "newsletter:delivery", feature: "newsletter" },
   { id: "linkInBio", group: "website", mode: "public", label: "linkInBio", icon: Link2, path: "/link-in-bio", match: under("/link-in-bio"), permission: "bio:manage", feature: "linkInBio" },
-  { id: "articles", group: "website", mode: "public", status: "planned", label: "articles", icon: Newspaper, path: "/articles", match: under("/articles") },
+  { id: "articles", group: "website", mode: "public", label: "articles", icon: Newspaper, path: "/blog", match: under("/blog"), permission: "blog:manage", feature: "blog" },
   { id: "website", group: "website", mode: "public", status: "planned", label: "websiteBuilder", icon: LayoutTemplate, path: "/website", match: under("/website") },
   // Public > Community. ADR 0013: every ministry role lists communities; owners/admins edit (enforced by the API). Hidden until activated.
   { id: "communities", group: "community", legacyGroup: "workspace", mode: "public", label: "communities", icon: MessagesSquare, path: "/communities", match: has("/communities"), permission: "communities:read", feature: "communities" },
