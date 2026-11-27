@@ -7,6 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "qa:seed": "tsx scripts/qa-seed.ts",
+    "qa:preview-seed": "tsx --import ./scripts/server-only-node.mjs scripts/qa-preview-seed.ts",
     "lint": "eslint . --max-warnings=0 && tsx scripts/check-source.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --project unit",
@@ -32,7 +33,8 @@
     "social:publish:test": "tsx scripts/run-social-publisher.ts",
     "newsletter:deliver:test": "tsx scripts/run-newsletter-worker.ts",
     "newsletter:domains:test": "tsx scripts/run-newsletter-worker.ts recheck-domains",
-    "newsletter:purge:test": "tsx scripts/run-newsletter-worker.ts purge"
+    "newsletter:purge:test": "tsx scripts/run-newsletter-worker.ts purge",
+    "newsletter:audience:test": "tsx scripts/run-newsletter-worker.ts audience-snapshot"
   },
   "engines": {
     "node": ">=22"

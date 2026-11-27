@@ -214,7 +214,9 @@ export function inspectQaBoundary(file: string, source: string): BoundaryViolati
   const add = (rule: string) => found.push({ file, rule });
   if (normal.startsWith("tests/") || normal === "scripts/source-guards.ts") return found;
   const flag = /\bHARVEST_QA_SIGN_IN\b/;
-  if (normal === ".env.example" || normal.startsWith(".github/workflows/")) {
+  const previewToken = /\bQA_PREVIEW_TOKEN\b/;
+  if (normal === ".env.example" || normal.startsWith(".github/workflows/") || normal.startsWith("cloudflare/")) {
+    if (previewToken.test(source)) add("QA preview token is set only on a preview Worker, never in CI, config or .env.example");
     if (/\bQA_SIGN_IN_SECRET\b/.test(source)) add("QA signing key is scoped to the auth deployment");
     if (/(?:^|[\s{,])["']?HARVEST_QA_SIGN_IN["']?\s*[:=]/m.test(source)) add("QA sign-in flag cannot be set in CI or .env.example");
     return found;
@@ -223,13 +225,20 @@ export function inspectQaBoundary(file: string, source: string): BoundaryViolati
     add("QA sign-in flags and secrets are read only in the gate");
   }
   if (normal !== "src/app/api/qa/otp/route.ts" && /\/api\/qa\/otp\b/.test(source)) add("QA helper route referenced outside its boundary");
+  if (!["src/server/qa-preview-gate.ts", "src/server/worker-settings.ts", "scripts/e2e-server.ts"].includes(normal) && previewToken.test(source)) {
+    add("QA preview token is read only in the preview gate");
+  }
+  if (/\/api\/qa\/sign-in\b/.test(source)) add("QA sign-in shortcut referenced outside its boundary");
+  if (!["src/server/auth-otp-hooks.ts", "src/server/qa-shortcut.ts"].includes(normal) && /\bqa-shortcut-scope\b/.test(source)) {
+    add("QA shortcut scope is entered only by the shortcut and read only by the standard OTP hooks");
+  }
   if (normal !== "next.config.ts" && /\bauth-otp-hooks-preview\b/.test(source)) add("QA OTP implementation must be loaded through the build alias");
   return found;
 }
 
 export function checkQaBoundary() {
-  const configs = [".env.example", "next.config.ts", "package.json", ...[".github/workflows"].flatMap((directory) =>
-    readdirSync(directory).filter((file) => /\.ya?ml$/.test(file)).map((file) => join(directory, file)))];
+  const configs = [".env.example", "next.config.ts", "package.json", ...[".github/workflows", "cloudflare"].flatMap((directory) =>
+    readdirSync(directory).filter((file) => /\.(?:ya?ml|json|mjs)$/.test(file)).map((file) => join(directory, file)))];
   return [...sourceFiles("src"), ...sourceFiles("scripts"), ...configs]
     .flatMap((file) => inspectQaBoundary(file, readFileSync(file, "utf8")));
 }

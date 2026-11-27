@@ -12,6 +12,8 @@ import { chatChannelSettings, communityChatEnabled } from "@/server/community-ch
 import { discoverGateOpen, discoverRouteDeps } from "@/server/discover/gate";
 import { listMyListings } from "@/server/discover/owner";
 import { CommunityEditor } from "@/components/communities/community-editor";
+import { freeCatalogEnabled } from "@/server/free-catalog-mode";
+import { listCommunityShelf } from "@/server/free-catalog";
 
 export default async function CommunityEditPage({ params }: { params: Promise<{ tenantId: string; communityId: string }> }) {
   if (!communitiesEnabled()) notFound();
@@ -32,6 +34,9 @@ export default async function CommunityEditPage({ params }: { params: Promise<{ 
   // The Discover card's listing is read here, so the editor (and its live preview) makes no request of its own on load.
   const discoverOpen = discoverGateOpen();
   const listing = discoverOpen ? (await listMyListings(db, session.user.id, tenantId, discoverRouteDeps()).catch(denied))?.items.find((item) => item.type === "community" && item.id === communityId) : undefined;
-  return <CommunityEditor chat={chat} initial={community} members={members} invites={invites} applications={applications} categories={categories} host={workspace.name}
+  // C13/C16: the ministry's published courses and products with this community's links; changing them needs catalogue rights.
+  const shelfItems = freeCatalogEnabled() ? await listCommunityShelf(db, session.user.id, tenantId, communityId).catch(denied) : null;
+  const shelf = shelfItems ? { tenantId, items: shelfItems, writable: can(workspace.role, "catalog:manage") } : null;
+  return <CommunityEditor chat={chat} shelf={shelf} initial={community} members={members} invites={invites} applications={applications} categories={categories} host={workspace.name}
     endpoint={`/api/workspaces/${tenantId}/communities/${communityId}`} listHref={`/workspaces/${tenantId}/communities`} writable={writable} discoverTenant={discoverOpen ? tenantId : undefined} discoverListing={listing} />;
 }

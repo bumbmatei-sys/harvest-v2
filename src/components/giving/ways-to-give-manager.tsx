@@ -14,7 +14,8 @@ import { EmptyState } from "@/components/empty-state";
 import { FormSection } from "@/components/form-section";
 import { SearchableSelect } from "@/components/searchable-select";
 import { StatusBadge } from "@/components/status-badge";
-import { givingKindIcon, WaysToGive } from "@/components/giving/ways-to-give";
+import { WaysToGive } from "@/components/giving/ways-to-give";
+import { givingKindMarks, GivingMarkChip } from "@/components/giving/giving-logos";
 import { useRequest } from "@/hooks/use-request";
 import { formatIban, givingFieldIssues, givingKindRules, givingKinds, givingLimits, type GivingFieldIssue, type GivingKind, type GivingMethodInput } from "@/lib/ways-to-give";
 import type { GivingMethod, GivingStanding } from "@/server/ways-to-give";
@@ -78,8 +79,8 @@ export function WaysToGiveManager({ tenantId, ministryName, initial, standing }:
     {methods.length === 0 ? <EmptyState icon={HandCoins} title={t("emptyTitle")} description={t("emptyDescription")} action={add} solid headingLevel={2} />
       : <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
         <ItemGroup aria-label={t("title")} className="gap-2" data-giving-list>
-          {methods.map((method, index) => { const Icon = givingKindIcon(method.kind); return <div key={method.id} role="listitem"><Item variant="outline" className="flex-wrap bg-card" data-giving-row={method.id}>
-            <ItemMedia variant="icon"><Icon aria-hidden="true" /></ItemMedia>
+          {methods.map((method, index) => <div key={method.id} role="listitem"><Item variant="outline" className="flex-wrap bg-card" data-giving-row={method.id}>
+            <ItemMedia><GivingMarkChip kind={method.kind} label={t(`kinds.${method.kind}`)} /></ItemMedia>
             <ItemContent className="min-w-0"><ItemTitle className="max-w-full break-words">{method.label}</ItemTitle>
               <ItemDescription className="break-all">{t("rowSummary", { kind: t(`kinds.${method.kind}`), detail: summary(method) })}</ItemDescription></ItemContent>
             <ItemActions className="flex-wrap">
@@ -90,7 +91,7 @@ export function WaysToGiveManager({ tenantId, ministryName, initial, standing }:
               <Button type="button" variant="ghost" size="icon" className="size-11" aria-label={t("edit", { label: method.label })} onClick={() => setEditing(method)}><Pencil aria-hidden="true" /></Button>
               <Button type="button" variant="ghost" size="icon" className="size-11" aria-label={t("remove", { label: method.label })} onClick={() => setRemoving(method)}><Trash2 aria-hidden="true" /></Button>
             </ItemActions>
-          </Item></div>; })}
+          </Item></div>)}
         </ItemGroup>
         <FormSection title={t("preview")}>
           {enabled.length && !standing.hidden ? <WaysToGive methods={enabled} ministryName={ministryName} inert headingLevel={3} />
@@ -130,7 +131,7 @@ function MethodDialog({ endpoint, method, onClose, onSaved }: { endpoint: string
     if (!result.ok) { setError(result.error); return; }
     onSaved(result.data);
   }
-  const kindOptions = givingKinds.map((kind) => ({ value: kind, label: t(`kinds.${kind}`), icon: givingKindIcon(kind) }));
+  const kindOptions = givingKinds.map((kind) => ({ value: kind, label: t(`kinds.${kind}`), icon: givingKindMarks[kind] }));
   return <Dialog open onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
     <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
       <DialogHeader><DialogTitle>{t(method ? "editTitle" : "addTitle")}</DialogTitle></DialogHeader>

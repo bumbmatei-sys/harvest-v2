@@ -22,8 +22,11 @@ export function unreadDisplay(count: number): { value: number; capped: boolean }
 /** The switches a member can turn off. Other kinds have no switch (only "mute this community" silences them). */
 export const notificationPrefs = ["replies", "likes", "announcements"] as const;
 export type NotificationPref = typeof notificationPrefs[number];
-export type NotificationPrefs = Record<NotificationPref, boolean> & { muted: boolean };
-export const defaultPrefs: NotificationPrefs = { replies: true, likes: true, announcements: true, muted: false };
+/** C15b/C15c: how often this community may email the member. Saved through its own route, separately from the switches. */
+export const emailFrequencies = ["off", "important", "daily", "weekly"] as const;
+export type EmailFrequency = typeof emailFrequencies[number];
+export type NotificationPrefs = Record<NotificationPref, boolean> & { muted: boolean; email: EmailFrequency };
+export const defaultPrefs: NotificationPrefs = { replies: true, likes: true, announcements: true, muted: false, email: "important" };
 
 export function prefForKind(kind: NotificationKind | "announcement"): NotificationPref | null {
   if (kind === "reply" || kind === "thread_reply") return "replies";

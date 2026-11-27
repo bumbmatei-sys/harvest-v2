@@ -5,6 +5,7 @@ import { crmFormManifest, resolveCrmForm, submitCrmForm, type CrmFormCharge } fr
 import { crmFormVisitorKey } from "./crm-form-visitor";
 import { errorResponse, verifyOrigin } from "./http";
 import { readBoundedJson } from "./request-json";
+import { newsletterFormCountsClicks } from "./newsletter-clicks";
 import { workerSettings } from "./worker-settings";
 
 export type CrmFormContext = { params: Promise<{ slug: string }> };
@@ -44,7 +45,11 @@ async function handleCrmForm(request: Request, context: CrmFormContext, submit: 
     if ("limited" in form) {
       return Response.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": "60" } });
     }
-    if (!submit) return Response.json(crmFormManifest(form, slug, key));
+    if (!submit) {
+      const manifest = crmFormManifest(form, slug, key);
+      // A newsletter sign-up page says so when the ministry counts link clicks in its emails (shown beside, not inside, the recorded consent wording).
+      return Response.json(manifest.newsletter ? { ...manifest, clicksCounted: await newsletterFormCountsClicks(db, slug) } : manifest);
+    }
     if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
       return Response.json({ error: "json_required" }, { status: 415 });
     }

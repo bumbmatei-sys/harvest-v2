@@ -12,9 +12,11 @@ import { hasAnyValue, type SeriesMetric, type SeriesPoint } from "@/lib/social/a
 const chartConfig = { value: { label: "", color: "var(--chart-1)" } } satisfies ChartConfig;
 
 /** The selected metric over the range. Days without a reading are gaps in the line and "Unavailable" in the table, never zeros. */
-export function SeriesCard({ metrics, metric, onMetric, labelOf, points, animate, index, timezone, loading }: {
-  metrics: readonly SeriesMetric[]; metric: SeriesMetric; onMetric: (metric: SeriesMetric) => void; labelOf: (metric: SeriesMetric) => string;
+export function SeriesCard<M extends string = SeriesMetric>({ metrics, metric, onMetric, labelOf, points, animate, index, timezone, loading, format: formatValue }: {
+  metrics: readonly M[]; metric: M; onMetric: (metric: M) => void; labelOf: (metric: M) => string;
   points: readonly SeriesPoint[]; animate: boolean; index: number; timezone: string; loading: boolean;
+  /** How the table and tooltip show a value (for example a currency); a plain number when omitted. */
+  format?: (value: number) => string;
 }) {
   const t = useTranslations("SocialAnalytics.series"), format = useFormatter();
   const entry = enter(animate, index);
@@ -27,7 +29,7 @@ export function SeriesCard({ metrics, metric, onMetric, labelOf, points, animate
         <CardTitle>{t("title")}</CardTitle>
         <CardDescription>{t("subtitle", { metric: labelOf(metric), zone: timezone })}</CardDescription>
         <CardAction className="max-md:col-span-full max-md:row-start-3 max-md:mt-3 max-md:justify-self-start">
-          <ToggleGroup type="single" variant="outline" value={metric} onValueChange={(value) => { if (value) onMetric(value as SeriesMetric); }} aria-label={t("metric")} className="flex-wrap">
+          <ToggleGroup type="single" variant="outline" value={metric} onValueChange={(value) => { if (value) onMetric(value as M); }} aria-label={t("metric")} className="flex-wrap">
             {metrics.map((item) => <ToggleGroupItem key={item} value={item} data-testid={`series-${item}`}>{labelOf(item)}</ToggleGroupItem>)}
           </ToggleGroup>
         </CardAction>
@@ -56,7 +58,7 @@ export function SeriesCard({ metrics, metric, onMetric, labelOf, points, animate
         <table className="sr-only">
           <caption>{t("tableCaption", { metric: labelOf(metric) })}</caption>
           <thead><tr><th scope="col">{t("day")}</th><th scope="col">{labelOf(metric)}</th></tr></thead>
-          <tbody>{points.map((point) => <tr key={point.day}><th scope="row">{day(point.day, "long")}</th><td>{point.value === null ? t("unavailableValue") : format.number(point.value)}</td></tr>)}</tbody>
+          <tbody>{points.map((point) => <tr key={point.day}><th scope="row">{day(point.day, "long")}</th><td>{point.value === null ? t("unavailableValue") : formatValue ? formatValue(point.value) : format.number(point.value)}</td></tr>)}</tbody>
         </table>
       </CardContent>
     </Card>

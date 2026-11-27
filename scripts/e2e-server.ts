@@ -11,7 +11,16 @@ if (process.env.HARVEST_E2E_MAILBOX) await writeFile(`${process.env.HARVEST_E2E_
 if (process.env.HARVEST_E2E_MAILBOX) await writeFile(`${process.env.HARVEST_E2E_MAILBOX}.admin`, database.admin.options.connectionString ?? "", { mode: 0o600 });
 const connectKey=randomBytes(32).toString("hex");
 if(process.env.HARVEST_E2E_MAILBOX)await writeFile(`${process.env.HARVEST_E2E_MAILBOX}.connect-worker`,JSON.stringify({DATABASE_URL:database.appURL,HARVEST_CONNECT_TEST_KEY:connectKey}),{mode:0o600});
+// QA-2: the test sign-in shortcut is open on this local test server only (HARVEST_ENV=test, loopback origin, harvest_test database).
+const qaPreviewToken = randomBytes(32).toString("hex");
+if (process.env.HARVEST_E2E_MAILBOX) await writeFile(`${process.env.HARVEST_E2E_MAILBOX}.qa-token`, qaPreviewToken, { mode: 0o600 });
+// C15c: browser specs sign community unsubscribe tokens with this throwaway secret (it exists for this test server only).
+const authSecret = randomBytes(48).toString("base64url");
+if (process.env.HARVEST_E2E_MAILBOX) await writeFile(`${process.env.HARVEST_E2E_MAILBOX}.auth-secret`, authSecret, { mode: 0o600 });
 const formsKey=randomBytes(32).toString("hex");
+// Newsletter click-link specs sign a synthetic redirect token with the dev server's newsletter token key; the file never leaves this machine.
+const newsletterTokenKey = randomBytes(32).toString("hex");
+if (process.env.HARVEST_E2E_MAILBOX) await writeFile(`${process.env.HARVEST_E2E_MAILBOX}.newsletter-key`, newsletterTokenKey, { mode: 0o600 });
 const bioKey=randomBytes(32).toString("hex");
 // Another port can be used when 3100 is busy: E2E_PORT here and in playwright.config.ts (the default stays 3100).
 const port = process.env.E2E_PORT ?? "3100";
@@ -23,10 +32,11 @@ const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev",
     HARVEST_CRM_FORMS: "synthetic", HARVEST_CRM_FORMS_TEST_KEY: formsKey,
     // Link in bio "Message me": synthetic mode against this disposable database only; nothing is ever sent.
     HARVEST_LINK_IN_BIO_MESSAGES: "synthetic", HARVEST_LINK_IN_BIO_MESSAGES_TEST_KEY: bioKey,
-    DATABASE_URL: database.appURL, DATABASE_URL_UNPOOLED: "", BETTER_AUTH_SECRET: randomBytes(48).toString("base64url"),
+    HARVEST_ENV: "test", QA_PREVIEW_TOKEN: qaPreviewToken,
+    DATABASE_URL: database.appURL, DATABASE_URL_UNPOOLED: "", BETTER_AUTH_SECRET: authSecret,
     BETTER_AUTH_URL: `http://127.0.0.1:${port}`, RESEND_API_KEY: "re_e2e_mock_only", EMAIL_FROM: "Harvest <test@example.test>",
     // Hosted newsletter sign-ups sign their confirmation links with this key; the message goes to the in-memory fake sink only.
-    HARVEST_NEWSLETTER_TOKEN_KEY: randomBytes(32).toString("hex"),
+    HARVEST_NEWSLETTER_TOKEN_KEY: newsletterTokenKey,
     HARVEST_NEWSLETTER_SUPPRESSION_KEYS: JSON.stringify([randomBytes(32).toString("hex")]),
     HARVEST_E2E_MOCK_EMAIL: "1", NEXT_TELEMETRY_DISABLED: "1",
     // The dev server compiles routes on demand and holds them in memory for the whole run; give it room so a long shard is not killed or starved (ECONNRESET, "destination stream errored").

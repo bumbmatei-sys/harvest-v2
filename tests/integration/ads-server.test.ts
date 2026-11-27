@@ -307,7 +307,7 @@ it("creates lead forms, ingests leads as ad-lead records with consent evidence, 
   expect((await listLeads(f.db, p.owner, p.tenant, {}, deps)).leads).toHaveLength(1);
 });
 
-it("keeps rules disabled by default, previews without acting, pauses through the audited path and logs each run", async () => {
+it("keeps rules disabled by default, previews without acting, only flags (never pauses) and logs each run", async () => {
   await launched();
   await syncAdAccount(f.db, p.owner, p.tenant, acct, deps);
   const remote = ads.remotes.get("acc-fb-2\u0000act_1")!;
@@ -315,21 +315,22 @@ it("keeps rules disabled by default, previews without acting, pauses through the
   remote.results.push({ level: "campaign", ref: remote.campaigns[0].ref, day: day(0), metrics: { spend: 30, impressions: 900, clicks: 30, results: 3 } });
   await syncAdAccount(f.db, p.owner, p.tenant, acct, deps);
   await syncResults(f.db, p.owner, p.tenant, acct, { from: day(-1), to: day(0) }, deps);
-  const { rule } = await createRule(f.db, p.owner, p.tenant, { adAccountId: acct, name: "Pause costly", level: "campaign", condition: { metric: "costPerResult", operator: "gt", threshold: 5 }, action: "pause" }, deps);
+  // Founder decision 26 Nov: a rule that would pause is refused at the API.
+  await expect(createRule(f.db, p.owner, p.tenant, { adAccountId: acct, name: "Pause costly", level: "campaign", condition: { metric: "costPerResult", operator: "gt", threshold: 5 }, action: "pause" }, deps)).rejects.toMatchObject({ status: 422 });
+  const { rule } = await createRule(f.db, p.owner, p.tenant, { adAccountId: acct, name: "Flag costly", level: "campaign", condition: { metric: "costPerResult", operator: "gt", threshold: 5 }, action: "notify" }, deps);
   expect(rule.enabled).toBe(false);
   const preview = await previewRule(f.db, p.owner, p.tenant, rule.id, deps);
   expect(preview.wouldAct).toHaveLength(1);
   expect(await runRules(f.db, p.owner, p.tenant, acct, deps)).toMatchObject({ ran: 0, triggered: 0 });
-  expect((await tree())[0].status).toBe("active");
   await setRuleEnabled(f.db, p.owner, p.tenant, rule.id, { enabled: true, version: rule.version }, deps);
   await expect(setRuleEnabled(f.db, p.owner, p.tenant, rule.id, { enabled: false, version: rule.version }, deps)).rejects.toMatchObject({ status: 409 });
-  const ran = await runRules(f.db, p.owner, p.tenant, acct, deps);
-  if (ran.failed) console.log(JSON.stringify((await q("select detail from ads_rule_runs")).rows));
-  expect(ran).toMatchObject({ ran: 1, triggered: 1, failed: 0 });
-  expect((await tree())[0].status).toBe("paused");
+  const statusAudits = async () => (await q("select count(*)::int as n from audit_logs where action like 'ads.status%' and tenant_id=$1", [p.tenant])).rows[0].n;
+  const before = await statusAudits();
+  expect(await runRules(f.db, p.owner, p.tenant, acct, deps)).toMatchObject({ ran: 1, triggered: 1, failed: 0 });
+  expect((await tree())[0].status).toBe("active");
   expect((await listRuleRuns(f.db, p.owner, p.tenant, rule.id, deps)).runs).toHaveLength(1);
-  expect(await runRules(f.db, p.owner, p.tenant, acct, deps)).toMatchObject({ triggered: 0 });
-  expect((await q("select count(*)::int as n from audit_logs where action in ('ads.rule_create','ads.rule_enable','ads.rules_run','ads.status_outcome') and tenant_id=$1", [p.tenant])).rows[0].n).toBeGreaterThanOrEqual(4);
+  expect((await q("select count(*)::int as n from audit_logs where action in ('ads.rule_create','ads.rule_enable','ads.rules_run') and tenant_id=$1", [p.tenant])).rows[0].n).toBeGreaterThanOrEqual(3);
+  expect(await statusAudits()).toBe(before);
 });
 
 it("verifies signatures, applies events idempotently from fixtures and ignores unknown accounts", async () => {

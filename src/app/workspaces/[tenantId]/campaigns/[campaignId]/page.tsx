@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
-import { ArrowLeft, Flag, Kanban, QrCode } from "lucide-react";
+import { ArrowLeft, Flag, Kanban, PiggyBank, QrCode } from "lucide-react";
 import { getDb } from "@/db/client";
 import { getCampaign } from "@/server/campaigns";
 import { pageSession } from "@/server/page-session";
@@ -54,7 +54,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ tenan
   // Campaign events: people who can write campaigns see the linked events Events shows them; Events owners/admins also get the add/remove controls.
   const campaignEvents = overview ? await listCampaignEvents(getDb(), session.user.id, tenantId, campaignId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; }) : null;
   const eventCandidates = campaignEvents?.manage ? await campaignEventCandidates(getDb(), session.user.id, tenantId, campaignId).catch((error: unknown) => { if (error instanceof AccessError) return []; throw error; }) : [];
-  const format = await getFormatter(), boards = await getTranslations("CampaignBoards");
+  const format = await getFormatter(), boards = await getTranslations("CampaignBoards"), budget = await getTranslations("CampaignBudget");
   const details = [
     [t("location"), [campaign.cityRegion, campaign.country].filter(Boolean).join(", ") || t("notSet")],
     [t("dates"), [campaign.startDate, campaign.endDate].filter((date) => date !== null).map((date) => format.dateTime(new Date(`${date}T00:00:00Z`), { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" })).join(" – ") || t("notSet")],
@@ -83,6 +83,11 @@ export default async function CampaignPage({ params }: { params: Promise<{ tenan
       <div className="flex min-w-0 items-start gap-3"><Kanban className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
         <div className="min-w-0"><h2 className="text-base font-semibold">{boards("pageTitle")}</h2><p className="text-sm text-muted-foreground">{boards("openDescription")}</p></div></div>
       <Button asChild variant="outline" className="min-h-11"><Link href={`/workspaces/${tenantId}/campaigns/${campaignId}/boards`}>{boards("open")}</Link></Button>
+    </CardContent></Card>
+    <Card><CardContent className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex min-w-0 items-start gap-3"><PiggyBank className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+        <div className="min-w-0"><h2 className="text-base font-semibold">{budget("pageTitle")}</h2><p className="text-sm text-muted-foreground">{budget("openDescription")}</p></div></div>
+      <Button asChild variant="outline" className="min-h-11"><Link href={`/workspaces/${tenantId}/campaigns/${campaignId}/budget`}>{budget("open")}</Link></Button>
     </CardContent></Card>
     <Card><CardContent className="flex flex-wrap items-center justify-between gap-4">
       <div className="flex min-w-0 items-start gap-3"><QrCode className="mt-0.5 size-5 shrink-0" aria-hidden="true" />

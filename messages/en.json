@@ -9,6 +9,7 @@
     "fallbackMinistry": "our ministry",
     "addressMissing": "Mailing address not set",
     "watchVideo": "Watch the video",
+    "clicksCounted": "This ministry counts link clicks in its emails, as totals only.",
     "confirmMailboxSubject": "Confirm your newsletter email address",
     "confirmMailboxText": "Enter this code in Harvest to confirm your newsletter email address: {code}",
     "testSubject": "[TEST] {subject}",
@@ -2986,7 +2987,7 @@
       "channels": "Channels",
       "messages": "Messages",
       "people": "People",
-      "products": "Products",
+      "products": "Classroom and products",
       "page": "Page",
       "publish": "Publish"
     },
@@ -3351,6 +3352,7 @@
     "items": {
       "chat": "Chat",
       "forum": "Forum",
+      "classroom": "Classroom",
       "events": "Events",
       "products": "Products",
       "members": "Members",
@@ -3364,6 +3366,33 @@
     "myCommunities": "My communities",
     "toReview": "{count, plural, one {# item to review} other {# items to review}}",
     "manyItems": "99+"
+  },
+  "CommunityShelf": {
+    "classroomTitle": "Classroom",
+    "productsTitle": "Products",
+    "emptyClassroom": "No courses yet",
+    "emptyProducts": "No products yet",
+    "enrolled": "Enrolled",
+    "owned": "Yours",
+    "continue": "Continue",
+    "continueNamed": "Continue {name}",
+    "open": "Open",
+    "openNamed": "Open {name}",
+    "details": "Details",
+    "detailsNamed": "Details for {name}",
+    "enrolNamed": "Enrol for free: {name}",
+    "getNamed": "Get for free: {name}",
+    "noCourses": "No published courses",
+    "noProducts": "No published products",
+    "newCourse": "New course",
+    "newProduct": "New product",
+    "readOnly": "Only ministry staff who manage courses and products can change this.",
+    "featured": "Featured",
+    "membersOnly": "Members only",
+    "moveUp": "Move {name} up",
+    "moveDown": "Move {name} down",
+    "featureNamed": "Feature {name}",
+    "unfeatureNamed": "Stop featuring {name}"
   },
   "ForumCategories": {
     "list": "Forum categories",
@@ -3754,6 +3783,14 @@
       "declined": "Declined"
     }
   },
+  "CommunityUnsubscribe": {
+    "metaTitle": "Community email",
+    "title": "Stop emails from this community?",
+    "body": "You can turn email back on in the community's notification settings.",
+    "confirm": "Stop emails",
+    "doneTitle": "Your request was received",
+    "doneBody": "If this link was valid, this community will not email you again unless you turn email back on."
+  },
   "CommunityNotifications": {
     "bell": "Notifications",
     "bellUnread": "{count, plural, one {Notifications, # unread} other {Notifications, # unread}}",
@@ -3767,6 +3804,18 @@
     "someone": "Someone",
     "settingsTitle": "Notification settings",
     "save": "Save",
+    "savedToast": "Notification settings saved.",
+    "email": {
+      "title": "Email",
+      "off": "Off",
+      "offHint": "No email from this community",
+      "important": "Important only",
+      "importantHint": "Decisions and warnings about you",
+      "daily": "Daily summary",
+      "dailyHint": "Important email and one summary a day",
+      "weekly": "Weekly summary",
+      "weeklyHint": "Important email and one summary a week"
+    },
     "prefs": {
       "replies": "Replies",
       "likes": "Likes",
@@ -6932,7 +6981,10 @@
       "back": "Back to campaigns",
       "draft": "Draft",
       "insertField": "Insert {field}",
-      "coverTitle": "Cover image"
+      "coverTitle": "Cover image",
+      "review": "Review",
+      "lockedScheduled": "This email is scheduled. Cancel the schedule to make changes.",
+      "lockedFinished": "This email can no longer be edited. Duplicate it to send it again."
     },
     "fields": {
       "title": "Title",
@@ -7053,13 +7105,11 @@
       "subject": "Subject",
       "recipients": "Recipients",
       "inbox": "Inbox check",
-      "schedule": "Schedule",
-      "sendNow": "Send",
-      "notReady": "Sending is not available yet.",
-      "fixFirst": "Fix the failed checks first.",
       "pending": "Not counted yet",
       "openSender": "Open Sender",
-      "setUpSender": "Set up a sender"
+      "setUpSender": "Set up a sender",
+      "zone": "Times are in the ministry's time zone: {zone}.",
+      "continue": "Continue to review"
     },
     "checks": {
       "subject": {
@@ -7142,6 +7192,137 @@
       "chosen": "Image chosen.",
       "removed": "Image removed.",
       "altLabel": "Image description"
+    },
+    "review": {
+      "offTitle": "Sending is off",
+      "offBody": "Nothing is delivered yet. A scheduled email waits in the queue and nobody receives it until sending is turned on.",
+      "statusTitle": "Status",
+      "scheduledFor": "{when} ({zone})",
+      "queued": "Queued. Sending is off, so nobody receives it at this time.",
+      "cancelledBody": "The schedule was cancelled. Nobody received this email.",
+      "newTime": "New date and time",
+      "zone": "Times are in the ministry's time zone: {zone}.",
+      "changeTime": "Change time",
+      "saveTime": "Save new time",
+      "keepTime": "Keep current time",
+      "cancelSchedule": "Cancel schedule",
+      "duplicate": "Duplicate as a new draft",
+      "copyName": "{name} (copy)",
+      "summary": "Summary",
+      "audience": "Audience",
+      "recipients": "Recipients",
+      "subject": "Subject",
+      "preheader": "Preview text",
+      "from": "From",
+      "fromValue": "{name} ({address})",
+      "replyTo": "Reply to",
+      "when": "When",
+      "whenNow": "Now",
+      "noTime": "No time chosen",
+      "missing": "Not set",
+      "noAudience": "No list chosen",
+      "counting": "Counting",
+      "countFailed": "Could not count recipients.",
+      "count": "{eligible} of {selected} people will receive it.",
+      "checklist": "Before you schedule",
+      "blocking": "{count, plural, one {# problem blocks scheduling.} other {# problems block scheduling.}}",
+      "noBlocking": "Nothing blocks scheduling.",
+      "items": {
+        "audience": {
+          "pass": "A list is chosen.",
+          "warn": "",
+          "fail": "Choose at least one list."
+        },
+        "recipients": {
+          "pass": "People with consent will receive it.",
+          "warn": "Counting people with consent.",
+          "fail": "No one on these lists has agreed to receive email."
+        },
+        "subject": {
+          "pass": "Subject added.",
+          "warn": "",
+          "fail": "Add a subject."
+        },
+        "content": {
+          "pass": "Email has content.",
+          "warn": "",
+          "fail": "Add some content."
+        },
+        "links": {
+          "pass": "Buttons have links.",
+          "warn": "",
+          "fail": "{count, plural, one {# button has} other {# buttons have}} no link."
+        },
+        "address": {
+          "pass": "Mailing address set.",
+          "warn": "",
+          "fail": "Add a mailing address."
+        },
+        "unsubscribe": {
+          "pass": "Unsubscribe link is added to every email.",
+          "warn": "",
+          "fail": ""
+        },
+        "sender": {
+          "pass": "From and reply-to addresses chosen.",
+          "warn": "",
+          "fail": "Choose a verified from and reply-to address."
+        },
+        "time": {
+          "pass": "Time is in the next 60 days.",
+          "warn": "",
+          "fail": "Pick a future time within 60 days."
+        },
+        "preview": {
+          "pass": "Preview text added.",
+          "warn": "Add preview text.",
+          "fail": "Add preview text."
+        }
+      },
+      "fix": {
+        "audience": "Choose lists",
+        "recipients": "Open Audience",
+        "subject": "Edit email",
+        "content": "Edit email",
+        "links": "Edit email",
+        "address": "Edit email",
+        "sender": "Choose addresses",
+        "time": "Pick a time",
+        "preview": "Edit email",
+        "imageAlt": "Edit email"
+      },
+      "test": "Test send",
+      "testNone": "No test sent yet.",
+      "testSent": "Test sent to the test inbox at {time}.",
+      "testFailed": "The last test could not be sent.",
+      "sendTest": "Send me a test",
+      "sendNow": "Send now",
+      "nowOff": "Sending is off. Pick a time to schedule it.",
+      "schedule": "Schedule",
+      "scheduleHint": "You confirm the details before it is queued.",
+      "fixFirst": "Fix the problems above to schedule.",
+      "confirmTitle": "Schedule this email?",
+      "confirmBody": "{eligible} of {selected} people, {when} ({zone}). Sending is off, so it waits in the queue.",
+      "confirm": "Schedule",
+      "back": "Back",
+      "scheduling": "Scheduling",
+      "cancelTitle": "Cancel this schedule?",
+      "cancelDescription": "The email leaves the queue. You can duplicate it later.",
+      "cancelConfirm": "Cancel schedule",
+      "keepScheduled": "Keep it",
+      "errors": {
+        "IDENTITY_REQUIRED": "Choose a from and reply-to address.",
+        "IDENTITY_UNVERIFIED": "A chosen address is not verified. Check Sender.",
+        "SELECTION_REQUIRED": "Choose at least one list.",
+        "SELECTION_CHANGED": "A list or saved group changed. Choose the audience again.",
+        "SCHEDULE_IN_PAST": "Pick a time in the future.",
+        "SCHEDULE_TOO_FAR": "Pick a time within 60 days.",
+        "MAILING_ADDRESS_REQUIRED": "Add a mailing address.",
+        "STALE_VERSION": "This email changed. Reload to continue.",
+        "REVIEW_REQUIRED": "The review expired. Schedule again.",
+        "NOT_RESCHEDULABLE": "This email can no longer be moved.",
+        "notSaved": "Save the email before scheduling."
+      }
     }
   },
   "NewsletterAudience": {
@@ -7310,7 +7491,15 @@
     "mailingLabel": "Address printed in every email",
     "save": "Save",
     "saved": "Saved",
-    "failed": "Could not save. Try again."
+    "failed": "Could not save. Try again.",
+    "clicks": {
+      "title": "Link clicks",
+      "label": "Count link clicks in emails",
+      "description": "Totals only, never who clicked. Emails and sign-up forms then say links are counted.",
+      "ownerOnly": "Only the owner can change this.",
+      "on": "Counting link clicks",
+      "off": "Not counting link clicks"
+    }
   },
   "NewsletterAnalytics": {
     "pageTitle": "Analytics",
@@ -7327,7 +7516,8 @@
       "bounced": "Bounced",
       "complained": "Complaints",
       "unsubscribed": "Unsubscribed",
-      "selected": "Recipients"
+      "selected": "Recipients",
+      "clicks": "Link clicks"
     },
     "empty": {
       "title": "No sends yet",
@@ -7351,7 +7541,15 @@
       "unsubscribed": "Unsubscribed",
       "suppressed": "Bounced or suppressed"
     },
-    "footer": "Last {days} days, {start} to {end}, UTC. Figures are indicative: they come from mail provider reports and can arrive late. Opens and clicks are not collected. Groups under 5 are not shown.",
+    "growth": {
+      "title": "Audience growth",
+      "caption": "Audience counts by day (UTC)",
+      "net": "{label}, net change",
+      "noData": "No data yet",
+      "none": "No data yet. Counts are taken once a day.",
+      "since": "No data yet before {date}."
+    },
+    "footer": "Last {days} days, {start} to {end}, UTC. Figures are indicative: they come from mail provider reports and can arrive late. {clicks} Groups under 5 are not shown.",
     "back": "Analytics",
     "openCampaign": "Open campaign",
     "notSent": {
@@ -7360,6 +7558,9 @@
     },
     "campaign": {
       "sinceSend": "Since send",
+      "outcomeDay": "Each outcome on the day it was recorded.",
+      "outcomeCaption": "Campaign outcomes by the day they were recorded (UTC)",
+      "archivedNote": "Each outcome on the day it was recorded. Records older than 90 days keep only totals, so their outcomes are not in this chart.",
       "statusTitle": "Delivery status",
       "statusCaption": "Delivery status counts",
       "statusKey": "Status",
@@ -7374,9 +7575,21 @@
         "accepted": "Sent",
         "delivered": "Delivered"
       },
-      "footer": "{start} to {end}, UTC. Delivery records are kept for 90 days. Figures are indicative and come from mail provider reports. Opens, clicks and link clicks are not collected. Groups under 5 are not shown."
+      "footer": "{start} to {end}, UTC. Delivery and click records are kept for 90 days. Figures are indicative and come from mail provider reports. {clicks} Groups under 5 are not shown."
     },
-    "unavailable": "Analytics unavailable."
+    "unavailable": "Analytics unavailable.",
+    "clicksNote": "May include link scanners",
+    "clicksOff": "Not counted",
+    "clicksFooter": {
+      "on": "Link clicks are totals and may include link scanners; opens are not collected.",
+      "off": "Opens are not collected. Link clicks are counted only when the owner turns it on."
+    },
+    "topLinks": {
+      "title": "Top links",
+      "link": "Link",
+      "clicks": "Clicks",
+      "empty": "No link has 5 or more clicks yet."
+    }
   },
   "NewsletterForms": {
     "pageTitle": "Sign-up forms",
@@ -7457,7 +7670,8 @@
       "pageTitle": "Newsletter sign-up",
       "loading": "Loading",
       "busyTitle": "Too many requests. Try again in a minute.",
-      "unavailableTitle": "This sign-up form is not available."
+      "unavailableTitle": "This sign-up form is not available.",
+      "clicksCounted": "This ministry counts link clicks in its emails, as totals only."
     },
     "confirm": {
       "pageTitle": "Confirm sign-up",
@@ -8388,7 +8602,7 @@
       },
       "visibility": "Visibility",
       "visibilityOptions": {
-        "hidden": "Hidden: only your ministry",
+        "hidden": "Hidden: only on community shelves you choose",
         "unlisted": "Unlisted: anyone with the link",
         "listed": "Listed: shown in the catalogue"
       },
@@ -8400,7 +8614,6 @@
       "checks": {
         "title": "A title",
         "address": "An address",
-        "visibility": "Visibility other than hidden",
         "lessons": "At least one published lesson",
         "files": "Ready files"
       },
@@ -8475,6 +8688,8 @@
     "refreshing": "Refreshing",
     "refreshed": "Ads data updated",
     "leadsLink": "Lead forms and leads",
+    "overviewLink": "Overview",
+    "rulesLink": "Rules",
     "create": "Create ad",
     "boost": "Boost a post",
     "account": {
@@ -9171,6 +9386,143 @@
       "publishOff": "Publishing is not turned on yet.",
       "publishedToast": "Form published",
       "preview": "Preview"
+    },
+    "overview": {
+      "title": "Ads overview",
+      "rulesLink": "Rules",
+      "manageLink": "Manage ads",
+      "activeCampaigns": "Active campaigns",
+      "series": {
+        "spend": "Spend",
+        "results": "Results",
+        "costPerResult": "Cost per result",
+        "clicks": "Clicks",
+        "impressions": "Impressions"
+      },
+      "attention": {
+        "title": "Needs attention",
+        "description": "Account problems, alerts, review results, budgets and rule flags.",
+        "count": "{count, plural, one {# item} other {# items}}",
+        "critical": "Urgent",
+        "warning": "Check",
+        "noneTitle": "All clear",
+        "none": "Nothing needs attention on this ad account.",
+        "subject": "{level}: {name}",
+        "healthCheck": "A health check needs a look.",
+        "alert": "An alert needs a look.",
+        "adRejected": "Rejected in review.",
+        "deliveryIssue": "Not delivering because of an issue.",
+        "budgetDaily": "{share} of the daily budget spent today.",
+        "budgetLifetime": "{share} of the lifetime budget spent.",
+        "ruleFlag": "Flagged by the rule {rule}."
+      },
+      "health": {
+        "title": "Ad account health",
+        "checked": "Health checked",
+        "checks": "Health checks for {name}",
+        "check": {
+          "account_status": "Account status",
+          "payment_method": "Payment method",
+          "spend_limit": "Spending limit",
+          "page_link": "Page link",
+          "instagram_link": "Instagram link",
+          "lead_ads_terms": "Lead ads terms",
+          "pixel": "Tracking pixel",
+          "whatsapp_link": "WhatsApp number"
+        },
+        "checkNow": "Check now",
+        "checkNamed": "Check now: {name}",
+        "checking": "Checking…",
+        "checkedAt": "Checked {time}",
+          "networkCurrency": "{network} · {currency}",
+        "never": "Not checked yet",
+        "summary": {
+          "ok": "Healthy",
+          "warning": "Needs a look",
+          "failing": "Problem",
+          "unknown": "Not checked"
+        },
+        "state": {
+          "ok": "OK",
+          "warning": "Needs a look",
+          "failing": "Problem",
+          "unknown": "Not confirmed"
+        }
+      }
+    },
+    "rules": {
+      "title": "Ad rules",
+      "subtitle": "Rules flag what matches. They never turn ads off or change budgets.",
+      "back": "Ads overview",
+      "label": "Ad rules",
+      "loading": "Loading rules…",
+      "new": "New rule",
+      "checkNow": "Check rules now",
+      "ran": "{count, plural, =0 {Nothing flagged} one {# item flagged} other {# items flagged}}",
+      "emptyTitle": "No rules yet",
+      "empty": "Get flagged when spend or costs pass a limit you set.",
+      "columns": {
+        "name": "Rule",
+        "condition": "When",
+        "level": "Level",
+        "action": "Action",
+        "on": "On",
+        "actions": "Actions"
+      },
+      "condition": "{metric} {operator} {value} over {days, plural, one {# day} other {# days}}",
+      "metric": {
+        "spend": "Spend",
+        "costPerResult": "Cost per result",
+        "results": "Results",
+        "ctr": "Click-through rate",
+        "cpc": "Cost per click",
+        "cpm": "Cost per 1,000 impressions",
+        "impressions": "Impressions",
+        "clicks": "Clicks"
+      },
+      "operator": {
+        "gt": "above",
+        "gte": "at least",
+        "lt": "below",
+        "lte": "at most"
+      },
+      "flagOnly": "Flag",
+      "pauseAction": "Pause (not offered here)",
+      "turnOn": "Rule {name} on",
+      "turnedOn": "Rule turned on",
+      "turnedOff": "Rule turned off",
+      "remove": "Remove {name}",
+      "removeTitle": "Remove {name}?",
+      "removeBody": "The rule and its history are removed. This cannot be undone.",
+      "removeConfirm": "Remove",
+      "removed": "Rule removed",
+      "cancel": "Cancel",
+      "created": "Rule created. It starts off.",
+      "newTitle": "New rule",
+      "newDescription": "Flag campaigns, ad sets or ads when a measure passes a limit.",
+      "create": "Create rule",
+      "form": {
+        "name": "Name",
+        "nameInvalid": "Enter a name of up to 120 characters.",
+        "level": "Watch",
+        "metric": "Measure",
+        "operator": "Condition",
+        "threshold": "Limit",
+        "thresholdIn": "Limit ({unit})",
+        "thresholdInvalid": "Enter a number of 0 or more.",
+        "days": "Over the last days",
+        "daysInvalid": "Enter 1 to 30 days.",
+        "action": "Matching items are flagged. Nothing is turned off and no budget changes."
+      },
+      "on": "On",
+      "off": "Off",
+      "previewTitle": "Would flag now",
+      "previewNone": "Nothing matches right now.",
+      "runsTitle": "Recent checks",
+      "runsNone": "Not checked yet.",
+      "flagged": "Flagged",
+      "failed": "Failed",
+      "unavailable": "Unavailable"
     }
   },
   "DiscoverScreens": {
@@ -9534,7 +9886,11 @@
     "board": "Board",
     "boardOption": "{name} ({count})",
     "boardRegion": "{name} board",
-    "columns": { "todo": "To do", "in_progress": "In progress", "done": "Done" },
+    "columns": {
+      "todo": "To do",
+      "in_progress": "In progress",
+      "done": "Done"
+    },
     "columnLabel": "{column}, {count, plural, one {# task} other {# tasks}}",
     "cardLabel": "{task}, {column}",
     "emptyColumn": "No tasks",
@@ -9584,6 +9940,75 @@
     "listView": "List view",
     "noTasks": "No tasks on this board yet."
   },
+  "CampaignBudget": {
+    "managersOnly": "Only owners and admins can change the budget.",
+    "currencyUnsupported": "This campaign's budget currency can't be tracked here yet.",
+    "currencyMismatch": "This budget already uses another currency.",
+    "lineExists": "That category is already in the budget.",
+    "lineNotFound": "Budget line not found.",
+    "expenseNotFound": "Expense not found.",
+    "versionConflict": "Someone else changed this. Reload and try again.",
+    "conflict": "That could not be saved. Reload and try again.",
+    "tooManyExpenses": "This campaign has reached its expense limit.",
+    "pageTitle": "Budget",
+    "open": "Open budget",
+    "openDescription": "Planned and spent amounts by category.",
+    "backToCampaign": "Back to campaign",
+    "recordOnly": "Records only. No money moves through Harvest.",
+    "currencyNote": "Amounts in {currency}.",
+    "planned": "Planned",
+    "spent": "Spent",
+    "remaining": "Remaining",
+    "spentPercent": "{percent}% of plan spent",
+    "noPlan": "Nothing planned yet",
+    "byCategory": "By category",
+    "categoriesLabel": "Budget by category",
+    "category": "Category",
+    "notPlanned": "Not planned",
+    "categoriesEmpty": "No budget lines yet",
+    "addLine": "Add category",
+    "editLine": "Edit planned amount",
+    "removeLine": "Remove category",
+    "removeLineConfirm": "Expenses in this category stay and show as not planned.",
+    "plannedAmount": "Planned amount",
+    "expenses": "Expenses",
+    "expensesLabel": "Campaign expenses",
+    "expensesEmpty": "No expenses yet",
+    "expensesHidden": "Owners and admins see individual expenses.",
+    "addExpense": "Add expense",
+    "editExpense": "Edit expense",
+    "removeExpense": "Remove expense",
+    "removeExpenseConfirm": "The expense is removed from the budget.",
+    "date": "Date",
+    "amount": "Amount",
+    "description": "Description",
+    "payee": "Paid to",
+    "reference": "Reference",
+    "recordedBy": "Recorded by {name}",
+    "optional": "(optional)",
+    "actions": "Actions",
+    "edit": "Edit",
+    "remove": "Remove",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
+    "add": "Add",
+    "invalidAmount": "Enter an amount like 125 or 125.50.",
+    "amountPlaceholder": "0.00",
+    "categories": {
+      "venue": "Venue",
+      "equipment_production": "Equipment & production",
+      "marketing_media": "Marketing & media",
+      "printing_materials": "Printing & materials",
+      "travel_transport": "Travel & transport",
+      "accommodation": "Accommodation",
+      "hospitality_food": "Hospitality & food",
+      "volunteers_staff": "Volunteers & staff",
+      "security_medical": "Security & medical",
+      "administration": "Administration",
+      "other": "Other"
+    }
+  },
   "CampaignDashboard": {
     "title": "Campaign overview",
     "departments": "Departments",
@@ -9606,7 +10031,12 @@
     "noTools": "No tools were enabled.",
     "noConfiguration": "This campaign was not created with the setup wizard, so there is no configuration to show.",
     "notYet": "Not tracked yet",
-    "notYetDescription": "These are not recorded anywhere yet, so no number is shown.",
+    "notYetDescription": "No figure is shown for these yet.",
+    "budgetStat": "Budget spent",
+    "spentOf": "{spent} of {planned}",
+    "noBudget": "No budget yet",
+    "fundingStat": "Funding raised",
+    "raisedOf": "{raised} of {goal}",
     "notAvailable": "Not available yet",
     "unavailable": {
       "progress": "Progress",
@@ -9828,19 +10258,16 @@
       "reported": "Reported",
       "giving": "Giving details",
       "actions": "Actions",
+      "actionsNamed": "Actions for the report on {name}",
       "none": "None",
       "shown": "Shown",
       "hidden": "Hidden",
       "markReviewed": "Mark reviewed",
-      "markReviewedNamed": "Mark report on {name} reviewed",
       "dismiss": "Dismiss",
-      "dismissNamed": "Dismiss report on {name}",
       "hide": "Hide giving details",
-      "hideNamed": "Hide giving details of {name}",
       "hideTitle": "Hide giving details of {name}",
       "hideReason": "Reason (shown to the ministry)",
       "restore": "Restore",
-      "restoreNamed": "Restore giving details of {name}",
       "restoreTitle": "Restore giving details?",
       "restoreBody": "{name}'s enabled ways to give will show on its public pages again.",
       "cancel": "Cancel",
@@ -10027,5 +10454,89 @@
     "noMatch": "No events found",
     "remove": "Remove {title} from this campaign",
     "draft": "Draft"
+  },
+  "GivePage": {
+    "unavailable": "This page isn't available.",
+    "slugTaken": "That address is taken. Choose another.",
+    "slugLocked": "The address can't change once the fundraiser is open.",
+    "saveFirst": "Save the page first.",
+    "section": {
+      "title": "Public page",
+      "live": "Live",
+      "notLive": "Not public yet",
+      "notLiveHint": "Visitors see it while the fundraiser is open.",
+      "closedHint": "Closed fundraisers are not shown.",
+      "address": "Address",
+      "addressLocked": "Fixed once the fundraiser is open.",
+      "description": "Description",
+      "showAmount": "Show amount raised",
+      "showAmountHint": "Off: visitors see the title, description, cover and ways to give only.",
+      "save": "Save page",
+      "saving": "Saving…",
+      "saved": "Public page saved.",
+      "copyLink": "Copy link",
+      "openPage": "Open page",
+      "preview": "Preview",
+      "previewTitle": "Public page preview",
+      "invalidSlug": "Use 3–48 lowercase letters, numbers or hyphens.",
+      "reservedSlug": "That address is reserved. Choose another.",
+      "tooLong": "Use at most {max} characters."
+    },
+    "public": {
+      "by": "By {ministry}",
+      "raised": "Raised",
+      "goal": "Goal",
+      "ofGoal": "{percent}% of goal",
+      "progressLabel": "Progress toward the goal",
+      "raisedOf": "{raised} of {goal}",
+      "suppressed": "Progress shows once more gifts are recorded.",
+      "recorded": "Gifts recorded by the ministry.",
+      "notice": "Gifts go directly to {ministry}. Harvest doesn't process payments.",
+      "theMinistry": "the ministry",
+      "coverAlt": "Cover image for {title}"
+    },
+    "cover": {
+      "label": "Cover image",
+      "alt": "Fundraiser cover",
+      "drop": "Drop an image here",
+      "limits": "JPG, PNG or WebP, up to {mb} MB",
+      "select": "Select image",
+      "replace": "Replace",
+      "remove": "Remove",
+      "saveFirst": "Save the page to add a cover.",
+      "saved": "Cover updated.",
+      "removed": "Cover removed.",
+      "removeTitle": "Remove the cover?",
+      "removeBody": "The public page will have no cover image.",
+      "keep": "Keep cover",
+      "progressLabel": "Upload progress",
+      "cancel": "Cancel",
+      "scanning": "Waiting for the safety check.",
+      "checkAgain": "Check again",
+      "dismiss": "Dismiss",
+      "tryAgain": "Try again",
+      "chooseAnother": "Choose another",
+      "reload": "Reload",
+      "phases": {
+        "preparing": "Preparing",
+        "uploading": "Uploading",
+        "uploadingPercent": "Uploading {percent}%",
+        "verifying": "Checking the image"
+      },
+      "problems": {
+        "type": "Use a JPG, PNG or WebP image.",
+        "size": "The image must be larger than 0 and at most {mb} MB.",
+        "rejected": "This image was not accepted. Choose another.",
+        "interrupted": "The upload was interrupted. Try again.",
+        "failed": "The image could not be uploaded. Try again.",
+        "scan": "The image failed the safety check. Choose another.",
+        "stale": "This page changed somewhere else. Reload, then try again."
+      }
+    }
+  },
+  "NewsletterLink": {
+    "pageTitle": "Link not available",
+    "title": "This link is not available",
+    "body": "It may be incomplete or no longer in use."
   }
 }

@@ -289,6 +289,48 @@ export const campaignTasks = pgTable("campaign_tasks", {
   check("campaign_task_version", sql`${t.version} >= 1`),
 ]);
 
+// Campaign budgets (PRD "What Happens After Clicking Finish?", item 4; launch scope rows 2 and 3). Record keeping only: no money moves, no provider.
+// One budget line per campaign and category (planned cents) and the campaign's expenses (spent cents). Money is bigint cents in one two-decimal
+// currency per campaign (the server uses the wizard's budget currency), bounded like fundraising. None of this references a CRM contact.
+const budgetCategorySql = sql.raw(`'venue', 'equipment_production', 'marketing_media', 'printing_materials', 'travel_transport', 'accommodation', 'hospitality_food', 'volunteers_staff', 'security_medical', 'administration', 'other'`);
+const budgetCurrencySql = sql.raw(`'USD','EUR','GBP','CAD','AUD','NZD','CHF','ZAR','BRL','MXN','INR','PHP','KES','NGN','GHS','RON'`);
+export const campaignBudgetLines = pgTable("campaign_budget_lines", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), campaignId: uuid("campaign_id").notNull(),
+  category: text("category").notNull(),
+  plannedCents: bigint("planned_cents", { mode: "bigint" }).notNull(), currency: text("currency").notNull(),
+  version: integer("version").notNull().default(1),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }).onDelete("cascade"),
+  uniqueIndex("campaign_budget_lines_category_idx").on(t.tenantId, t.campaignId, t.category),
+  check("campaign_budget_line_category", sql`${t.category} in (${budgetCategorySql})`),
+  check("campaign_budget_line_currency", sql`${t.currency} in (${budgetCurrencySql})`),
+  check("campaign_budget_line_planned", sql`${t.plannedCents} between 0 and 1000000000000`),
+  check("campaign_budget_line_version", sql`${t.version} >= 1`),
+]);
+export const campaignExpenses = pgTable("campaign_expenses", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), campaignId: uuid("campaign_id").notNull(),
+  spentOn: date("spent_on").notNull(), category: text("category").notNull(),
+  amountCents: bigint("amount_cents", { mode: "bigint" }).notNull(), currency: text("currency").notNull(),
+  description: text("description").notNull(), payee: text("payee"), reference: text("reference"),
+  recordedBy: text("recorded_by").notNull().references(() => users.id),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }).onDelete("cascade"),
+  index("campaign_expenses_campaign_idx").on(t.tenantId, t.campaignId, t.spentOn),
+  check("campaign_expense_category", sql`${t.category} in (${budgetCategorySql})`),
+  check("campaign_expense_currency", sql`${t.currency} in (${budgetCurrencySql})`),
+  check("campaign_expense_amount", sql`${t.amountCents} between 1 and 1000000000000`),
+  check("campaign_expense_description", sql`length(btrim(${t.description})) between 1 and 200 and ${t.description} = btrim(${t.description})`),
+  check("campaign_expense_payee", sql`length(btrim(${t.payee})) between 1 and 120`),
+  check("campaign_expense_reference", sql`length(btrim(${t.reference})) between 1 and 120`),
+  check("campaign_expense_version", sql`${t.version} >= 1`),
+]);
+
 // CW-05 (founder decision Q2, 25 Nov): a person is placed in a department by an invitation they must accept. Pending, accepted, declined and revoked
 // are stored; expired is derived from `expiresAt` (14 days). An invitation is for an existing ministry member (kind member) or for an email address
 // (kind email); accepting an email invitation adds the person to the ministry in the inert campaign_guest role. Only the hash of the link token is kept.
@@ -2433,7 +2475,6 @@ export const catalogItems = pgTable("catalog_items", {
   check("catalog_item_kind", sql`${t.kind} in ('course','download')`),
   check("catalog_item_state", sql`${t.state} in ('draft','published','archived')`),
   check("catalog_item_visibility", sql`${t.visibility} in ('hidden','unlisted','listed')`),
-  check("catalog_item_publication", sql`${t.state} <> 'published' or ${t.visibility} <> 'hidden'`),
   check("catalog_item_slug", sql`${t.slug} ~ '^[a-z0-9][a-z0-9-]{1,58}[a-z0-9]$'`),
   check("catalog_item_title", sql`length(trim(${t.title})) between 1 and 120`),
   check("catalog_item_summary", sql`length(${t.summary}) <= 2000`),
@@ -2479,9 +2520,14 @@ export const catalogEnrolments = pgTable("catalog_enrolments", {
 export const communityProductLinks = pgTable("community_product_links", {
   tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(), itemId: uuid("item_id").notNull(),
   position: integer("position").notNull().default(0),
+  // C13/C16 (0123): the shelf an item sits on (the item's own kind, enforced by the foreign key) and at most one featured item per shelf.
+  kind: text("kind", { enum: ["course", "download"] }).notNull(),
+  featured: boolean("featured").notNull().default(false),
 }, (t) => [
   primaryKey({ columns: [t.tenantId, t.communityId, t.itemId] }),
   foreignKey({ columns: [t.tenantId, t.itemId], foreignColumns: [catalogItems.tenantId, catalogItems.id] }),
+  foreignKey({ columns: [t.tenantId, t.itemId, t.kind], foreignColumns: [catalogItems.tenantId, catalogItems.id, catalogItems.kind] }),
+  uniqueIndex("community_product_featured").on(t.tenantId, t.communityId, t.kind).where(sql`${t.featured}`),
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
   check("community_product_position", sql`${t.position} between 0 and 1000`),
 ]);
@@ -2924,6 +2970,70 @@ export const newsletterArchivedCounts = pgTable("newsletter_archived_counts", {
   count: bigint("count", { mode: "number" }).notNull(),
 }, t => [primaryKey({ columns: [t.tenantId, t.campaignId, t.day, t.metric] }),
   foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [newsletterCampaigns.tenantId, newsletterCampaigns.id] })]);
+
+// A one-transaction token that only newsletter_snapshot_audience writes and deletes; the worker-only `workspaces` read policy requires it, so a
+// session that sets the scan flag by hand opens nothing.
+export const newsletterGrowthScans = pgTable("newsletter_growth_scans", {
+  token: uuid("token").primaryKey(),
+  xact: text("xact").notNull(),
+});
+
+// One row per ministry per UTC day: audience counts only (no person ids), written by the newsletter worker for the growth chart.
+export const newsletterAudienceSnapshots = pgTable("newsletter_audience_snapshots", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  day: date("day").notNull(),
+  subscribed: integer("subscribed").notNull(),
+  unsubscribed: integer("unsubscribed").notNull(),
+  suppressed: integer("suppressed").notNull(),
+  takenAt: timestamp("taken_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.tenantId, t.day] }),
+  check("newsletter_audience_snapshot_counts", sql`${t.subscribed} >= 0 and ${t.unsubscribed} >= 0 and ${t.suppressed} >= 0`)]);
+
+/** Per-ministry newsletter settings. Link-click counting is off until the owner turns it on; `click_tracking_since` is set by the database when it is turned on. */
+export const newsletterSettings = pgTable("newsletter_settings", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  clickTracking: boolean("click_tracking").notNull().default(false),
+  clickTrackingSince: timestamp("click_tracking_since", { withTimezone: true }),
+  version: integer("version").notNull().default(1),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.tenantId] }),
+  check("newsletter_settings_click_since", sql`${t.clickTracking} = (${t.clickTrackingSince} is not null)`)]);
+
+/** The content links of a frozen revision, by position, written by the delivery worker when clicks are counted. The redirect reads the URL from here, never from the link. */
+export const newsletterClickLinks = pgTable("newsletter_click_links", {
+  tenantId: uuid("tenant_id").notNull(),
+  campaignId: uuid("campaign_id").notNull(),
+  revision: integer("revision").notNull(),
+  linkIndex: integer("link_index").notNull(),
+  url: text("url").notNull(),
+}, t => [primaryKey({ columns: [t.tenantId, t.campaignId, t.revision, t.linkIndex] }),
+  unique("newsletter_click_link_url").on(t.tenantId, t.campaignId, t.revision, t.url),
+  foreignKey({ name: "newsletter_click_link_revision_fk", columns: [t.tenantId, t.campaignId, t.revision], foreignColumns: [newsletterCampaignRevisions.tenantId, newsletterCampaignRevisions.campaignId, newsletterCampaignRevisions.revision] }),
+  check("newsletter_click_link_shape", sql`${t.linkIndex} between 0 and 199 and ${t.url} ~ '^https://' and char_length(${t.url}) <= 2000`)]);
+
+// One row per delivery and link for at most 90 days (no address, IP, user agent or device), then only anonymous campaign/day/link counts remain.
+export const newsletterClicks = pgTable("newsletter_clicks", {
+  tenantId: uuid("tenant_id").notNull(),
+  campaignId: uuid("campaign_id").notNull(),
+  revision: integer("revision").notNull(),
+  deliveryId: uuid("delivery_id").notNull(),
+  linkIndex: integer("link_index").notNull(),
+  clickedAt: timestamp("clicked_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.tenantId, t.deliveryId, t.linkIndex] }),
+  index("newsletter_click_retention_idx").on(t.clickedAt),
+  index("newsletter_click_campaign_idx").on(t.tenantId, t.campaignId, t.clickedAt),
+  foreignKey({ name: "newsletter_click_link_fk", columns: [t.tenantId, t.campaignId, t.revision, t.linkIndex], foreignColumns: [newsletterClickLinks.tenantId, newsletterClickLinks.campaignId, newsletterClickLinks.revision, newsletterClickLinks.linkIndex] })]);
+
+export const newsletterClickCounts = pgTable("newsletter_click_counts", {
+  tenantId: uuid("tenant_id").notNull(),
+  campaignId: uuid("campaign_id").notNull(),
+  revision: integer("revision").notNull(),
+  day: date("day").notNull(),
+  linkIndex: integer("link_index").notNull(),
+  count: bigint("count", { mode: "number" }).notNull(),
+}, t => [primaryKey({ columns: [t.tenantId, t.campaignId, t.revision, t.day, t.linkIndex] }),
+  foreignKey({ name: "newsletter_click_count_link_fk", columns: [t.tenantId, t.campaignId, t.revision, t.linkIndex], foreignColumns: [newsletterClickLinks.tenantId, newsletterClickLinks.campaignId, newsletterClickLinks.revision, newsletterClickLinks.linkIndex] }),
+  check("newsletter_click_count_positive", sql`${t.count} > 0`)]);
 
 export const newsletterSuppressions = pgTable("newsletter_suppressions", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
@@ -3398,7 +3508,7 @@ export const adsRules = pgTable("ads_rules", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   foreignKey({ name: "ads_rules_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
-  check("ads_rules_shape", sql`length(${t.name}) between 1 and 120 and ${t.level} in ('campaign','adset','ad') and ${t.action} in ('pause','notify') and pg_column_size(${t.condition}) <= 1024`),
+  check("ads_rules_shape", sql`length(${t.name}) between 1 and 120 and ${t.level} in ('campaign','adset','ad') and ${t.action} in ('pause','notify') and (${t.action} = 'notify' or not ${t.enabled}) and pg_column_size(${t.condition}) <= 1024`),
 ]);
 export const adsRuleRuns = pgTable("ads_rule_runs", {
   tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), ruleId: uuid("rule_id").notNull(), targetLevel: text("target_level").notNull(), targetId: uuid("target_id").notNull(),
@@ -3613,7 +3723,7 @@ export const givingReports = pgTable("giving_reports", {
   resolvedBy: text("resolved_by").references(() => users.id), resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("giving_reports_open_idx").on(t.status, t.createdAt), index("giving_reports_tenant_idx").on(t.tenantId, t.createdAt),
-  check("giving_reports_page", sql`${t.page} in ('bio')`), check("giving_reports_ref", sql`length(${t.ref}) between 1 and 64`),
+  check("giving_reports_page", sql`${t.page} in ('bio', 'give')`), check("giving_reports_ref", sql`length(${t.ref}) between 1 and 64`),
   check("giving_reports_reason", sql`${t.reason} in ('impersonation','scam','wrong_details','inappropriate','other')`),
   check("giving_reports_note", sql`${t.note} is null or length(${t.note}) between 1 and 500`),
   check("giving_reports_status", sql`${t.status} in ('open','reviewed','dismissed') and ((${t.status} = 'open') = (${t.resolvedAt} is null))`)]);
@@ -3720,3 +3830,46 @@ export const givingContactLinks = pgTable("giving_contact_links", {
   foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
   check("giving_contact_link_name", sql`length(btrim(${t.supporterName})) between 1 and 120`),
   check("giving_contact_link_some", sql`${t.contactId} is not null or ${t.supporterName} is not null`)]);
+
+// Public fundraising page (/give/<slug>, founder 26 Nov). One page per fundraiser; the slug is global and fixed once the fundraiser leaves draft. Visitors read
+// it only through give_public_page and its siblings, which return an allow-listed answer for a published fundraiser and never a name, pledge or gift row.
+export const fundraisingPages = pgTable("fundraising_pages", {
+  tenantId: uuid("tenant_id").notNull(), fundraisingId: uuid("fundraising_id").notNull(),
+  slug: text("slug").notNull(), description: text("description"),
+  coverFileId: uuid("cover_file_id").references((): AnyPgColumn => fundraisingFiles.id, { onDelete: "set null" }),
+  showAmount: boolean("show_amount").notNull().default(true),
+  version: integer("version").notNull().default(1),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.fundraisingId] }),
+  foreignKey({ columns: [t.tenantId, t.fundraisingId], foreignColumns: [fundraisingCampaigns.tenantId, fundraisingCampaigns.id] }),
+  uniqueIndex("fundraising_pages_slug_idx").on(t.slug),
+  check("fundraising_page_slug", sql`${t.slug} ~ '^[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])$' and ${t.slug} not in ('new', 'create', 'edit', 'settings', 'admin', 'api', 'account', 'give', 'giving', 'donate', 'report', 'cover', 'search', 'discover', 'harvest', 'login', 'signup', 'help', 'support', 'about', 'terms', 'privacy', 'official', 'staff', 'null', 'undefined')`),
+  check("fundraising_page_description", sql`${t.description} is null or (length(${t.description}) between 1 and 5000 and ${t.description} = btrim(${t.description}) and ${t.description} !~ '[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]')`),
+  check("fundraising_page_version", sql`${t.version} >= 1`)]);
+// The page's cover image: the scanned-upload steps of campaign and event covers (pending -> uploaded -> ready or quarantined).
+export const fundraisingFiles = pgTable("fundraising_files", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), fundraisingId: uuid("fundraising_id").notNull(),
+  uploaderId: text("uploader_id").references(() => users.id, { onDelete: "set null" }),
+  key: text("key").notNull().unique(),
+  kind: text("kind", { enum: ["cover"] }).notNull().default("cover"),
+  name: text("name").notNull(),
+  mime: text("mime", { enum: ["image/jpeg", "image/png", "image/webp"] }).notNull(),
+  size: integer("size").notNull(),
+  checksum: text("checksum").notNull(),
+  status: text("status", { enum: ["pending", "uploaded", "quarantined", "ready"] }).notNull().default("pending"),
+  retiredAt: timestamp("retired_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.fundraisingId], foreignColumns: [fundraisingCampaigns.tenantId, fundraisingCampaigns.id] }),
+  index("fundraising_files_parent_idx").on(t.tenantId, t.fundraisingId),
+  check("fundraising_file_kind", sql`${t.kind} = 'cover'`),
+  check("fundraising_file_mime", sql`${t.mime} in ('image/jpeg','image/png','image/webp')`),
+  check("fundraising_file_name", sql`length(btrim(${t.name})) between 1 and 200`),
+  check("fundraising_file_size", sql`${t.size} between 1 and 10485760`),
+  check("fundraising_file_checksum", sql`${t.checksum} ~ '^[a-f0-9]{64}$'`),
+  check("fundraising_file_status", sql`${t.status} in ('pending','uploaded','quarantined','ready')`),
+  check("fundraising_file_key", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/fundraising/' || ${t.fundraisingId}::text || '/files/' || ${t.id}::text`),
+]);

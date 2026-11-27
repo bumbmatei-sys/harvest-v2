@@ -129,13 +129,13 @@ export const checklistInput = z.object({ item: z.enum(checklistItemKeys), done: 
 
 /**
  * Items that are done because of what is already set up, whatever was stored: every department the campaign includes has an accepted leader, and the
- * counseling department (when included) has one, and (campaign events) the campaign has an event. Anything else can only be ticked by a person.
+ * counseling department (when included) has one, (campaign events) the campaign has an event, and (campaign budget) it has a budget line. Anything else can only be ticked by a person.
  */
-export function derivedChecklist(departments: readonly string[], leaders: readonly string[], hasEvents = false): Record<ChecklistItem, boolean> {
+export function derivedChecklist(departments: readonly string[], leaders: readonly string[], hasEvents = false, hasBudget = false): Record<ChecklistItem, boolean> {
   const led = new Set(leaders);
   return {
     assign_leaders: departments.length > 0 && departments.every((department) => led.has(department)),
     assign_counseling: departments.includes("counseling") && led.has("counseling"),
-    confirm_venues: false, define_budget: false, connect_payments: false, publish_registration: false, configure_qr: false, invite_churches: false, create_events: hasEvents,
+    confirm_venues: false, define_budget: hasBudget, connect_payments: false, publish_registration: false, configure_qr: false, invite_churches: false, create_events: hasEvents,
   };
 }

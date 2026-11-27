@@ -27,7 +27,11 @@ export function ListingMark({ item, className }: { item: Pick<ListingCardItem, "
  * One Discover result. Only the sanitized public fields the server returns are shown (type, name, summary, host, category, price, joining); there is no cover image, rating or
  * member count in the data, so the top band is a token-coloured category mark rather than a photograph. Communities link to their public page; courses and products open the quick look.
  */
-export function ListingCard({ item, onQuickLook, onReport }: { item: ListingCardItem; onQuickLook: () => void; onReport: () => void }) {
+export function ListingCard({ item, onQuickLook, onReport, status, action }: { item: ListingCardItem; onQuickLook?: () => void; onReport?: () => void;
+  /** Extra badges after Free, such as the viewer's enrolled state on a community shelf. */
+  status?: React.ReactNode;
+  /** Replaces the View link, for a surface with its own next step (the community classroom and products shelf). */
+  action?: React.ReactNode }) {
   const t = useTranslations("DiscoverScreens");
   const href = publicHref(item), Mark = item.category ? categoryIcons[item.category as DiscoverCategory] : typeIcons[item.type];
   return <Card data-slot="listing-card" data-type={item.type} className="h-full gap-0 overflow-hidden py-0 shadow-none">
@@ -37,18 +41,19 @@ export function ListingCard({ item, onQuickLook, onReport }: { item: ListingCard
       <div className="min-w-0 space-y-1">
         <h2 className="text-lg font-semibold break-words">{item.name}</h2>
         {item.summary && <p className="line-clamp-3 text-sm text-muted-foreground break-words">{item.summary}</p>}
-        <p className="text-sm break-words">{t("by", { host: item.hostName })}</p>
+        {item.hostName && <p className="text-sm break-words">{t("by", { host: item.hostName })}</p>}
       </div>
     </CardContent>
     <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t py-3">
       <div className="flex flex-wrap gap-2">
         {item.free && <Badge variant="secondary">{t("free")}</Badge>}
+        {status}
         {item.type === "community" && item.admission?.filter((a): a is typeof admissionKeys[number] => (admissionKeys as readonly string[]).includes(a)).slice(0, 1).map((a) => <Badge key={a} variant="outline">{t(`admission.${a}`)}</Badge>)}
       </div>
       <div className="flex items-center gap-2">
-        <Button type="button" variant="ghost" size="icon" className="size-11" onClick={onReport} aria-label={t("report.buttonNamed", { name: item.name })}><Flag aria-hidden="true" /></Button>
-        <Button type="button" variant="outline" className="min-h-11" onClick={onQuickLook} aria-label={t("quickLookNamed", { name: item.name })}>{t("quickLook")}</Button>
-        {href && <Button asChild className="min-h-11"><Link href={href} prefetch={false} aria-label={t("viewNamed", { name: item.name })}>{t("view")}</Link></Button>}
+        {onReport && <Button type="button" variant="ghost" size="icon" className="size-11" onClick={onReport} aria-label={t("report.buttonNamed", { name: item.name })}><Flag aria-hidden="true" /></Button>}
+        {onQuickLook && <Button type="button" variant="outline" className="min-h-11" onClick={onQuickLook} aria-label={t("quickLookNamed", { name: item.name })}>{t("quickLook")}</Button>}
+        {action ?? (href && <Button asChild className="min-h-11"><Link href={href} prefetch={false} aria-label={t("viewNamed", { name: item.name })}>{t("view")}</Link></Button>)}
       </div>
     </CardFooter>
   </Card>;

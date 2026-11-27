@@ -4,8 +4,8 @@ import { message } from "../../i18n/messages";
 export const newsletterScheduleHorizonMs = 60 * 24 * 60 * 60_000;
 export const newsletterReviewLifetimeMs = 10 * 60_000;
 
-
-const localSchedule = z.object({
+/** A wall-clock time with its offset and IANA zone; the offset must be the zone's own at that instant (nonexistent spring-forward times fail). */
+export const localSchedule = z.object({
   at: z.iso.datetime({ offset: true, precision: 0 }),
   timezone: z.string().min(1).max(80).regex(/^[A-Za-z][A-Za-z0-9_+/-]*$/),
 }).strict().superRefine(({ at, timezone }, ctx) => {

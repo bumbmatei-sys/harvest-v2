@@ -3,10 +3,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 import messages from "../../messages/en.json";
-import { daysRange, dateKey, parseDate, parseEventsView, shiftDays, viewRange, weekStart, type EventItem } from "../../src/lib/event-view";
+import { daysRange, dateKey, parseDate, parseEventsView, shiftDays, viewRange, weekStart, weekTitle, type EventItem } from "../../src/lib/event-view";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => undefined }) }));
 const { EventsBoard } = await import("../../src/components/events/events-board");
+const { WeekView } = await import("../../src/components/calendar/week-view");
+const { gridScrollTop, openingHour } = await import("../../src/lib/calendar-days");
 
 // Events week and day views (founder decision, 26 Nov): the shared week grid, with the view and the day in the URL.
 const item = (id: string, startsAt: string, endsAt: string, extra: Partial<EventItem> = {}): EventItem => ({
@@ -68,5 +70,38 @@ describe("Events board week and day", () => {
     const html = render({ view: "day", date: "2026-11-25", events: [item("a", "2026-11-25T15:00:00.000Z", "2026-11-25T16:00:00.000Z"), item("b", "2026-11-25T15:30:00.000Z", "2026-11-25T16:30:00.000Z")] });
     expect(html).toContain('data-testid="overlap-more"');
     expect(html).toContain('aria-label="1 more event at this time"');
+  });
+});
+
+// Founder screenshots, 26 Nov: a hydration mismatch on the week title, and the first hour label under the sticky header after the grid opened at 7 AM.
+describe("week grid hydration and opening hour", () => {
+  it("renders the week title the same on the server and in the first client render, then the browser's own range format", () => {
+    const first = new Date(2026, 10, 23), last = new Date(2026, 10, 29);
+    expect(weekTitle(first, last, "en", false)).toBe("Nov 23 – Nov 29, 2026");
+    expect(weekTitle(new Date(2026, 11, 28), new Date(2027, 0, 3), "en", false)).toBe("Dec 28, 2026 – Jan 3, 2027");
+    expect(weekTitle(first, last, "en", true)).toBe(new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).formatRange(first, last));
+    expect(render({ view: "week" })).toContain("Nov 23 – Nov 29, 2026");
+  });
+  it("leaves today and the viewer's GMT offset out of the server render, so it never depends on the server's zone", () => {
+    const html = renderToStaticMarkup(h(WeekView, { currentDate: new Date(), events: [], label: "Week", onEventSelect: () => undefined, renderChip: () => null,
+      overlap: { moreLabel: () => "", moreText: () => "", title: "", renderRow: () => null } }));
+    expect(html).not.toMatch(/ data-today(=|>| )/);
+    expect(html).not.toMatch(/GMT/);
+    expect(html).toContain('data-hour-row="7"');
+  });
+  it("opens an hour before the earliest timed event in range, never later than 7 AM, ignoring all-day, multi-day and out-of-range entries", () => {
+    const from = new Date(2026, 10, 23), to = new Date(2026, 10, 30);
+    const at = (d: number, h: number, extra: { allDay?: boolean; endDay?: number } = {}) => ({ start: new Date(2026, 10, d, h), end: new Date(2026, 10, extra.endDay ?? d, h + 1), allDay: extra.allDay });
+    expect(openingHour([], from, to)).toBe(7);
+    expect(openingHour([at(24, 10)], from, to)).toBe(7);
+    expect(openingHour([at(24, 10), at(25, 6)], from, to)).toBe(5);
+    expect(openingHour([at(25, 0)], from, to)).toBe(0);
+    expect(openingHour([at(25, 3, { allDay: true }), at(25, 4, { endDay: 26 }), at(30, 2), at(22, 2)], from, to)).toBe(7);
+  });
+  it("scrolls so the hour label (centred on its line) sits wholly below the sticky header", () => {
+    // Row 7 starts 7 * 64 px under a 37 px header: the line lands 16 px below the header, so the 24 px label (12 px above the line) clears it by 4 px.
+    expect(gridScrollTop(37 + 7 * 64, 37)).toBe(7 * 64 - 16);
+    expect(gridScrollTop(37, 37)).toBe(0);
+    expect(gridScrollTop(10.4, 0, 0)).toBe(10);
   });
 });

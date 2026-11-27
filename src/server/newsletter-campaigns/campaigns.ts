@@ -7,11 +7,11 @@ import { newsletterCampaigns as campaigns, newsletterCampaignRevisions as revisi
 import { message } from "../../i18n/messages";
 import { newsletterContent, newsletterStarters } from "../../lib/newsletter-content";
 import { assertMailingAddress } from "./sender-setup";
-import { audit, campaignPreview, conflict, digest, id, pageInput, unavailable, version, withNewsletter } from "./access";
+import { audit, campaignPreview, countsClicks, conflict, digest, id, pageInput, unavailable, version, withNewsletter } from "./access";
 import { formatFromHeader } from "../../lib/email-address";
 import { assertVerified, identity } from "./identities";
 import { draftSelectionInput, resolveRecipients, selectionPins } from "./recipients";
-import { newsletterReviewLifetimeMs, newsletterScheduleHorizonMs, scheduleInput, type NewsletterSchedule } from "./schedule";
+import { localSchedule, newsletterReviewLifetimeMs, newsletterScheduleHorizonMs, scheduleInput, type NewsletterSchedule } from "./schedule";
 import { readTemplate } from "./templates";
 import { AccessError } from "../permissions";
 import { FakeNewsletterProvider } from "./fake-provider";
@@ -139,7 +139,7 @@ async function reviewData(tx: Transaction, tenant: string, row: Awaited<ReturnTy
   if (pins.lists.some((list, index) => list.version !== listPins[index].listVersion) ||
       pins.segments.some((segment, index) => segment.version !== segmentPins[index].segmentVersion)) throw conflict("SELECTION_CHANGED");
   const { recipients, estimate } = await resolveRecipients(tx, tenant, selection, pins);
-  const preview = { subject: revision.subject, preheader: revision.preheader, ...(await campaignPreview(tx, tenant, revision.content, revision.preheader)) };
+  const preview = { subject: revision.subject, preheader: revision.preheader, ...(await campaignPreview(tx, tenant, revision.content, revision.preheader, await countsClicks(tx, tenant))) };
   if (dispatch.mode === "schedule" && Date.parse(dispatch.schedule.at) <= Date.now()) throw conflict("SCHEDULE_IN_PAST");
   const identities = {
     senderVersion: from.identity.version, replyVersion: reply.identity.version,
@@ -219,6 +219,28 @@ export function cancelCampaign(db: Database, actor: string, workspace: string, c
     await tx.execute(sql`select public.newsletter_cancel_queued(${tenant}::uuid,${campaignId}::uuid)`);
     await audit(tx, tenant, actor, "newsletter.campaign.cancel", campaignId, input.version + 1);
     return { state: "cancelled", version: input.version + 1 };
+  });
+}
+
+const rescheduleInput = z.object({ version, schedule: localSchedule }).strict();
+
+/**
+ * Moves a scheduled campaign that has not started to another time. The reviewed revision, recipients and identities stay frozen; the limit
+ * stays 60 days from the original selection. The database definer refuses a campaign with any attempted or claimed delivery.
+ */
+export function rescheduleCampaign(db: Database, actor: string, workspace: string, campaignId: string, raw: unknown) {
+  return withNewsletter(db, actor, workspace, "newsletter:delivery", async (tx, tenant) => {
+    const input = rescheduleInput.parse(raw);
+    const { campaign } = await readCampaign(tx, tenant, campaignId, true);
+    if (campaign.version !== input.version || campaign.state !== "scheduled" || !campaign.frozenAt) throw conflict("STALE_VERSION");
+    const at = new Date(input.schedule.at);
+    if (at.getTime() <= Date.now()) throw conflict("SCHEDULE_IN_PAST");
+    if (at.getTime() > campaign.frozenAt.getTime() + newsletterScheduleHorizonMs) throw scheduleTooFar();
+    const { rows: [row] } = await tx.execute<{ version: number | null }>(sql`
+      select public.newsletter_reschedule_campaign(${tenant}::uuid,${campaign.id}::uuid,${input.version},${at.toISOString()}::timestamptz,${input.schedule.timezone}) as version`);
+    if (!row?.version) throw conflict("NOT_RESCHEDULABLE");
+    await audit(tx, tenant, actor, "newsletter.campaign.reschedule", campaign.id, row.version);
+    return { state: "scheduled", scheduledAt: at, timezone: input.schedule.timezone, version: row.version };
   });
 }
 

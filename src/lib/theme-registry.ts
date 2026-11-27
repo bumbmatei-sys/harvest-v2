@@ -368,6 +368,21 @@ export const platformBrandFill: Record<string, string> = {
 export const platformBrandOutline = { snapchat: "light-dark(#000000, #ffffff)" } as const;
 export const instagramGradient = ["#FEDA75", "#FA7E1E", "#D62976", "#962FBF", "#4F5BD5"] as const;
 export const tiktokAccents = { cyan: "#25F4EE", red: "#FE2C55" } as const;
+/**
+ * Ways to give marks (src/components/giving/giving-logos.tsx, founder request 26 Nov): each brand's colour from Simple Icons 16.38.1 where it meets 3:1 non-text contrast
+ * against the mark's chip (`--surface-sunken`) in that mode, otherwise the chip's text colour (`currentColor`), per mode with `light-dark()`. Checked in tests against
+ * every registered theme. GoFundMe is TEMPORARY (removed with the kind when a payment provider is added).
+ */
+export const givingBrandFill: Record<string, string> = {
+  paypal: "light-dark(#002991, currentColor)", wise: "light-dark(currentColor, #9FE870)", venmo: "#008CFF", zelle: "light-dark(#6D1ED4, currentColor)",
+  revolut: "light-dark(#191C1F, currentColor)", cash_app: "light-dark(currentColor, #00C244)", gofundme: "light-dark(currentColor, #00B964)",
+  every_org: "light-dark(currentColor, #2BD7B0)", justgiving: "light-dark(#AD29B6, currentColor)", patreon: "light-dark(#000000, currentColor)",
+  ko_fi: "light-dark(currentColor, #FF6433)", buy_me_a_coffee: "light-dark(currentColor, #FFDD00)",
+};
+/** The brands' colours as Simple Icons 16.38.1 publishes them (`hex`), the input to `givingBrandFill`. */
+export const givingBrandHex: Record<string, string> = {
+  paypal: "#002991", wise: "#9FE870", venmo: "#008CFF", zelle: "#6D1ED4", revolut: "#191C1F", cash_app: "#00C244", gofundme: "#00B964", every_org: "#2BD7B0", justgiving: "#AD29B6", patreon: "#000000", ko_fi: "#FF6433", buy_me_a_coffee: "#FFDD00",
+};
 /** Mailbox provider marks for Office mail (Gmail and Outlook), in their published brand colours. */
 export const mailMarkColors = {
   gmail: { blue: "#4285F4", green: "#34A853", yellow: "#FBBC04", red: "#EA4335", darkRed: "#C5221F" },
