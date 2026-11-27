@@ -37,7 +37,8 @@ DO $$ BEGIN
   -- in the same transaction, and deletes before it returns. A worker session that sets the flag by hand and calls another definer that reads
   -- workspaces matches no token, so this policy opens nothing for it.
   EXECUTE pg_catalog.format($p$CREATE POLICY newsletter_growth_owner ON public.newsletter_growth_scans TO %I
-    USING (session_user='harvest_worker') WITH CHECK (session_user='harvest_worker')$p$,current_user);
+    USING (session_user='harvest_worker' AND pg_catalog.current_setting('app.nl_send_worker',true)='on')
+    WITH CHECK (session_user='harvest_worker' AND pg_catalog.current_setting('app.nl_send_worker',true)='on')$p$,current_user);
   EXECUTE pg_catalog.format($p$CREATE POLICY newsletter_growth_ministries ON public.workspaces FOR SELECT TO %I
     USING (session_user='harvest_worker' AND EXISTS (SELECT FROM public.newsletter_growth_scans g
       WHERE g.token::text=pg_catalog.current_setting('app.nl_growth_scan',true) AND g.xact=pg_catalog.pg_current_xact_id()::text))$p$,current_user);
