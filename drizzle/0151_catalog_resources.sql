@@ -85,7 +85,7 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id = NEW.tenant_id
     AND m.user_id = nullif(current_setting('app.user_id',true),'')
-    AND m.role_id IN ('owner','admin')) THEN
+    AND public.access_role(m.tenant_id,m.user_id,'owner_admin',m.role_id) IN ('owner','admin')) THEN
     RAISE EXCEPTION 'only ministry owners and admins can change catalogue opt-in' USING ERRCODE = '42501';
   END IF;
   RETURN NEW;
