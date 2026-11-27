@@ -533,3 +533,11 @@ DO $$ DECLARE def text; patched text; fn regprocedure; n integer := 0; BEGIN
   END LOOP;
   IF n = 0 THEN RAISE EXCEPTION '0137: bio_public_page_scoped not found'; END IF;
 END $$;
+--> statement-breakpoint
+-- The blog definers' entry reset (0135) blanks this migration's flag too. Patched on the live definition; it must apply exactly once.
+DO $$ DECLARE def text; patched text; BEGIN
+  def := pg_get_functiondef('public.blog_scope_clear()'::regprocedure);
+  patched := replace(def, $s$'app.community_purge',$s$, $s$'app.community_purge','app.community_takedown',$s$);
+  IF (length(patched) - length(def)) <> length($s$'app.community_takedown',$s$) THEN RAISE EXCEPTION '0137: blog_scope_clear has an unexpected shape'; END IF;
+  EXECUTE patched;
+END $$;

@@ -40,7 +40,7 @@ Migration `0137_community_takedown` (tentative; the final number is assigned at 
 - **Restore** removes every effect at once.
 - **Audit:** every staff call writes `platform_staff_audit` (`community.reports`, `community.report.reviewed|dismissed`, `community.takedown.hide|restore`, with
   the target type and id and the ministry).
-- `community_definer_reset` and `account_self_reset` (0134) also clear `app.community_takedown`; the takedown check sets and restores only that flag (reviewed exception in the C23 test).
+- `community_definer_reset`, `account_self_reset` (0134) and `blog_scope_clear` (0135) also clear `app.community_takedown`; the takedown check sets and restores only that flag (reviewed exception in the C23 test).
 
 ## Founder answers (27 Nov) and review fixes
 - **Request review.** On a paused community's settings page owners and admins see the staff reason and "Request review": a message of up to 1,000
