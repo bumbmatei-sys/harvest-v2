@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 /**
  * Save and Discard for a form with unsaved changes. Hand-written (no kit item). The bar exists only while `dirty` (or while a save is running);
  * it sticks to the bottom of the content with phone safe-area padding, and while the on-screen keyboard is open it stops sticking so it never
- * takes space from the field being typed in. A control focused behind the bar is scrolled clear of it. A polite live region announces "Unsaved
+ * takes space from the field being typed in. A control focused behind the bar by keyboard (not by a pointer press, which must not move mid-click) is scrolled clear of it. A polite live region announces "Unsaved
  * changes" and "Saving". By default it also guards leaving: links, Back/Forward and closing the tab ask first (`guard={false}` when the page
  * already uses `useUnsavedChangesGuard` itself). Save is `onSave`, or a submit button for the form named by `form`.
  */
@@ -34,13 +34,25 @@ export function StickySaveBar({ dirty, busy = false, onSave, onDiscard, form, sa
   }, []);
   useEffect(() => {
     if (!visible || keyboard) return;
+    // Only focus that does not come from a pointer press is scrolled clear (Tab, a script, a skip link). A press already lands on a visible point, and
+    // scrolling between press and release moves the control away, so the release lands elsewhere and the click (a switch, a checkbox) is lost.
+    let pressing = false;
+    const press = () => { pressing = true; }, release = () => { pressing = false; };
     function focus(event: FocusEvent) {
       const target = event.target, element = bar.current;
-      if (!(target instanceof HTMLElement) || !element || element.contains(target)) return;
+      if (pressing || !(target instanceof HTMLElement) || !element || element.contains(target)) return;
       if (coveredByBar(target.getBoundingClientRect(), element.getBoundingClientRect())) target.scrollIntoView({ block: "center" });
     }
+    document.addEventListener("pointerdown", press, true);
+    document.addEventListener("pointerup", release, true);
+    document.addEventListener("pointercancel", release, true);
     document.addEventListener("focusin", focus);
-    return () => document.removeEventListener("focusin", focus);
+    return () => {
+      document.removeEventListener("pointerdown", press, true);
+      document.removeEventListener("pointerup", release, true);
+      document.removeEventListener("pointercancel", release, true);
+      document.removeEventListener("focusin", focus);
+    };
   }, [visible, keyboard]);
 
   const aria = busy ? { "aria-disabled": true } : {};
