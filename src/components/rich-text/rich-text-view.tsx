@@ -1,12 +1,17 @@
 import { Fragment, type ReactNode } from "react";
 import { sanitizeRichText, type RichBlock, type RichInline, type RichMark } from "@/lib/rich-text";
+import { docToHtml } from "@/lib/docs-convert";
+import type { DocContent } from "@/lib/docs";
 import { cn } from "@/lib/utils";
 
 /**
  * Shared renderer for Harvest rich text. Renders React elements from the allow-listed JSON: user content is never
  * injected as HTML. Content is re-validated here too, so anything stored outside the editor still renders safely.
  */
-export function RichTextView({ doc, className }: { doc: unknown; className?: string }) {
+export function RichTextView({ doc, className, format = "rich", imageSrc }: { doc: unknown; className?: string;
+  /** `doc`: Docs content (the blog), already sanitised by its own rules and rendered with the Docs reading styles; every text is escaped by docToHtml. */
+  format?: "rich" | "doc"; imageSrc?: (fileId: string) => string | null }) {
+  if (format === "doc") return <div className={cn("docs-prose", className)} data-rich-text="doc" dangerouslySetInnerHTML={{ __html: docToHtml(doc as DocContent, { image: imageSrc }) }} />;
   const clean = sanitizeRichText(doc);
   if (!clean) return null;
   return <div className={cn("space-y-3 break-words text-[15px] leading-relaxed", className)}>{clean.content.map((block, i) => <Block key={i} block={block} />)}</div>;

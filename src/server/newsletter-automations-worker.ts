@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { Pool } from "pg";
 import { publicFilePath } from "../lib/files";
 import { renderNewsletter } from "../lib/newsletter-content";
+import { automationClickUrl, clickRewriter, linkCollector } from "../lib/newsletter-click-token";
 import { newsletterKey, signNewsletterPreference } from "./newsletter-public";
 import { requireWorkerRole } from "./worker-role";
 import { newsletterOrigin } from "./newsletter-campaigns/access";
@@ -48,7 +49,16 @@ export async function runNewsletterAutomations(pool: Pool, env: NodeJS.ProcessEn
     let rendered: ReturnType<typeof renderNewsletter> | null = null;
     try {
       const images = new Map(payload.images.map((fileId) => [fileId, new URL(publicFilePath(job.tenant, fileId), origin).href]));
-      rendered = renderNewsletter(payload.content, { preheader: payload.preheader, firstName: payload.firstName, ministryName: payload.ministryName, unsubscribe: unsubscribe.href, images });
+      const context = { preheader: payload.preheader, firstName: payload.firstName, ministryName: payload.ministryName, unsubscribe: unsubscribe.href, images };
+      // Click counting, as for campaigns: a first pass collects the content links (never the unsubscribe link) and the database stores them only while
+      // the ministry counts clicks; each listed link is then rewritten to a signed redirect that carries only references. Off, the links stay as written.
+      const collector = linkCollector();
+      renderNewsletter(payload.content, { ...context, track: collector.track });
+      const { rows: [{ stored }] } = await pool.query<{ stored: { automation: string; links: string[] } | null }>(
+        "select public.newsletter_automation_click_links_store($1,$2,$3,$4::text[]) as stored", [job.tenant, job.run, payload.attempt, collector.seen]);
+      const attempt = payload.attempt;
+      const track = stored ? clickRewriter(stored.links, (link) => automationClickUrl(origin, key, { tenant: job.tenant, automation: stored.automation, attempt, link })) : undefined;
+      rendered = renderNewsletter(payload.content, { ...context, track, clicksCounted: Boolean(track) });
     } catch { state = "failed"; } // nothing reached the provider: a plain failure
     if (rendered) {
       try {

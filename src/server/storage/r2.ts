@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { downloadDisposition } from "../../lib/download-filename";
 import { FILE_MIME_TYPES, MAX_FILE_SIZE } from "../../lib/files";
-import { InvalidStoredFile, type StorageAdapter, type UploadObject } from "./adapter";
+import { InvalidStoredFile, downloadExpiry, type StorageAdapter, type UploadObject } from "./adapter";
 import { inspectFileBytes } from "./inspect";
 
 // The subset of the native R2 binding used by the file adapter, also implemented by tests.
@@ -56,8 +56,8 @@ export class R2FileStorage implements StorageAdapter {
       headers: { "Content-Type": input.mime, "If-None-Match": "*" }, expiresIn };
   }
 
-  async presignDownload(key: string, name: string) {
-    return this.url(key, { method: "GET", name }, 60);
+  async presignDownload(key: string, name: string, options?: { expiresIn?: number }) {
+    return this.url(key, { method: "GET", name }, downloadExpiry(options?.expiresIn));
   }
 
   async inspect(key: string, expected: { size: number; mime: string; name: string }) {

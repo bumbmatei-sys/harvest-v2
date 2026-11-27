@@ -1,7 +1,8 @@
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
-import { contacts, newsletterAutomationLog as logTable, newsletterAutomationRuns as runsTable, newsletterAutomations as automations, newsletterLists } from "../db/schema";
+import { contacts, newsletterAutomationLog as logTable, newsletterAutomationRuns as runsTable, newsletterAutomations as automations, newsletterLists, newsletterSettings } from "../db/schema";
+import { eachDay, periodRange } from "../lib/newsletter-analytics";
 import { message } from "../i18n/messages";
 import { documentImages } from "./newsletter-campaigns/access";
 import { audit, conflict, id as uuidId, unavailable, withNewsletter } from "./newsletter-campaigns/access";
@@ -133,5 +134,34 @@ export async function automationOptions(db: Database, actor: string, workspace: 
       where f.tenant_id = ${tenant} and f.archived_at is null and exists (select 1 from form_versions v where v.tenant_id = f.tenant_id and v.form_id = f.id
         and v.definition->>'kind' = 'crm-form-v1' and v.definition->'newsletter' is not null) order by lower(f.name), f.id limit 200`);
     return { lists, forms: rows };
+  });
+}
+
+type AutomationClickReport = { total: number | string | null; days: { day: string; clicks: number | string | null }[];
+  steps: { step: number; clicks: number | string | null }[]; links: { url: string; clicks: number | string }[] };
+export type AutomationClicks = { counting: boolean; total: number | null; days: { day: string; clicks: number | null }[];
+  steps: { step: number; clicks: number | null }[]; links: { url: string; clicks: number }[] };
+
+/**
+ * Link clicks on one automation's emails over the last 90 UTC days, the same rules as campaigns: totals per step, per day and per link only, every group
+ * under 5 withheld (null) by the definer per step, UTC day and link, owners and admins only (a delegated grant is not enough). Nothing about who clicked exists in the result.
+ */
+export async function automationClicks(db: Database, actor: string, workspace: string, automation: string, now = new Date()): Promise<AutomationClicks> {
+  requireAutomationsEnabled();
+  const range = periodRange(90, now);
+  return withNewsletter(db, actor, workspace, "newsletter:analytics", async (tx, tenant, _role, access) => {
+    if (access !== "owner" && access !== "admin") throw unavailable();
+    const [row] = await tx.select({ id: automations.id }).from(automations).where(and(eq(automations.tenantId, tenant), eq(automations.id, uuidId(automation))));
+    if (!row) throw unavailable();
+    const { rows: [{ report }] } = await tx.execute<{ report: AutomationClickReport }>(sql`
+      select public.newsletter_automation_click_report(${tenant}::uuid,${row.id}::uuid,${range.from}::date,${range.until}::date) as report`);
+    const [setting] = await tx.select({ on: newsletterSettings.clickTracking }).from(newsletterSettings).where(eq(newsletterSettings.tenantId, tenant));
+    const toNumber = (value: number | string | null) => value === null ? null : Number(value);
+    const byDay = new Map(report.days.map((day) => [day.day, toNumber(day.clicks)]));
+    const all = eachDay(range), first = all.findIndex((day) => byDay.has(day));
+    const days = all.slice(first < 0 ? all.length - 7 : Math.min(first, all.length - 7)).map((day) => ({ day, clicks: byDay.has(day) ? byDay.get(day)! : 0 }));
+    return { counting: setting?.on ?? false, total: toNumber(report.total), days,
+      steps: report.steps.map((step) => ({ step: step.step, clicks: toNumber(step.clicks) })),
+      links: report.links.map((link) => ({ url: link.url, clicks: Number(link.clicks) })) };
   });
 }

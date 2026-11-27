@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formDefinitionSchema, formIssues, moveBlock, removeBlock } from "../../src/lib/crm-forms";
-import { asksFor, buildNewsletterForm, embedSnippet, newsletterTexts, newsletterWordings, NEWSLETTER_BLOCK_IDS, setNameQuestion, signupPath, stampNewsletterForm } from "../../src/lib/newsletter-signup";
+import { asksFor, buildNewsletterForm, CLICKS_COUNTED_LINE, embedSnippet, newsletterTexts, newsletterWordings, NEWSLETTER_BLOCK_IDS, setNameQuestion, signupPath, signupTexts, signupWording, stampNewsletterForm } from "../../src/lib/newsletter-signup";
 
 const text = (key: string) => key;
 const list = "11111111-1111-4111-8111-111111111111", list2 = "22222222-2222-4222-8222-222222222222";
@@ -26,6 +26,21 @@ describe("newsletter sign-up preset", () => {
     expect(newsletterWordings["newsletter-consent-v1"]).toEqual({
       consent: "I agree to receive the {ministry} newsletter by email. I can unsubscribe at any time.", fixed: "Your details go to {ministry}. You can ask them to delete them." });
     expect(newsletterTexts("newsletter-consent-v1", "  ")).toMatchObject({ fixedNotice: "Your details go to the ministry. You can ask them to delete them." });
+  });
+
+  it("adds the clicks line as wording v2 at sign-up only, keeping a form's stored wording at v1", () => {
+    const form = build();
+    expect(newsletterWordings["newsletter-consent-v2"]).toEqual({
+      consent: "I agree to receive the {ministry} newsletter by email. I can unsubscribe at any time. This ministry counts link clicks in its emails, as totals only.",
+      fixed: "Your details go to {ministry}. You can ask them to delete them." });
+    expect(signupWording("newsletter-consent-v1", false)).toBe("newsletter-consent-v1");
+    expect(signupWording("newsletter-consent-v1", true)).toBe("newsletter-consent-v2");
+    expect(signupTexts(form.newsletter!, false)).toEqual({ wordingVersion: "newsletter-consent-v1", consentText: form.newsletter!.consentText, fixedNotice: form.newsletter!.fixedNotice });
+    // The counted texts are exactly v2 stamped with the name the form was frozen with.
+    expect(signupTexts(form.newsletter!, true)).toEqual({ wordingVersion: "newsletter-consent-v2", ...newsletterTexts("newsletter-consent-v2", "Grace Church") });
+    expect(signupTexts(form.newsletter!, true).consentText).toBe(`${form.newsletter!.consentText} ${CLICKS_COUNTED_LINE}`);
+    // v2 is never a form's own wording.
+    expect(formDefinitionSchema.safeParse({ ...form, newsletter: { ...form.newsletter!, wordingVersion: "newsletter-consent-v2" } }).success).toBe(false);
   });
 
   it("restamps edited texts from the wording version and the ministry name", () => {
