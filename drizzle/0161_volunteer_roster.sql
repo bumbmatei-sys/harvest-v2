@@ -144,9 +144,16 @@ GRANT INSERT, UPDATE ON public.volunteer_roles, public.volunteers, public.volunt
 GRANT INSERT, DELETE ON public.volunteer_availability TO harvest_app;
 CREATE POLICY volunteer_roles_read ON public.volunteer_roles FOR SELECT TO harvest_app
   USING (public.volunteer_role(tenant_id) = 'member' AND NOT archived);
+-- The slot references a ministry volunteer role. The member permission check is separate.
+CREATE FUNCTION public.volunteer_slot_active(p_slot public.volunteer_slots) RETURNS boolean
+LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$
+  SELECT EXISTS (SELECT FROM public.volunteer_roles r
+    WHERE r.tenant_id = p_slot.tenant_id AND r.id = p_slot.role_id AND NOT r.archived)
+$$;
+REVOKE ALL ON FUNCTION public.volunteer_slot_active(public.volunteer_slots) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.volunteer_slot_active(public.volunteer_slots) TO harvest_app;
 CREATE POLICY volunteer_slots_read ON public.volunteer_slots FOR SELECT TO harvest_app
-  USING (public.volunteer_role(tenant_id) = 'member' AND EXISTS (SELECT FROM public.volunteer_roles r
-    WHERE r.tenant_id = volunteer_slots.tenant_id AND r.id = volunteer_slots.role_id AND NOT r.archived));
+  USING (public.volunteer_role(tenant_id) = 'member' AND public.volunteer_slot_active(volunteer_slots));
 CREATE POLICY volunteer_assignments_read ON public.volunteer_assignments FOR SELECT TO harvest_app
   USING (public.volunteer_role(tenant_id) = 'member' AND user_id = nullif(current_setting('app.user_id', true), ''));
 CREATE POLICY volunteer_requests_read ON public.volunteer_requests FOR SELECT TO harvest_app
@@ -285,7 +292,7 @@ BEGIN
 
     IF person IS NULL AND volunteer IS NULL AND p_action <> 'approve' THEN result := '{"outcome":"missing"}'; EXIT operation; END IF;
     IF person IS NOT NULL OR volunteer IS NOT NULL THEN
-      IF NOT EXISTS (SELECT FROM public.volunteer_roles WHERE tenant_id = p_tenant AND id = slot.role_id AND NOT archived) OR
+      IF NOT public.volunteer_slot_active(slot) OR
         (person IS NOT NULL AND NOT EXISTS (
           SELECT FROM public.workspace_members WHERE tenant_id = p_tenant AND user_id = person AND public.access_role(tenant_id,user_id,'owner_admin',role_id) IN ('owner','admin','member'))) THEN
         result := '{"outcome":"missing"}'; EXIT operation;
