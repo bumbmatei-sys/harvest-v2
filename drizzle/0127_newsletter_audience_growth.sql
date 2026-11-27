@@ -40,7 +40,7 @@ DO $$ BEGIN
     USING (session_user='harvest_worker') WITH CHECK (session_user='harvest_worker')$p$,current_user);
   EXECUTE pg_catalog.format($p$CREATE POLICY newsletter_growth_ministries ON public.workspaces FOR SELECT TO %I
     USING (session_user='harvest_worker' AND EXISTS (SELECT FROM public.newsletter_growth_scans g
-      WHERE g.token=nullif(pg_catalog.current_setting('app.nl_growth_scan',true),'')::uuid AND g.xact=pg_catalog.pg_current_xact_id()::text))$p$,current_user);
+      WHERE g.token::text=pg_catalog.current_setting('app.nl_growth_scan',true) AND g.xact=pg_catalog.pg_current_xact_id()::text))$p$,current_user);
 END $$;
 --> statement-breakpoint
 -- The audience status of every person, the SQL twin of audienceStatusSql (src/server/newsletter-audience.ts): suppressed or bounced first,
