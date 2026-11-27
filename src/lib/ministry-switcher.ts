@@ -27,3 +27,15 @@ export function filterMinistries<T extends { name: string }>(ministries: readonl
 export function ministryHref(tenantId: string): string {
   return `/workspaces/${tenantId}/crm/people`;
 }
+
+const switcherRoles = ["owner", "admin", "member", "viewer", "collaborator", "guest"] as const;
+export type SwitcherRoleKey = typeof switcherRoles[number];
+/**
+ * The catalogue key for a role shown in the switcher. A collaborator's role token (`collaborator;crm=manage`) shows as Collaborator, and the
+ * campaign invitation role (`campaign_guest`, treated exactly like guest) as Guest. Null for an id with no label, which is then shown as stored.
+ */
+export function switcherRoleKey(role: string): SwitcherRoleKey | null {
+  const base = role.split(";")[0];
+  if (base === "campaign_guest") return "guest";
+  return (switcherRoles as readonly string[]).includes(base) ? base as SwitcherRoleKey : null;
+}

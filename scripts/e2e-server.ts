@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { writeFile } from "node:fs/promises";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { testDatabase } from "../tests/database";
 import { storageMock } from "../tests/storage-mock";
 const database = await testDatabase();
@@ -25,7 +26,7 @@ const bioKey=randomBytes(32).toString("hex");
 // Another port can be used when 3100 is busy: E2E_PORT here and in playwright.config.ts (the default stays 3100).
 const port = process.env.E2E_PORT ?? "3100";
 const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", process.env.E2E_WEBPACK ? "--webpack" : "--turbopack", "--hostname", "127.0.0.1", "--port", port], {
-  stdio: ["ignore", "inherit", "inherit"], env: { ...process.env,
+  stdio: ["ignore", "pipe", "pipe"], env: { ...process.env,
     // Override any real credentials and avoid reading live .env.local during browser tests.
     HARVEST_CONNECT_INTAKE: "synthetic", HARVEST_CONNECT_TEST_KEY: connectKey,
     // Hosted CRM forms run in synthetic mode only against this disposable harvest_test database; production stays hard-off in code.
@@ -47,6 +48,16 @@ const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev",
     S3_ENDPOINT: storage.config.endpoint, S3_BUCKET: storage.config.bucket, S3_REGION: storage.config.region,
     S3_ACCESS_KEY_ID: storage.config.accessKeyId, S3_SECRET_ACCESS_KEY: storage.config.secretAccessKey,
   },
+});
+// The output still reaches this terminal. Known dev-server chunk failures are also noted in a file next to the mailbox, so a spec can tell a dev-only
+// hydration mismatch (which follows them) from a real one.
+const devErrors = process.env.HARVEST_E2E_MAILBOX ? `${process.env.HARVEST_E2E_MAILBOX}.dev-errors` : null;
+// Each line is "<epoch ms> <message>"; the file starts empty for every server run, so a spec sees only this run's failures.
+if (devErrors) writeFileSync(devErrors, "", { mode: 0o600 });
+const devErrorPattern = /__webpack_modules__\[moduleId\] is not a function|destination stream errored/;
+for (const [stream, sink] of [[child.stdout, process.stdout], [child.stderr, process.stderr]] as const) stream?.on("data", (chunk: Buffer) => {
+  sink.write(chunk);
+  if (devErrors) for (const line of chunk.toString("utf8").split("\n")) if (devErrorPattern.test(line)) appendFileSync(devErrors, `${Date.now()} ${line.slice(0, 200)}\n`, { mode: 0o600 });
 });
 let stopping = false;
 // Best-effort warm-up: the first request to a route compiles it, which on a busy runner can exceed a test's patience. Compile the common public and API routes once, before the first spec.
