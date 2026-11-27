@@ -28,7 +28,7 @@ export function SettingsDialog({ open, section, sections, shell, onSection, onCl
   const guard = useCallback((proceed: () => void) => { if (dirtyRef.current) setPending(() => proceed); else proceed(); }, []);
   return <Dialog open={open} onOpenChange={(next) => { if (!next) guard(onClose); }}>
     <DialogContent data-settings-dialog onCloseAutoFocus={onCloseAutoFocus}
-      className="top-0 left-0 h-dvh w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:max-w-none md:top-[50%] md:left-[50%] md:h-[min(40rem,calc(100dvh-4rem))] md:w-full md:max-w-4xl md:translate-x-[-50%] md:translate-y-[-50%] md:flex-row md:rounded-lg md:border flex">
+      className="top-0 left-0 h-dvh w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 p-0 pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] [&>[data-slot=dialog-close]]:top-[calc(0.25rem+env(safe-area-inset-top))] [&>[data-slot=dialog-close]]:right-[calc(0.25rem+env(safe-area-inset-right))] md:[&>[data-slot=dialog-close]]:top-1 md:[&>[data-slot=dialog-close]]:right-1 sm:max-w-none md:p-0 md:top-[50%] md:left-[50%] md:h-[min(40rem,calc(100dvh-4rem))] md:w-full md:max-w-4xl md:translate-x-[-50%] md:translate-y-[-50%] md:flex-row md:rounded-lg md:border flex">
       <div className="flex shrink-0 flex-col border-b bg-muted/40 md:w-60 md:border-b-0 md:border-e">
         <DialogHeader className="px-4 pt-3 pe-14 md:px-5 md:pt-5 md:pe-5"><DialogTitle className="text-lg">{t("title")}</DialogTitle>
           <DialogDescription className="sr-only">{t("description")}</DialogDescription></DialogHeader>

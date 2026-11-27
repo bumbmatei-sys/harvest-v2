@@ -192,7 +192,13 @@ Founder decision, 26 Nov: "If CRM board is most premium and in depth, use that o
 Result: `kanban-board3` is richer (column menu, per-column add, card menu, avatar, sortable cards, list view); the deal board is ahead only on keyboard accessibility and i18n, which the shared board keeps.
 
 
-Tier note: the item JSON carries no price flag, and the component category pages show a badge for the first item only; the four items are recorded as free on the founder's statement for `toast1` and the absence of a premium marker on the others. Confirm on the item pages if the license position matters. `dashboard-shell8` and `dashboard-dropdown7` are premium by the founder's approval record (16 Nov 2026), who owns the licence and public-repository consequences.
+Tier check (26 Nov 2026, Kit leftovers): the item JSON and `r/registry.json` still carry no price flag, but each category's Markdown page (`https://shadcnuikit.com<href>.md`, the item's registry `href` plus `.md`) lists every variant as Free or Pro with its install name. All 29 recorded kit items were checked against those pages on 26 Nov 2026:
+
+- Confirmed free (8): `toast1`, `spinner1`, `scroll-area1`, `drawer1`, `badge1`, `alert-dialog1`, `stepper1`, `field1`. Their component pages list every variant as free (for example "Variants: 14 (14 free, 0 pro)" for spinner), so the earlier "recorded as free without a per-item flag" caveat is closed.
+- Confirmed premium (20): `dashboard-shell8`, `dashboard-dropdown7`, `tables14`, `tables19`, `tables21`, `tables15`, `tables9`, `empty-state15`, `form-layout20`, `form-layout1`, `form-layout11`, `form-layout15`, `todo-app6`, `chat-ui4`, `switch-card1`, `product-list7`, `social-media-post1`, `product-card1`, `product-quickview2`, `kanban-board3`, all listed as Pro.
+- Corrected (1): `select14` was recorded as premium but its page lists it as Free ("Select with search", Free). The record, the file header of `src/components/searchable-select.tsx` and the Discover table now say free. Recording it as premium was the cautious side, so no premium-derived file was hidden by the earlier entry.
+
+The site's own totals on that date: components 1068 free and 5 pro; blocks 26 free and 629 pro; examples 14 free and 56 pro. The founder owns the licence and public-repository consequences (CLAUDE.md, 16 Nov); this check only makes the record accurate.
 
 ### Kit PR 1: hand-written primitives and the `sonner` dependency
 
@@ -546,7 +552,7 @@ Variants used: `select14` (searchable category dropdown with icons, chosen by th
 | --- | --- | --- | --- | --- | --- |
 | `product-card1` | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/listing-card.tsx` | Token-coloured category mark instead of a photo, type badge, name, summary, host, free badge, first joining route, Quick look, View and Report. Reused (26 Nov, C13/C16) by the community Classroom and Products tabs (`src/components/communities/community-shelf.tsx`): Quick look and Report are optional, an empty host line is left out, and an `action` slot replaces View with the free enrol, Continue or Open step. No new kit item. |
 | `product-quickview2` | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/quick-look.tsx` | Compact dialog with the public fields as a definition list, Report and Open page. |
-| `select14` | premium | 2026-11-25 | 2026-11-25 | `src/components/searchable-select.tsx` | Shared searchable select with icons and an all row; Discover category filter. 26% identical lines (imports, trigger). |
+| `select14` | free (corrected 2026-11-26, see the tier check) | 2026-11-25 | 2026-11-25 | `src/components/searchable-select.tsx` | Shared searchable select with icons and an all row; Discover category filter. 26% identical lines (imports, trigger). |
 | `product-list7` (second file) | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/discover-browser.tsx` | Result count, type tabs with facet counts, search and grid on the server's approved listings. |
 | `drawer1` (second file) | free | 2026-11-25 | 2026-11-25 | `src/components/discover/staff-review.tsx` | Right-hand Sheet (bottom sheet on phones) with the listing's public fields, the review actions and the ministry standing, around the shared DataTable (`tables14`, already adopted) with tabs Pending, Approved, Rejected, Suspended and Reports. No kit code copied (3 of 192 lines identical, 2%), no vaul drawer. |
 | `switch-card1` (second file) | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/list-in-discover.tsx` | Label, one line of text and a switch, with review status, category and language beneath; used in the community editor and My listings. |

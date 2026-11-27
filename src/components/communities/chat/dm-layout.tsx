@@ -108,7 +108,7 @@ export function DmLayout({ slug, me, initial, initialConversation, members, hidd
   const partnerRole = person?.role ?? (conversation?.otherId ? hidden.find(entry => entry.userId === conversation.otherId)?.role : undefined);
   const blocked = !!conversation?.otherId && blockedIds.has(conversation.otherId);
   const newButton = canStart && <Button variant="outline" size="icon" className="size-11 shrink-0 rounded-full" onClick={() => setComposeOpen(true)} aria-label={t("newMessage")}><Plus aria-hidden="true" /></Button>;
-  return <div className="flex h-dvh min-h-64 min-w-0 overflow-hidden bg-background pt-[env(safe-area-inset-top)] md:h-[calc(100dvh-3.5rem)] md:pt-0">
+  return <div className="flex h-[calc(100dvh-env(safe-area-inset-top))] min-h-64 min-w-0 overflow-hidden bg-background md:h-[calc(100dvh-3.5rem-env(safe-area-inset-top))]">
     <section className={cn("min-h-0 w-full min-w-0 flex-col border-r md:flex md:w-80 md:shrink-0 lg:w-96", showMobilePane ? "hidden" : "flex")}>
       <div className="flex min-h-16 shrink-0 items-center gap-2 px-4">
         <Button asChild variant="ghost" size="icon" className="-ms-2 size-11 md:hidden"><Link href={`/communities/${slug}`} prefetch={false} aria-label={t("backToCommunity")}><ArrowLeft aria-hidden="true" /></Link></Button>

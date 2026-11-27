@@ -207,6 +207,8 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
   const deleting = deleteTarget ?? pages.find((p) => p.id === page.id)!;
   const deleteCount = subtreeIds(pages, deleting.id).length;
   const imp = useImport(tenantId, doc.id, page.id, () => version.current, (id) => { router.push(pageHref(id)); router.refresh(); });
+  // An import started from the page menu reports its failure through the app's one toast position (it was a separate floating alert).
+  useEffect(() => { if (imp.error) notify.error(imp.error, { id: "doc-import" }); }, [imp.error]);
   const allProtected = pages.length > 0 && pages.every((p) => p.protected);
 
   async function menuAction(action: MenuAction) {
@@ -348,13 +350,12 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
     </section>
     {!focusPage && docked && panelBody && <aside className="w-80 shrink-0 border-s" aria-label={panel ? t(railItems.find((r) => r.id === panel)?.label ?? "pageHistory") : undefined}>{panelBody}</aside>}
     {!focusPage && <nav aria-label={t("pageTools")} className="hidden w-12 shrink-0 flex-col items-center gap-1 border-s py-2 lg:flex" data-docs-rail>{rail}</nav>}
-    {focusPage && <Button type="button" variant="outline" className="fixed end-4 bottom-4 z-30 min-h-11 shadow-md" onClick={() => setFocusPage(false)}><Maximize2 aria-hidden="true" />{t("exitFocus")}</Button>}
+    {focusPage && <Button type="button" variant="outline" className="fixed end-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(1rem+env(safe-area-inset-bottom))] z-30 min-h-11 shadow-md" onClick={() => setFocusPage(false)}><Maximize2 aria-hidden="true" />{t("exitFocus")}</Button>}
     <input ref={filePicker} type="file" className="sr-only" tabIndex={-1} aria-label={t("chooseFile")} accept=".html,.htm,.md,.markdown,.txt,text/html,text/markdown,text/plain"
       onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f && pending) void imp.run(f, pending.format, pending.split, "new_pages"); }} />
-    {imp.error && <div className="fixed start-4 bottom-4 z-30 max-w-sm"><Alert variant="destructive" role="alert"><AlertDescription>{imp.error}</AlertDescription></Alert></div>}
 
-    <Sheet open={pagesOpen && !docked} onOpenChange={setPagesOpen}><SheetContent side="left" className="w-80 overflow-y-auto p-4" aria-describedby={undefined}><SheetHeader className="p-0"><SheetTitle className="sr-only">{t("pages")}</SheetTitle></SheetHeader>{treeEl}</SheetContent></Sheet>
-    <Sheet open={!docked && panelBody !== null} onOpenChange={(o) => { if (!o) setPanel(null); }}><SheetContent showCloseButton={false} className="w-full gap-0 p-0 sm:max-w-sm" aria-describedby={undefined}><SheetHeader className="sr-only"><SheetTitle>{t("pageTools")}</SheetTitle></SheetHeader><div className="h-full min-h-0">{panelBody}</div></SheetContent></Sheet>
+    <Sheet open={pagesOpen && !docked} onOpenChange={setPagesOpen}><SheetContent side="left" className="w-80 overflow-y-auto p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))]" aria-describedby={undefined}><SheetHeader className="p-0"><SheetTitle className="sr-only">{t("pages")}</SheetTitle></SheetHeader>{treeEl}</SheetContent></Sheet>
+    <Sheet open={!docked && panelBody !== null} onOpenChange={(o) => { if (!o) setPanel(null); }}><SheetContent showCloseButton={false} className="w-full gap-0 p-0 pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] sm:max-w-sm" aria-describedby={undefined}><SheetHeader className="sr-only"><SheetTitle>{t("pageTools")}</SheetTitle></SheetHeader><div className="h-full min-h-0">{panelBody}</div></SheetContent></Sheet>
 
     <ShareDialog open={dialog === "share"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} docId={doc.id} pageId={page.id} docTitle={doc.title} protectedDoc={allProtected} onProtect={() => void menuAction("protectDoc")} onChanged={() => router.refresh()} />
     <FilePicker open={dialog === "attach"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} title={t("attachFile")} onPick={async (f) => { const r = await call("POST", "/attachments", { fileId: f.id }); if (!r.ok) return r.error; void loadAttachments(); }} />

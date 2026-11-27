@@ -45,13 +45,15 @@ export function AdWizard({ tenantId, initialAccount, initialMode, initialRequest
   const dirty = ready && phase === "editing" && JSON.stringify(draft) !== JSON.stringify({ ...emptyDraft(initialMode), adAccountId: draft.adAccountId });
   const { destination, setDestination, leave } = useUnsavedChangesGuard(dirty && save !== "saved");
 
-  // Resume: a saved draft request, else the draft kept on this device.
+  // Resume: a saved draft request, else the draft kept on this device. A step opened from the address (?step=, applied on mount) that the
+  // resumed draft's kind does not have goes back to the start.
+  const keepStep = (mode: Mode) => setStep((current) => stepsFor(mode).includes(current) ? current : "create");
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (initialRequest) {
-        try { const { request: saved } = await api.getRequest(initialRequest); if (!cancelled && ["draft", "reviewed", "failed"].includes(saved.status)) { setDraft(fromPayload(saved.kind, saved.payload)); requestRef.current = saved; savedSig.current = JSON.stringify(fromPayload(saved.kind, saved.payload)); setSave("saved"); } } catch { /* start fresh */ }
-      } else { const local = readLocal(tenantId); if (local && !cancelled) { setDraft(local); setNotice(t("restored")); } }
+        try { const { request: saved } = await api.getRequest(initialRequest); if (!cancelled && ["draft", "reviewed", "failed"].includes(saved.status)) { setDraft(fromPayload(saved.kind, saved.payload)); keepStep(fromPayload(saved.kind, saved.payload).mode); requestRef.current = saved; savedSig.current = JSON.stringify(fromPayload(saved.kind, saved.payload)); setSave("saved"); } } catch { /* start fresh */ }
+      } else { const local = readLocal(tenantId); if (local && !cancelled) { setDraft(local); keepStep(local.mode); setNotice(t("restored")); } }
       if (!cancelled) setReady(true);
     })();
     return () => { cancelled = true; };
