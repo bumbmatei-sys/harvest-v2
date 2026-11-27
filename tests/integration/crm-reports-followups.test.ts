@@ -194,7 +194,7 @@ describe("durable first source", () => {
   });
   it("is readable by owners and admins of the same ministry only", async () => {
     const person = await born("Synthetic visible");
-    const read = (user: string, ministry: string) => withTenant(f.db, user, ministry, "contacts:read", async (tx) => (await tx.execute(`select contact_id from public.contact_first_sources where contact_id = '${person.id}'` as never)).rows.length);
+    const read = (user: string, ministry: string) => withTenant(f.db, user, ministry, "workspace:read", async (tx) => (await tx.execute(`select contact_id from public.contact_first_sources where contact_id = '${person.id}'` as never)).rows.length);
     expect(await read("owner", tenant)).toBe(1);
     expect(await read("admin", tenant)).toBe(1);
     expect(await read("member", tenant)).toBe(0);

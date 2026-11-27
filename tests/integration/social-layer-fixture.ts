@@ -16,13 +16,13 @@ export function newFake() {
     { accountRef: "acc-ig-1", platform: "instagram", displayName: "grace_church" }, { accountRef: "acc-fb-2", platform: "facebook", displayName: "grace" }, { accountRef: "acc-yt-3", platform: "youtube", displayName: "grace_tv" }] });
 }
 export const depsFor = (provider: FakeProvider, now = () => new Date()): SocialDeps => ({ enabled: true, provider: () => provider, now });
-export async function seedPeople(f: Fixture, prefix: string) {
+export async function seedPeople(f: Fixture, prefix: string, domain = "example.test") {
   const ids = ["owner", "admin", "member", "viewer", "outsider"].map((r) => `${prefix}-${r}`);
-  await f.db.insert(users).values(ids.map((id) => ({ id, name: id, email: `${id}@example.test`, emailVerified: true })));
+  await f.db.insert(users).values(ids.map((id) => ({ id, name: id, email: `${id}@${domain}`, emailVerified: true })));
   const tenant = (await createWorkspace(f.db, ids[0], `${prefix} ministry`)).tenantId;
-  await putMember(f.db, ids[0], tenant, `${ids[1]}@example.test`, "admin");
-  await putMember(f.db, ids[0], tenant, `${ids[2]}@example.test`, "member");
-  await putMember(f.db, ids[0], tenant, `${ids[3]}@example.test`, "viewer");
+  await putMember(f.db, ids[0], tenant, `${ids[1]}@${domain}`, "admin");
+  await putMember(f.db, ids[0], tenant, `${ids[2]}@${domain}`, "member");
+  await putMember(f.db, ids[0], tenant, `${ids[3]}@${domain}`, "viewer");
   const other = (await createWorkspace(f.db, ids[4], `${prefix} other ministry`)).tenantId;
   return { owner: ids[0], admin: ids[1], member: ids[2], viewer: ids[3], outsider: ids[4], tenant, other };
 }

@@ -1,3 +1,4 @@
+import { apiDenialRoute, apiDenialRouteHeader } from "@/lib/api-denial-route";
 import { legacyRedirect } from "@/lib/site-address";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -7,6 +8,9 @@ export function proxy(request: NextRequest) {
   if (legacy) return legacy;
   const headers = new Headers(request.headers);
   headers.delete("x-harvest-workspace");
+  headers.delete(apiDenialRouteHeader);
+  const denialRoute = apiDenialRoute(request.nextUrl.pathname);
+  if (denialRoute) headers.set(apiDenialRouteHeader, denialRoute);
   const candidate = request.nextUrl.pathname.match(/^\/workspaces\/([0-9a-f-]{36})(?:\/|$)/i)?.[1];
   if (candidate) headers.set("x-harvest-workspace", candidate);
   const response = NextResponse.next({ request: { headers } });

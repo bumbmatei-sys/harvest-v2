@@ -22,7 +22,7 @@ describe("contact persistence, evidence and tenant isolation", () => {
   it("forces RLS and exposes no contact data without context", async () => {
     const { rows } = await fixture.admin.query("select relrowsecurity, relforcerowsecurity from pg_class where relname in ('contacts','contact_identifiers','contact_consents')");
     expect(rows).toHaveLength(3); expect(rows.every((row) => row.relrowsecurity && row.relforcerowsecurity)).toBe(true);
-    for (const table of [contacts, contactIdentifiers, contactConsents]) expect(await fixture.db.select().from(table)).toEqual([]);
+    for (const table of [contacts, contactIdentifiers, contactConsents]) expect(await fixture.db.select({ id: table.id }).from(table)).toEqual([]);
   });
   it("persists a unified contact and same identifier independently across tenants", async () => {
     const a = await getContact(fixture.db, "owner-a", tenantA, contactA);
@@ -55,20 +55,21 @@ describe("contact persistence, evidence and tenant isolation", () => {
     await expect(withTenant(fixture.db, "owner-a", tenantA, "contacts:write", (tx) => tx.insert(contactIdentifiers).values({ tenantId: tenantA, contactId: contactB, kind: "email", value: "bad@example.test", normalizedValue: "bad@example.test" }))).rejects.toThrow();
     await expect(withTenant(fixture.db, "owner-a", tenantA, "contacts:write", (tx) => tx.insert(contactConsents).values({ tenantId: tenantA, contactId: contactB, recordedBy: "owner-a", purpose: "marketing", noticeVersion: "notice-v1", channel: "email", status: "granted", source: "Test", evidence: "Test" }))).rejects.toThrow();
   });
-  it("allows viewers to read, members to edit, and rejects viewer writes", async () => {
-    expect((await listContacts(fixture.db, "reader", tenantA)).total).toBe(1);
+  it("lets CRM members edit and denies viewer access", async () => {
+    await expect(listContacts(fixture.db, "reader", tenantA)).rejects.toMatchObject({ status: 403 });
+    await expect(getContact(fixture.db, "reader", tenantA, contactA)).rejects.toMatchObject({ status: 403 });
     await expect(createContact(fixture.db, "reader", tenantA, { name: "Denied" })).rejects.toMatchObject({ status: 403 });
     await expect(updateContact(fixture.db, "reader", tenantA, contactA, { name: "Denied" })).rejects.toMatchObject({ status: 403 });
     await expect(recordConsent(fixture.db, "reader", tenantA, contactA, { purpose: "marketing", noticeVersion: "notice-v1", channel: "email", status: "granted", source: "Test", evidence: "Test" })).rejects.toMatchObject({ status: 403 });
     // HC-DEC1b: a member may edit the person but not attest consent on their behalf (owner/admin only).
     await expect(recordConsent(fixture.db, "writer", tenantA, contactA, { purpose: "marketing", noticeVersion: "notice-v1", channel: "email", status: "granted", source: "Test", evidence: "Test" })).rejects.toMatchObject({ status: 403 });
     await updateContact(fixture.db, "writer", tenantA, contactA, { name: "Synthetic Ada", notes: "Updated", email: "ada@example.test", phone: "+49123456789", social: "@Ada" });
-    expect((await getContact(fixture.db, "reader", tenantA, contactA)).notes).toBe("Updated");
+    expect((await getContact(fixture.db, "writer", tenantA, contactA)).notes).toBe("Updated");
   });
   it("records append-only consent evidence and audit without implying default consent", async () => {
     await recordConsent(fixture.db, "owner-a", tenantA, contactA, { purpose: "marketing", noticeVersion: "notice-v1", channel: "email", status: "granted", source: "Synthetic signed form", evidence: "Synthetic evidence reference A" });
     await recordConsent(fixture.db, "owner-a", tenantA, contactA, { purpose: "marketing", noticeVersion: "notice-v1", channel: "email", status: "withdrawn", source: "Synthetic request", evidence: "Synthetic evidence reference B" });
-    const detail = await getContact(fixture.db, "reader", tenantA, contactA);
+    const detail = await getContact(fixture.db, "writer", tenantA, contactA);
     expect(detail.consents.map((row) => row.status)).toEqual(["withdrawn", "granted"]);
     await expect(fixture.pool.query("update contact_consents set status = 'granted'")).rejects.toThrow();
     await expect(fixture.admin.query("delete from contact_consents")).rejects.toThrow("append-only");
@@ -102,23 +103,23 @@ describe("contact persistence, evidence and tenant isolation", () => {
     expect((await getContact(fixture.db, "owner-a", workspace, contact.id)).effectiveConsents.find((event) => event.channel === "sms")?.status).toBe("withdrawn");
   });
   it("searches tenant-qualified identifiers and escapes wildcard text", async () => {
-    expect((await listContacts(fixture.db, "reader", tenantA, { q: "ada@example" })).total).toBe(1);
-    expect((await listContacts(fixture.db, "reader", tenantA, { q: "%" })).total).toBe(0);
-    expect((await listContacts(fixture.db, "reader", tenantA, { q: "Synthetic Ada B" })).total).toBe(0);
-    expect((await listContacts(fixture.db, "reader", tenantA, { page: 2 })).rows).toEqual([]);
-    expect(() => listContacts(fixture.db, "reader", tenantA, { page: -1 })).toThrow();
+    expect((await listContacts(fixture.db, "writer", tenantA, { q: "ada@example" })).total).toBe(1);
+    expect((await listContacts(fixture.db, "writer", tenantA, { q: "%" })).total).toBe(0);
+    expect((await listContacts(fixture.db, "writer", tenantA, { q: "Synthetic Ada B" })).total).toBe(0);
+    expect((await listContacts(fixture.db, "writer", tenantA, { page: 2 })).rows).toEqual([]);
+    expect(() => listContacts(fixture.db, "writer", tenantA, { page: -1 })).toThrow();
   });
   it.each(["commit", "rollback"])("clears all contact visibility on the same pooled backend after %s", async (ending) => {
     const { rows: [{ pid }] } = await fixture.pool.query("select pg_backend_pid() as pid");
     const operation = withTenant(fixture.db, "owner-a", tenantA, "contacts:read", async (tx) => {
       expect((await tx.execute(sql`select pg_backend_pid() as pid`)).rows[0]).toMatchObject({ pid });
-      expect(await tx.select().from(contactConsents)).toHaveLength(2);
+      expect(await tx.select({ id: contactConsents.id }).from(contactConsents)).toHaveLength(2);
       if (ending === "rollback") throw new Error("intentional rollback");
     });
     if (ending === "rollback") await expect(operation).rejects.toThrow(); else await operation;
     const { rows: [reset] } = await fixture.pool.query("select pg_backend_pid() as pid, nullif(current_setting('app.tenant_id', true), '') as tenant, nullif(current_setting('app.user_id', true), '') as actor");
     expect(reset).toEqual({ pid, tenant: null, actor: null });
-    for (const table of [contacts, contactIdentifiers, contactConsents]) expect(await fixture.db.select().from(table)).toEqual([]);
+    for (const table of [contacts, contactIdentifiers, contactConsents]) expect(await fixture.db.select({ id: table.id }).from(table)).toEqual([]);
   });
   it("paginates with a stable tenant-qualified order and no overlapping rows", async () => {
     const paging = (await createWorkspace(fixture.db, "owner-b", "Synthetic pagination seed")).tenantId;
@@ -144,8 +145,8 @@ describe("contact persistence, evidence and tenant isolation", () => {
       await expect(updateContact(fixture.db, "writer", tenantA, contactA, { name: "Must roll back", email: "changed@example.test" })).rejects.toThrow();
       await expect(recordConsent(fixture.db, "writer", tenantA, contactA, { purpose: "marketing", noticeVersion: "notice-v1", channel: "sms", status: "granted", source: "Test", evidence: "Test" })).rejects.toThrow();
     } finally { await fixture.admin.query("drop trigger test_contact_audit_failure on audit_logs"); }
-    const row = await getContact(fixture.db, "reader", tenantA, contactA);
+    const row = await getContact(fixture.db, "writer", tenantA, contactA);
     expect(row.name).toBe("Synthetic Ada"); expect(row.identifiers.some((identifier) => identifier.value === "ada@example.test")).toBe(true);
-    expect(row.consents).toHaveLength(2); expect((await listContacts(fixture.db, "reader", tenantA)).total).toBe(1);
+    expect(row.consents).toHaveLength(2); expect((await listContacts(fixture.db, "writer", tenantA)).total).toBe(1);
   });
 });

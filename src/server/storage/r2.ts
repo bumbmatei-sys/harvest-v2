@@ -105,7 +105,10 @@ export class R2FileStorage implements StorageAdapter {
         "Content-Disposition": downloadDisposition(transfer.name),
       } });
     }
-    if (request.headers.get("origin") !== this.origin) return new Response(null, { status: 403 });
+    if (request.headers.get("origin") !== this.origin) {
+      console.warn({ route: FILE_TRANSFER_PATH, reason: "origin_denied" });
+      return new Response(null, { status: 403 });
+    }
     if (request.headers.get("content-type") !== transfer.mime) return new Response(null, { status: 415 });
     if (request.headers.get("content-length") !== String(transfer.size) || !request.body) return new Response(null, { status: 400 });
     return this.put(grant.key, request.body, transfer,

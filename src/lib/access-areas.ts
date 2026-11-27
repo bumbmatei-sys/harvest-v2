@@ -18,11 +18,11 @@ export const permissionArea = {
   "members:write": "owner_admin", "roles:write": "owner_admin",
   // Privacy-sensitive: owner/admin only, whatever an area says (open question 1 in the checklist).
   "contacts:erase": "owner_admin", "contacts:attest_consent": "owner_admin", "crm:export_sensitive": "owner_admin", "webhooks:manage": "owner_admin",
-  "contacts:merge": "owner_admin", "connect:privacy": "owner_admin", "social:approvals_settings": "owner_admin",
+  "contacts:merge": "owner_admin", "contacts:consent_evidence": "owner_admin", "contacts:sources_read": "owner_admin", "connect:privacy": "owner_admin", "social:approvals_settings": "owner_admin",
   "contacts:read": "crm", "contacts:write": "crm", "companies:read": "crm", "companies:write": "crm", "opportunities:read": "crm", "opportunities:write": "crm",
   "tasks:read": "crm", "tasks:write": "crm", "notes:read": "crm", "notes:write": "crm", "crm:fields_write": "crm", "crm:pipelines_write": "crm",
   "crm:import": "crm", "crm:export": "crm", "crm:forms_manage": "crm", "crm:reports": "crm", "crm:reports_export": "crm",
-  "crm:read_diagnostics": "crm", "contacts:sources_read": "crm", "contacts:record_withdrawal": "crm", "jobs:read": "crm", "jobs:operate": "crm",
+  "crm:read_diagnostics": "crm", "contacts:record_withdrawal": "crm", "jobs:read": "crm", "jobs:operate": "crm",
   "campaigns:read": "campaigns", "campaigns:write": "campaigns", "campaigns:activate": "campaigns",
   "communities:read": "communities", "communities:manage": "communities",
   "community:live:view": "communities", "community:live:manage": "communities", "community:live:moderate": "communities",
@@ -74,7 +74,7 @@ export function collaboratorCan(grants: AccessGrants, permission: Permission, le
   const level = grants[area];
   if (level === "manage") return legacy("admin", permission);
   // `view` is the original viewer rule: the read capabilities of CRM, campaigns, the communities list and docs. The other modules have no read-only tier yet.
-  if (level === "view") return legacy("viewer", permission);
+  if (level === "view") return permission === "contacts:read" || legacy("viewer", permission);
   return false;
 }
 

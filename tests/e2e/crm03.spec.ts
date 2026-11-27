@@ -202,11 +202,12 @@ test("CRM-03: custom fields, saved views, filters, columns and keyboard grid edi
   await page.goto(`${root}/crm/companies`);
   await both(page, "companies-list");
 
-  // A viewer reads views and values but cannot save views, change values or definitions.
+  // A collaborator with CRM read access can browse views and values.
   const viewerContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce" });
   const viewer = await viewerContext.newPage();
   const viewerEmail = await signIn(viewer);
   expect((await api(page, "put", `${apiRoot}/members`, { email: viewerEmail, role: "viewer" })).status).toBe(200);
+  expect((await api(page, "put", `${apiRoot}/members`, { email: viewerEmail, role: "collaborator", grants: { crm: "view" } })).status).toBe(200);
   // The owner's personal view is private: for the viewer it is simply not available.
   await viewer.goto(`${root}/crm/people?view=${viewId}`);
   await expect(viewer.getByText("That view is not available, so the default view is shown.")).toBeVisible();

@@ -10,7 +10,7 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   // CRM-08: outbound webhook endpoints are owner/admin configuration.
   | "webhooks:manage" | "crm:read_diagnostics"
   // HC-02: restricted pending Connect responses (metadata, withdrawal, erasure, retention) are owner/admin.
-  | "connect:privacy"
+  | "connect:privacy" | "contacts:consent_evidence"
   // HC-03: publishing, disabling, rotating and archiving a public QR/short-URL link is owner/admin,
   // like publishing Forms versions and privacy notices. Drafts, preview and export use campaigns:write.
   | "connect:publish" | "contacts:sources_read"
@@ -49,7 +49,8 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   // Fundraising pledge campaigns: owners and admins. Campaign settings follow the Giving area; pledges, gifts and supporter details stay owner/admin only.
   | "fundraising:read" | "fundraising:manage" | "fundraising:publish" | "giving:record" | "giving:correct" | "giving:read_donors";
 function legacyCan(role: string, permission: Permission): boolean {
-  if (permission === "communities:read" || permission === "workspace:read" || permission === "contacts:read" || permission === "companies:read" || permission === "opportunities:read" || permission === "tasks:read" || permission === "notes:read" || permission === "campaigns:read" || permission === "docs:read" || permission === "catalog:read") return roleIds.includes(role as Role);
+  if (permission === "contacts:read") return role === "owner" || role === "admin" || role === "member";
+  if (permission === "communities:read" || permission === "workspace:read" || permission === "companies:read" || permission === "opportunities:read" || permission === "tasks:read" || permission === "notes:read" || permission === "campaigns:read" || permission === "docs:read" || permission === "catalog:read") return roleIds.includes(role as Role);
   if (permission === "newsletter:read") return role === "owner" || role === "admin" || role === "member";
   if (permission === "followup:work" || permission === "contacts:record_withdrawal" || permission === "crm:reports" || permission === "docs:write") return role === "owner" || role === "admin" || role === "member";
   if (permission === "contacts:write" || permission === "companies:write" || permission === "opportunities:write" || permission === "tasks:write" || permission === "notes:write"
