@@ -21,7 +21,7 @@ export function ShellHeaderPortal({ children }: { children: React.ReactNode }) {
 export function ShellHeaderTrail({ title, status, actions }: { title: string; status?: React.ReactNode; actions?: React.ReactNode }) {
   return <div className="flex min-w-0 flex-1 items-center gap-2" data-shell-header-trail>
     <ChevronRight className="size-3.5 shrink-0 text-muted-foreground max-sm:hidden" aria-hidden="true" />
-    <span className="min-w-0 truncate text-[13px] font-medium max-sm:sr-only" data-shell-header-title>{title}</span>
+    <span className="w-0 min-w-0 flex-1 basis-0 truncate text-[13px] font-medium max-sm:sr-only" data-shell-header-title>{title}</span>
     {status && <span className="hidden shrink-0 sm:inline-flex">{status}</span>}
     {actions && <div className="ms-auto flex shrink-0 items-center gap-2" data-shell-header-page-actions>{actions}</div>}
   </div>;
