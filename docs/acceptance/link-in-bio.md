@@ -34,6 +34,15 @@ Migration `0135_bio_blocks` (no columns). `bio_public_page_scoped` resolves prod
 - **Not built:** the blog block (no native blog on main yet) and latest newsletter (no public newsletter archive exists); events stay the existing owner-written event card (no public event page exists). Join community is the existing community block.
 - Evidence: unit (`new block types` describe), integration (`rework PR 2` describe: catalog visibility, other-ministry and course-as-file refusals, unknown form refusal, clicks incl. Live on/off, flag clear and restore), e2e `tests/e2e/link-in-bio-blocks.spec.ts` (axe at 360 and 1280, light and dark, 44px targets).
 
+## Rework PR 3: gallery, share and QR, countdown
+
+Migration `0136_bio_gallery`: `bio_files.kind` gains `gallery` (drizzle-generated constraint swap); `bio_photo_perform` (0094 body as rewritten by 0113 for `access_role`) handles gallery pictures (served to the owner by id, never set on the page, at most 60 live per page); `bio_public_page_scoped` lists the ready gallery pictures shown gallery blocks name; new definer `bio_public_gallery` (scope cleared and restored, pinned search path, granted to the app role only).
+
+- **Photo gallery** (`BioGallery`, kit `customer-reviews9`): up to 12 uploaded pictures per block through the private, scanned upload path; square grid, full-screen viewer with swipe (`embla-carousel-react`), previous and next buttons and arrow keys. Visitors reach a picture only at `/l/<handle>/gallery/<id>` (a one-minute signed redirect) while a shown gallery block of the published page lists it.
+- **Share and QR** (`BioShare`, kit `dashboard-modal2`): the page link with a copy button, the device share sheet, and the QR code from the Connect renderer at `/l/<handle>/qr` (SVG, or PNG to download; published pages only; 30 a minute per visitor).
+- **Countdown** (`BioCountdown`, kit `product-cards5`): days, hours, minutes and seconds to an owner-set moment, the date written out, an optional link once it starts.
+- Evidence: unit (`gallery, share and countdown` describe), integration (`rework PR 3` describe: only ready, listed, own pictures are served; hidden block stops serving; owner preview by id; no "set"; the 60-picture cap; QR only for published pages), e2e `tests/e2e/link-in-bio-blocks.spec.ts` second test (gallery upload, viewer, share dialog and QR, countdown, axe at 360 and 1280 light and dark, 44px targets).
+
 ## Evidence
 
 - Unit `tests/unit/link-in-bio.test.ts`; integration `tests/integration/link-in-bio.test.ts` (restricted migration owner); e2e `tests/e2e/link-in-bio.spec.ts` (editor and public page with axe at 360/768/1280, light and dark, overflow check); navigation counts in `tests/unit/navigation.test.ts` and `tests/e2e/campaigns.spec.ts`.

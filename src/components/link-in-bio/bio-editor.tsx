@@ -62,12 +62,41 @@ export function draftView(definition: BioDefinition, choices: BioChoices, minist
       case "location": return [{ type: "location", id: block.id, label: block.label, address: block.address || "…" }];
       case "live": return block.on ? [{ type: "live", id: block.id, title: block.title || "…", url: block.url }] : [];
       case "testimonials": return [{ type: "testimonials", id: block.id, items: block.items.map((x) => ({ ...x, quote: x.quote || "…", name: x.name || "…" })) }];
+      case "gallery": return [{ type: "gallery", id: block.id, title: block.title, fileIds: block.fileIds }];
+      case "share": return [{ type: "share", id: block.id, title: block.title || "…" }];
+      case "countdown": return Number.isNaN(Date.parse(block.at)) ? [] : [{ type: "countdown", id: block.id, title: block.title || "…", at: block.at, url: block.url }];
     }
   };
   const tabs = shownTabs(definition, definition.blocks).map((t) => ({ ...t, blocks: t.blocks.flatMap(project) })).filter((t) => t.blocks.length > 0);
   return { ministryName, name: definition.name || "…", bio: oneLine(definition.bio), tabs, layout: definition.layout, showCover: definition.cover, photoAlign: definition.photoAlign,
     iconStyle: definition.iconStyle, hasPhoto, hasCover: definition.cover && hasCover, scheme: definition.scheme, buttons: definition.buttons,
     brandTheme: brandTheme as BioView["brandTheme"], socials: definition.socials.filter((s) => /^https:\/\//.test(s.url)) };
+}
+
+/** Signed previews of the page's gallery pictures (one request per picture, again while a picture still waits for its safety check). */
+function useGalleryUrls(endpoint: string, ids: string[]) {
+  const [urls, setUrls] = useState<Record<string, string | null>>({});
+  const known = useRef(urls);
+  useEffect(() => { known.current = urls; }, [urls]);
+  const key = ids.join(",");
+  useEffect(() => {
+    if (!key) return;
+    const controller = new AbortController();
+    const load = async () => {
+      const missing = key.split(",").filter((id) => !known.current[id]);
+      if (!missing.length) return;
+      const pairs = await Promise.all(missing.map(async (id) => {
+        try { const response = await fetch(`${endpoint}/gallery/${id}/cover`, { signal: controller.signal }); const data = response.ok ? await response.json() as { url?: string } : null; return [id, data?.url ?? null] as const; }
+        catch { return [id, null] as const; }
+      }));
+      const found = pairs.filter(([, url]) => url);
+      if (!controller.signal.aborted && found.length) setUrls((previous) => ({ ...previous, ...Object.fromEntries(found) }));
+    };
+    void load();
+    const timer = setInterval(() => void load(), 5000);
+    return () => { controller.abort(); clearInterval(timer); };
+  }, [endpoint, key]);
+  return urls;
 }
 
 export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme, base, messagesHref }: {
@@ -84,6 +113,8 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
   const { destination, setDestination, leave } = useUnsavedChangesGuard(dirty || busy || coverBusy);
   const photo = useEventCoverUrl(`${endpoint}/photo`, data.photoFileId), banner = useEventCoverUrl(`${endpoint}/banner`, data.coverFileId);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  const galleryIds = fields.definition.blocks.flatMap((b) => b.type === "gallery" ? b.fileIds : []);
+  const galleryUrls = useGalleryUrls(endpoint, galleryIds);
   const { definition } = fields, issues = fieldIssues(definition), checklist = publishIssues(definition, { hasPhoto: data.photoFileId !== null });
   const tabName = (x: BioDefinition["tabs"][number]) => x.label.trim() || (isLegacyTabId(x.id) ? t(`tabs.${x.id}`) : "");
   const tabOptions = definition.layout === "tabs" ? definition.tabs.map((x, i) => ({ id: x.id, name: tabName(x) || t("tabsEditor.untitled", { position: i + 1 }) })) : null;
@@ -160,6 +191,10 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
     { type: "location", make: (id) => ({ type: "location", id, hidden: false, tab: firstTab, label: "", address: "" }) },
     { type: "live", make: (id) => ({ type: "live", id, hidden: false, tab: firstTab, title: t("blocks.live"), url: "https://", on: false }) },
     { type: "testimonials", make: (id) => ({ type: "testimonials", id, hidden: false, tab: firstTab, items: [{ id: newBlockId([]), quote: "", name: "", role: "" }] }) },
+    // Rework PR 3. A gallery is added empty-titled and is saved once it holds a picture (the schema needs at least one).
+    { type: "gallery", make: (id) => ({ type: "gallery", id, hidden: false, tab: firstTab, title: "", fileIds: [] }) },
+    { type: "share", make: (id) => ({ type: "share", id, hidden: false, tab: firstTab, title: t("blocks.share") }) },
+    { type: "countdown", make: (id) => ({ type: "countdown", id, hidden: false, tab: firstTab, title: "", at: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 16) + ":00.000Z", url: "" }) },
   ];
 
   const contentIssue = Object.keys(issues).some((key) => !key.startsWith("social:"));
@@ -184,7 +219,7 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
     <div className="overflow-hidden rounded-[2rem] border-[6px] border-foreground/80 shadow-sm">
       <div data-theme={forced} className={forced === "dark" ? "dark" : undefined}>
         <div className={cn("theme-preview max-h-[40rem] min-h-[28rem] overflow-y-auto bg-background text-foreground")} data-preview-brand={brandTheme ?? "harvest"} aria-label={t("previewHeading")} role="group">
-          <BioPageView view={view} handle={fields.handle} preview photoUrl={photo.url && data.photoFileId ? photo.url : null} coverUrl={banner.url && data.coverFileId ? banner.url : null} />
+          <BioPageView view={view} handle={fields.handle} preview photoUrl={photo.url && data.photoFileId ? photo.url : null} coverUrl={banner.url && data.coverFileId ? banner.url : null} galleryUrls={galleryUrls} />
         </div>
       </div>
     </div>
@@ -261,7 +296,7 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
                         <NativeSelect id={`n-${block.id}`} className="min-h-11 w-full" value={block.slug} onChange={(e) => patchBlock(block.id, { slug: e.target.value })}>
                           {!choices.signups.some((s) => s.slug === block.slug) && <option value={block.slug}>{block.slug}</option>}
                           {choices.signups.map((s) => <option key={s.slug} value={s.slug}>{s.title}</option>)}</NativeSelect></Field></BioBlockRow>;
-                    default: return <BioBlockRow key={block.id} {...common}><BioBlockFields block={block} choices={choices} issue={bad} patch={(change) => patchBlock(block.id, change)} /></BioBlockRow>;
+                    default: return <BioBlockRow key={block.id} {...common}><BioBlockFields block={block} choices={choices} issue={bad} patch={(change) => patchBlock(block.id, change)} endpoint={endpoint} galleryUrls={galleryUrls} /></BioBlockRow>;
                   }
                 })}</ol>
               </SortableContext></DndContext>}

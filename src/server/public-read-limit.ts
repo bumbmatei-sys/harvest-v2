@@ -22,6 +22,8 @@ export const publicReadLimits = {
   discover: 60,
   "community-page": 60,
   "community-beacon": 60,
+  // Link in bio share dialog: the page's QR code (SVG to show, PNG to save).
+  "bio-qr": 30,
 } as const;
 export type PublicReadScope = keyof typeof publicReadLimits;
 export type PublicReadCharge = { limited: false } | { limited: true; retryAfter: number };

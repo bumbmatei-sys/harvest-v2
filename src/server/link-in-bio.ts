@@ -228,7 +228,9 @@ export async function bioChoices(db: Database, user: string, workspace: string):
 // ---- Public side ---------------------------------------------------------------------------------------------------------------------------------------------
 type PublicRow = { handle: string; ministryName: string; brandTheme: string | null; definition: unknown; hasPhoto: boolean; hasCover: boolean; communities: Record<string, { name: string; tagline: string | null; slug: string }>; signups: string[];
   /** 0134: published, not hidden products and courses of the ministry, and its live hosted form addresses. Absent before that migration. */
-  catalog?: Record<string, Omit<BioCatalogCard, "id">>; forms?: string[] };
+  catalog?: Record<string, Omit<BioCatalogCard, "id">>; forms?: string[];
+  /** 0136: ready gallery pictures that a gallery block of the published copy lists. */
+  gallery?: string[] };
 
 /**
  * The published page as a visitor may see it, or null (missing, unpublished and unavailable are the same answer). Hidden blocks, blocks whose community was
@@ -263,6 +265,9 @@ export async function getPublicBio(db: Database, handle: string, env: Record<str
       case "location": return [{ type: "location", id: block.id, label: block.label, address: block.address }];
       case "live": return block.on ? [{ type: "live", id: block.id, title: block.title, url: block.url }] : [];
       case "testimonials": return [{ type: "testimonials", id: block.id, items: block.items }];
+      case "gallery": { const ready = block.fileIds.filter((id) => row.result!.gallery?.includes(id)); return ready.length ? [{ type: "gallery", id: block.id, title: block.title, fileIds: ready }] : []; }
+      case "share": return [{ type: "share", id: block.id, title: block.title }];
+      case "countdown": return [{ type: "countdown", id: block.id, title: block.title, at: block.at, url: block.url }];
     }
   };
   // A hidden tab, and a tab with nothing to show, never reach the visitor.
@@ -277,6 +282,13 @@ export async function recordBioClick(db: Database, handle: string, block: string
   if (!linkInBioEnabled()) return "not_found";
   const { rows: [row] } = await db.execute<{ result: ClickOutcome }>(sql`select public.bio_record_click(${handle}, ${block}, ${visitor}) as result`);
   return row.result;
+}
+
+/** One gallery picture of a published page (bio_public_gallery checks that a shown gallery block lists it), or null. */
+export async function publicBioGalleryPhoto(db: Database, handle: string, file: string): Promise<{ key: string; name: string; mime: "image/jpeg" | "image/png" | "image/webp" } | null> {
+  if (!linkInBioEnabled() || handleProblem(handle) !== null || !uuid.safeParse(file).success) return null;
+  const { rows: [row] } = await db.execute<{ result: { key: string; name: string; mime: "image/jpeg" | "image/png" | "image/webp" } | null }>(sql`select public.bio_public_gallery(${handle}, ${file}::uuid) as result`);
+  return row?.result ?? null;
 }
 
 export async function publicBioPhoto(db: Database, handle: string, kind: "photo" | "cover" = "photo"): Promise<{ key: string; name: string; mime: "image/jpeg" | "image/png" | "image/webp" } | null> {

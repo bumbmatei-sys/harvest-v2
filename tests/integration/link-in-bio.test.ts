@@ -461,3 +461,53 @@ describe("rework PR 2: new blocks (0135)", () => {
     } finally { client.release(); }
   });
 });
+
+describe("rework PR 3: gallery, share and countdown (0136)", () => {
+  const galleryFile = async (status: "ready" | "pending", tenant = people.tenant) => {
+    const page = await getBioPage(db(), tenant === people.tenant ? people.owner : people.outsider, tenant), id = randomUUID();
+    await fixture.admin.query("insert into bio_files(id,tenant_id,page_id,key,kind,name,mime,size,checksum,status) values($1,$2,$3,$4,'gallery','g.png','image/png',10,$5,$6)",
+      [id, tenant, page.id, `workspaces/${tenant}/bio/${page.id}/files/${id}`, "e".repeat(64), status]);
+    return id;
+  };
+  const publicPicture = (handle: string, file: string) => fixture.admin.query("select public.bio_public_gallery($1, $2::uuid) r", [handle, file]).then((r) => r.rows[0].r as { key: string } | null);
+  it("serves only ready gallery pictures that a shown gallery block of the published page lists", async () => {
+    const ready = await galleryFile("ready"), pending = await galleryFile("pending"), unlisted = await galleryFile("ready"), foreign = await galleryFile("ready", people.other);
+    const current = await getBioPage(db(), people.owner, people.tenant); version = current.version;
+    const blocks: BioDefinition["blocks"] = [
+      { type: "gallery", id: "gallery1", hidden: false, tab: "home", title: "Our church", fileIds: [ready, pending, foreign] },
+      { type: "share", id: "share001", hidden: false, tab: "home", title: "Share" },
+      { type: "countdown", id: "count001", hidden: false, tab: "home", title: "Easter", at: "2027-03-28T09:00:00.000Z", url: "" },
+    ];
+    await save(people.owner, undefined, { ...current.draft, layout: "single", blocks });
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
+    const view = (await getPublicBio(db(), "grace-church"))!;
+    expect(view.tabs[0].blocks.find((b) => b.id === "gallery1")).toMatchObject({ type: "gallery", fileIds: [ready] });
+    expect(view.tabs[0].blocks.map((b) => b.type)).toEqual(["gallery", "share", "countdown"]);
+    expect((await publicPicture("grace-church", ready))?.key).toContain(ready);
+    for (const other of [pending, unlisted, foreign]) expect(await publicPicture("grace-church", other)).toBeNull();
+    // Hidden block: the picture is no longer served.
+    await save(people.owner, undefined, { ...current.draft, layout: "single", blocks: blocks.map((b) => b.type === "gallery" ? { ...b, hidden: true } : b) });
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
+    expect(await publicPicture("grace-church", ready)).toBeNull();
+    // Owner preview: the gallery picture by id through the owner's definer; a gallery picture is never "set" on the page.
+    const { withUser } = await import("../../src/server/tenancy");
+    const operate = (action: string, file: string | null, input: object) => withUser(db(), people.owner, async (tx) => (await tx.execute(sql`select public.bio_photo_operate(${people.tenant}::uuid, ${action}, ${file}::uuid, ${JSON.stringify(input)}::jsonb) r`)).rows[0].r as { outcome: string });
+    expect((await operate("serve", ready, { kind: "gallery" })).outcome).toBe("ok");
+    expect((await operate("serve", pending, { kind: "gallery" })).outcome).toBe("not_found");
+    expect((await operate("set", ready, { kind: "gallery", version })).outcome).toBe("invalid");
+    expect((await withUser(db(), people.member, async (tx) => (await tx.execute(sql`select public.bio_photo_operate(${people.tenant}::uuid, 'serve', ${ready}::uuid, ${JSON.stringify({ kind: "gallery" })}::jsonb) r`)).rows[0].r as { outcome: string })).outcome).toBe("not_found");
+    // At most 60 live gallery pictures per page.
+    const page = await getBioPage(db(), people.owner, people.tenant);
+    const live = Number((await fixture.admin.query("select count(*)::int n from bio_files where page_id=$1 and kind='gallery' and retired_at is null", [page.id])).rows[0].n);
+    for (let i = live; i < 60; i++) await galleryFile("ready");
+    const create = await operate("create", randomUUID(), { kind: "gallery", name: "g.png", mime: "image/png", size: 10, checksum: "f".repeat(64) });
+    expect(create.outcome).toBe("invalid");
+  });
+  it("draws the QR code of a published page only", async () => {
+    const { bioPageQr } = await import("../../src/server/link-in-bio-qr");
+    const svg = await bioPageQr(db(), "grace-church", "svg", origin);
+    expect(svg?.type).toBe("image/svg+xml"); expect(String(svg?.body)).toContain("<svg");
+    expect((await bioPageQr(db(), "grace-church", "png", origin))?.type).toBe("image/png");
+    expect(await bioPageQr(db(), "no-such-page", "svg", origin)).toBeNull();
+  });
+});
