@@ -8590,7 +8590,9 @@
       "problems": {
         "title": "Add a title.",
         "address": "Use 3 to 60 lowercase letters, numbers or hyphens for the address.",
-        "lessonTitle": "Give every lesson a title."
+        "lessonTitle": "Give every lesson a title.",
+        "videoLink": "Use a video link from a supported site.",
+        "label": "Keep each name to 24 characters."
       },
       "saved": "Saved.",
       "done": {
@@ -8639,22 +8641,56 @@
       "archive": "Archive",
       "archiveTitle": "Archive this item?",
       "archiveBody": "People can no longer open it. This cannot be undone.",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "progress": {
+        "title": "Learner progress",
+        "enrolled": "Enrolled",
+        "hidden": "Fewer than {minimum}",
+        "completed": "Completed",
+        "lesson": "Lesson",
+        "none": "No lessons yet",
+        "note": "Counts under {minimum} are hidden to protect learners' privacy."
+      }
     },
     "lessons": {
-      "empty": "No lessons yet",
-      "add": "Add lesson",
-      "label": "Lessons",
-      "titleLabel": "Title of lesson {number}",
-      "titlePlaceholder": "Lesson title",
-      "moveUp": "Move lesson {number} up",
-      "moveDown": "Move lesson {number} down",
-      "remove": "Remove lesson {number}",
       "published": "Published",
       "draft": "Draft",
       "hideBody": "Close",
       "editBody": "Edit lesson",
-      "bodyLabel": "Content of lesson {number}"
+      "video": "Video link",
+      "videoInvalid": "Use a supported video link.",
+      "videoPlaceholder": "https://"
+    },
+    "structure": {
+      "namesTitle": "Names",
+      "nameLabels": {
+        "level": "Level name",
+        "section": "Section name",
+        "lesson": "Lesson name"
+      },
+      "defaults": {
+        "level": "Level",
+        "section": "Section",
+        "lesson": "Lesson"
+      },
+      "words": {
+        "level": "level",
+        "section": "section",
+        "lesson": "lesson"
+      },
+      "empty": "No content yet",
+      "add": "Add {label}",
+      "lessons": "Course content",
+      "structure": "Course structure",
+      "lessonsIn": "Lessons in {name}",
+      "sectionsIn": "Sections in {name}",
+      "numbered": "{label} {number}",
+      "titleLabel": "Title of {label} {number}",
+      "titlePlaceholder": "{label} title",
+      "bodyLabel": "Content of {label} {number}",
+      "moveUp": "Move {label} {number} up",
+      "moveDown": "Move {label} {number} down",
+      "remove": "Remove {label} {number}"
     },
     "files": {
       "chosen": "Files in this download",
@@ -9441,7 +9477,7 @@
         "checkNamed": "Check now: {name}",
         "checking": "Checking…",
         "checkedAt": "Checked {time}",
-          "networkCurrency": "{network} · {currency}",
+        "networkCurrency": "{network} · {currency}",
         "never": "Not checked yet",
         "summary": {
           "ok": "Healthy",
@@ -9843,11 +9879,28 @@
     "downloadNamed": "Download {name}",
     "lessons": "Lessons",
     "noLessons": "No lessons yet",
-    "yourPlace": "Your place",
-    "lessonOf": "Lesson {current} of {total}",
     "previous": "Previous lesson",
     "next": "Next lesson",
-    "backToCourse": "Back to course"
+    "backToCourse": "Back to course",
+    "playVideo": "Play video",
+    "videoTitle": "Video: {title}",
+    "videoNotice": "The video loads from its host when you press play.",
+    "place": "{label} {current} of {total}",
+    "yourProgress": "Your progress",
+    "percentComplete": "{percent}% complete",
+    "completeMark": "(complete)",
+    "markComplete": "Mark complete",
+    "completed": "Completed",
+    "completedNotice": "Saved to your progress.",
+    "notesTitle": "My notes",
+    "noteLabel": "Note on this lesson",
+    "notePrivate": "Only you can see your notes.",
+    "noteInvalid": "Use plain text up to 4000 characters.",
+    "saveNote": "Save note",
+    "noteSaved": "Note saved.",
+    "noteDeleted": "Note removed.",
+    "continue": "Continue where you left off",
+    "myNotes": "My notes"
   },
   "CampaignInvitation": {
     "pageTitle": "Campaign invitation",
@@ -10545,5 +10598,13 @@
     "pageTitle": "Link not available",
     "title": "This link is not available",
     "body": "It may be incomplete or no longer in use."
+  },
+  "MyNotes": {
+    "title": "My notes",
+    "empty": "No notes yet",
+    "emptyDescription": "Notes you write on lessons appear here.",
+    "unavailable": "Course no longer available",
+    "open": "Open lesson",
+    "updated": "Updated {date, date, medium}"
   }
 }

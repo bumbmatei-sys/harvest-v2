@@ -45,9 +45,19 @@ describe("catalogue type art", () => {
 
 describe("catalogue rules", () => {
   it("builds the draft the server expects, per kind", () => {
-    const lesson = { ...newLesson(), title: "  One  ", published: true };
-    expect(draftPayload("course", form({ lessons: [lesson, { ...newLesson(), id: "11111111-1111-4111-8111-111111111111", title: "Two", body: emptyBody() }] })))
-      .toMatchObject({ kind: "course", title: "Basics", lessons: [{ title: "One", published: true }, { id: "11111111-1111-4111-8111-111111111111", title: "Two", published: false }] });
+    const lesson = { ...newLesson(), title: "  One  ", published: true, section: "s1", videoUrl: " https://youtu.be/dQw4w9WgXcQ " };
+    const second = { ...newLesson(), id: "11111111-1111-4111-8111-111111111111", title: "Two", body: emptyBody(), section: "s1" };
+    const sections = [{ key: "s1", title: " Week one ", level: null }];
+    expect(draftPayload("course", form({ sections, lessons: [lesson, second], labels: { level: "", section: " Week ", lesson: "" } }))).toEqual({
+      kind: "course", title: "Basics", slug: "basics", summary: "", visibility: "unlisted", labels: { level: null, section: "Week", lesson: null },
+      sections: [{ title: "Week one", lessons: [{ title: "One", published: true, body: lesson.body, videoUrl: "https://youtu.be/dQw4w9WgXcQ" },
+        { id: "11111111-1111-4111-8111-111111111111", title: "Two", published: false, body: emptyBody(), videoUrl: null }] }],
+    });
+    // With levels, sections are sent inside their level.
+    const levels = [{ key: "v1", id: "22222222-2222-4222-8222-222222222222", title: "Module" }];
+    expect(draftPayload("course", form({ levels, sections: [{ ...sections[0], level: "v1" }], lessons: [second] }))).toMatchObject({
+      levels: [{ id: levels[0].id, title: "Module", sections: [{ title: "Week one", lessons: [{ title: "Two" }] }] }] });
+    expect(draftPayload("course", form())).toMatchObject({ sections: [] });
     expect(draftPayload("download", form({ fileIds: ["a", "b"] }))).toEqual({ kind: "download", title: "Basics", slug: "basics", summary: "", visibility: "unlisted", fileIds: ["a", "b"] });
     expect(draftPayload("download", form())).not.toHaveProperty("lessons");
   });
@@ -56,6 +66,9 @@ describe("catalogue rules", () => {
     expect(problems("course", form({ title: " ", slug: "x" }))).toEqual(["title", "address"]);
     expect(problems("course", form({ lessons: [newLesson()] }))).toEqual(["lessonTitle"]);
     expect(problems("download", form({ lessons: [newLesson()] }))).toEqual([]);
+    expect(problems("course", form({ lessons: [{ ...newLesson(), title: "A", videoUrl: "javascript:alert(1)" }] }))).toEqual(["videoLink"]);
+    expect(problems("course", form({ lessons: [{ ...newLesson(), title: "A", videoUrl: "https://youtu.be/dQw4w9WgXcQ" }] }))).toEqual([]);
+    expect(problems("course", form({ labels: { level: "x".repeat(25), section: "", lesson: "" } }))).toEqual(["label"]);
     for (const slug of ["ab", "-ab", "ab-", "A-b-c", `a${"b".repeat(60)}`]) expect(problems("course", form({ slug })), slug).toContain("address");
   });
   it("follows the title for the address until it is edited, and never after publishing", () => {
@@ -88,9 +101,16 @@ describe("catalogue rules", () => {
     expect(["title", "address", "lessons", "files"].map((id) => stepOfCheck(id as never))).toEqual(["details", "details", "content", "content"]);
   });
   it("reads an item into a form, with a member's metadata-only read as an empty one", () => {
-    const item = { title: "T", slug: "tt", summary: "S", visibility: "listed" as const, lessons: [{ id: "l1", title: "One", body: emptyBody(), published: true }], fileIds: undefined };
-    expect(formFromItem(item)).toEqual({ title: "T", slug: "tt", summary: "S", visibility: "listed", lessons: [{ key: "l1", id: "l1", title: "One", published: true, body: emptyBody() }], fileIds: [] });
+    const item = { title: "T", slug: "tt", summary: "S", visibility: "listed" as const, fileIds: undefined, labels: { level: null, section: "Week", lesson: null },
+      sections: [{ id: "s1", levelId: null, title: "" }], lessons: [{ id: "l1", title: "One", body: emptyBody(), published: true, sectionId: "s1", video: { provider: "vk" as const, id: "-1_2" } }] };
+    expect(formFromItem(item)).toEqual({ title: "T", slug: "tt", summary: "S", visibility: "listed", levels: [], sections: [{ key: "s1", id: "s1", title: "", level: null }],
+      lessons: [{ key: "l1", id: "l1", title: "One", published: true, body: emptyBody(), section: "s1", videoUrl: "https://vkvideo.ru/video-1_2" }],
+      labels: { level: "", section: "Week", lesson: "" }, fileIds: [] });
     expect(formFromItem({ title: "T", slug: "tt", summary: "", visibility: "hidden" }).lessons).toEqual([]);
+    // A read without sections still keeps its lessons in one new untitled section.
+    const legacy = formFromItem({ title: "T", slug: "tt", summary: "", visibility: "hidden", lessons: [{ id: "l1", title: "One", body: emptyBody(), published: true }] });
+    expect(legacy.sections).toEqual([{ key: "section-loose", title: "", level: null }]);
+    expect(draftPayload("course", legacy)).toMatchObject({ sections: [{ title: "", lessons: [{ id: "l1" }] }] });
   });
   it("names public pages by kind and gives file sizes as units", () => {
     expect(publicPath("course", "a-b")).toBe("/courses/a-b");

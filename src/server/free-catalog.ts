@@ -1,8 +1,13 @@
+import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
-import { auditLogs, catalogItems, catalogLessons, catalogFiles, communities, communityProductLinks, files } from "../db/schema";
+import { auditLogs, catalogItems, catalogLessons, catalogLevels, catalogSections, catalogFiles, communities, communityProductLinks, files } from "../db/schema";
 import { sanitizeRichText, type RichDoc } from "../lib/rich-text";
+import { parseVideoLink, type LessonVideo } from "../lib/lesson-video";
+import { labelLimit, maxLevels, maxSections, type CourseLabels } from "../lib/course-structure";
+import { noteLimit, validNote, type ProgressSummary } from "../lib/course-progress";
+import { suppressSmall } from "../lib/connect-retention";
 import { message } from "../i18n/messages";
 import { freeCatalogEnabled } from "./free-catalog-mode";
 import { refreshDiscoverListing } from "./discover/refresh";
@@ -18,16 +23,43 @@ const fields = {
   title, slug: slugSchema, summary: z.string().max(2000).refine((value) => !value.includes("\u0000")).default(""),
   visibility: z.enum(["hidden", "unlisted", "listed"]).default("hidden"),
 };
-const lesson = z.object({ id: uuid.optional(), title, published: z.boolean(), body: z.unknown() }).strict().transform((input, ctx) => {
-  const body = sanitizeRichText(input.body);
-  if (!body || Buffer.byteLength(JSON.stringify(body)) > 28_000) {
-    ctx.addIssue({ code: "custom", path: ["body"], message: "Invalid lesson body" });
-    return z.NEVER;
-  }
-  return { ...input, body };
-});
+const plain = (value: string) => !/[\u0000-\u001f\u007f]/.test(value);
+const lesson = z.object({ id: uuid.optional(), title, published: z.boolean(), body: z.unknown(), videoUrl: z.string().max(2048).nullable().optional() }).strict()
+  .transform(({ videoUrl, ...input }, ctx) => {
+    const body = sanitizeRichText(input.body);
+    if (!body || Buffer.byteLength(JSON.stringify(body)) > 28_000) {
+      ctx.addIssue({ code: "custom", path: ["body"], message: "Invalid lesson body" });
+      return z.NEVER;
+    }
+    // The pasted link is parsed to an allow-listed provider and video id; only those are stored.
+    const video: LessonVideo | null = videoUrl?.trim() ? parseVideoLink(videoUrl) : null;
+    if (videoUrl?.trim() && !video) {
+      ctx.addIssue({ code: "custom", path: ["videoUrl"], message: "Invalid video link" });
+      return z.NEVER;
+    }
+    return { ...input, body, video };
+  });
+// Level and section titles may be empty: the screens then show the course's label and number ("Week 2").
+const partTitle = z.string().trim().max(120).refine(plain).default("");
+const section = z.object({ id: uuid.optional(), title: partTitle, lessons: z.array(lesson).max(50).default([]) }).strict();
+const level = z.object({ id: uuid.optional(), title: partTitle, sections: z.array(section).max(maxSections).default([]) }).strict();
+const label = z.string().trim().max(labelLimit).refine(plain).nullable().optional().transform((value) => value || null);
+const labels = z.object({ level: label, section: label, lesson: label }).strict();
+/**
+ * A course's content, in one of three shapes: `levels` (each holding sections), `sections` (no levels), or the original flat `lessons`, which
+ * become one untitled section. Positions follow the nesting order, so the lesson order is one list across the course.
+ */
+const course = z.object({ ...fields, kind: z.literal("course"), labels: labels.optional(), lessons: z.array(lesson).max(50).optional(),
+  sections: z.array(section).max(maxSections).optional(), levels: z.array(level).max(maxLevels).optional() }).strict()
+  .superRefine((input, ctx) => {
+    if ([input.lessons, input.sections, input.levels].filter((part) => part !== undefined).length > 1)
+      ctx.addIssue({ code: "custom", message: "Send one course shape" });
+    const parts = input.levels ? input.levels.flatMap((row) => row.sections) : input.sections ?? [];
+    if (parts.length > maxSections) ctx.addIssue({ code: "custom", path: ["sections"], message: "Too many sections" });
+    if (parts.reduce((sum, row) => sum + row.lessons.length, 0) > 50) ctx.addIssue({ code: "custom", path: ["lessons"], message: "Too many lessons" });
+  });
 const draft = z.discriminatedUnion("kind", [
-  z.object({ ...fields, kind: z.literal("course"), lessons: z.array(lesson).max(50).default([]) }).strict(),
+  course,
   z.object({ ...fields, kind: z.literal("download"), fileIds: z.array(uuid).max(20)
     .refine((ids) => new Set(ids).size === ids.length).default([]) }).strict(),
 ]);
@@ -41,7 +73,32 @@ const invalid = () => new AccessError(400, message("Errors.checkTheSuppliedDetai
 type Draft = z.infer<typeof draft>;
 type Item = typeof catalogItems.$inferSelect;
 type Metadata = { slug: string; title: string; summary: string; kind: Item["kind"] };
-type Content = Metadata & { lessons: { id: string; title: string; body: RichDoc }[]; files: { id: string; name: string }[] };
+type Content = Metadata & { lessons: { id: string; title: string; body: RichDoc; sectionId?: string; video?: LessonVideo | null }[]; files: { id: string; name: string }[];
+  labels?: CourseLabels; levels?: { id: string; title: string }[]; sections?: { id: string; levelId: string | null; title: string }[];
+  /** 0131: the caller's own completed lessons and notes (published lessons only). */
+  completed?: string[]; notes?: { lessonId: string; body: string }[] };
+type CourseInput = Extract<Draft, { kind: "course" }>;
+type LessonInput = NonNullable<CourseInput["lessons"]>[number];
+
+/** The nested course input as rows in course order: levels, sections (each naming its level) and lessons (each naming its section). */
+function flatten(input: CourseInput) {
+  const levels: { id?: string; key: string; title: string }[] = [];
+  const sections: { id?: string; key: string; level: string | null; title: string }[] = [];
+  const lessons: (LessonInput & { section: string })[] = [];
+  const addSection = (row: z.infer<typeof section>, level: string | null) => {
+    const key = row.id ?? randomUUID();
+    sections.push({ id: row.id, key, level, title: row.title });
+    for (const item of row.lessons) lessons.push({ ...item, section: key });
+  };
+  if (input.levels) for (const row of input.levels) {
+    const key = row.id ?? randomUUID();
+    levels.push({ id: row.id, key, title: row.title });
+    for (const part of row.sections) addSection(part, key);
+  }
+  else if (input.sections) for (const part of input.sections) addSection(part, null);
+  else if (input.lessons?.length) addSection({ title: "", lessons: input.lessons }, null);
+  return { levels, sections, lessons };
+}
 
 function ensureEnabled() {
   if (!freeCatalogEnabled()) throw notFound();
@@ -94,25 +151,58 @@ export function getCatalogDraft(db: Database, user: string, tenant: string, id: 
     const [item] = await (author ? query.for("share") : query);
     if (!item) throw notFound();
     if (!author) return item;
-    const lessons = await tx.select({ id: catalogLessons.id, title: catalogLessons.title, body: catalogLessons.body, published: catalogLessons.published })
+    const rows = await tx.select({ id: catalogLessons.id, title: catalogLessons.title, body: catalogLessons.body, published: catalogLessons.published,
+      sectionId: catalogLessons.sectionId, videoProvider: catalogLessons.videoProvider, videoId: catalogLessons.videoId })
       .from(catalogLessons).where(and(eq(catalogLessons.tenantId, scope), eq(catalogLessons.itemId, id))).orderBy(asc(catalogLessons.position));
+    const lessons = rows.map(({ videoProvider, videoId, ...row }) => ({ ...row, video: videoProvider && videoId ? { provider: videoProvider, id: videoId } : null }));
+    const levels = await tx.select({ id: catalogLevels.id, title: catalogLevels.title }).from(catalogLevels)
+      .where(and(eq(catalogLevels.tenantId, scope), eq(catalogLevels.itemId, id))).orderBy(asc(catalogLevels.position));
+    const sections = await tx.select({ id: catalogSections.id, levelId: catalogSections.levelId, title: catalogSections.title }).from(catalogSections)
+      .where(and(eq(catalogSections.tenantId, scope), eq(catalogSections.itemId, id))).orderBy(asc(catalogSections.position));
+    const [named] = await tx.select({ level: catalogItems.levelLabel, section: catalogItems.sectionLabel, lesson: catalogItems.lessonLabel })
+      .from(catalogItems).where(itemScope(scope, id));
     const downloads = await tx.select({ id: catalogFiles.fileId }).from(catalogFiles)
       .where(and(eq(catalogFiles.tenantId, scope), eq(catalogFiles.itemId, id))).orderBy(asc(catalogFiles.position));
     // The communities that show this item on their shelf (a link confers no access). Authors only, like the lessons.
     const shelves = await tx.select({ id: communityProductLinks.communityId }).from(communityProductLinks)
       .where(and(eq(communityProductLinks.tenantId, scope), eq(communityProductLinks.itemId, id))).orderBy(asc(communityProductLinks.communityId));
-    return { ...item, lessons, fileIds: downloads.map((file) => file.id), communityIds: shelves.map((link) => link.id) };
+    return { ...item, lessons, levels, sections, labels: named, fileIds: downloads.map((file) => file.id), communityIds: shelves.map((link) => link.id) };
   });
 }
 async function writeDraft(tx: Transaction, item: Item, input: Draft) {
   if (input.kind === "course") {
+    const owner = { tenantId: item.tenantId, itemId: item.id };
     const scope = and(eq(catalogLessons.tenantId, item.tenantId), eq(catalogLessons.itemId, item.id));
-    const old = await tx.select({ id: catalogLessons.id }).from(catalogLessons).where(scope);
-    const ids = input.lessons.flatMap((row) => row.id ? [row.id] : []);
-    if (new Set(ids).size !== ids.length || ids.some((id) => !old.some((row) => row.id === id))) throw notFound();
-    await tx.delete(catalogLessons).where(scope);
-    if (input.lessons.length) await tx.insert(catalogLessons).values(input.lessons.map((row, position) =>
-      ({ ...row, position, tenantId: item.tenantId, itemId: item.id })));
+    const sectionScope = and(eq(catalogSections.tenantId, item.tenantId), eq(catalogSections.itemId, item.id));
+    const levelScope = and(eq(catalogLevels.tenantId, item.tenantId), eq(catalogLevels.itemId, item.id));
+    const { levels, sections, lessons } = flatten(input);
+    // A supplied id must already belong to this course (and appear once); anything else is the same unavailable answer as a missing item.
+    const known = (rows: { id?: string }[], stored: { id: string }[]) => {
+      const ids = rows.flatMap((row) => row.id ? [row.id] : []), old = new Set(stored.map((row) => row.id));
+      if (new Set(ids).size !== ids.length || ids.some((id) => !old.has(id))) throw notFound();
+    };
+    known(lessons, await tx.select({ id: catalogLessons.id }).from(catalogLessons).where(scope));
+    known(sections, await tx.select({ id: catalogSections.id }).from(catalogSections).where(sectionScope));
+    known(levels, await tx.select({ id: catalogLevels.id }).from(catalogLevels).where(levelScope));
+    // Upserts by id (0131): a kept lesson keeps its row, so learner progress and notes on it survive edits and reorders. Position uniques are checked at
+    // commit, so swapped positions do not collide midway. Only the rows the owner removed are deleted, after everything kept has moved off them.
+    const upsert = <T extends typeof catalogLevels | typeof catalogSections | typeof catalogLessons>(table: T, set: Record<string, unknown>) =>
+      ({ target: [table.tenantId, table.itemId, table.id], set });
+    if (levels.length) await tx.insert(catalogLevels).values(levels.map((row, position) => ({ ...owner, id: row.key, title: row.title, position })))
+      .onConflictDoUpdate(upsert(catalogLevels, { title: sql`excluded.title`, position: sql`excluded.position` }));
+    if (sections.length) await tx.insert(catalogSections).values(sections.map((row, position) =>
+      ({ ...owner, id: row.key, levelId: row.level, title: row.title, position })))
+      .onConflictDoUpdate(upsert(catalogSections, { title: sql`excluded.title`, position: sql`excluded.position`, levelId: sql`excluded.level_id` }));
+    const lessonRows = lessons.map(({ section: sectionId, video, id, ...row }, position) =>
+      ({ ...row, ...owner, id: id ?? randomUUID(), position, sectionId, videoProvider: video?.provider ?? null, videoId: video?.id ?? null }));
+    if (lessonRows.length) await tx.insert(catalogLessons).values(lessonRows)
+      .onConflictDoUpdate(upsert(catalogLessons, { title: sql`excluded.title`, body: sql`excluded.body`, published: sql`excluded.published`, position: sql`excluded.position`,
+        sectionId: sql`excluded.section_id`, videoProvider: sql`excluded.video_provider`, videoId: sql`excluded.video_id` }));
+    const keep = (ids: string[], column: typeof catalogLessons.id | typeof catalogSections.id | typeof catalogLevels.id) =>
+      ids.length ? sql`${column} not in (${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)})` : sql`true`;
+    await tx.delete(catalogLessons).where(and(scope, keep(lessonRows.map((row) => row.id), catalogLessons.id)));
+    await tx.delete(catalogSections).where(and(sectionScope, keep(sections.map((row) => row.key), catalogSections.id)));
+    await tx.delete(catalogLevels).where(and(levelScope, keep(levels.map((row) => row.key), catalogLevels.id)));
   } else {
     if (input.fileIds.length) {
       const found = await tx.select({ id: files.id }).from(files).where(and(eq(files.tenantId, item.tenantId),
@@ -124,7 +214,12 @@ async function writeDraft(tx: Transaction, item: Item, input: Draft) {
       ({ fileId, position, tenantId: item.tenantId, itemId: item.id })));
   }
 }
-const itemFields = ({ title, summary, slug, visibility }: Draft) => ({ title, summary, slug, visibility });
+const itemFields = (input: Draft) => {
+  const { title, summary, slug, visibility } = input;
+  // Labels belong to the course. A save without them keeps the ones stored (the original API sends none).
+  const named = input.kind === "course" && input.labels ? { levelLabel: input.labels.level, sectionLabel: input.labels.section, lessonLabel: input.labels.lesson } : {};
+  return { title, summary, slug, visibility, ...named };
+};
 
 export function createCatalogItem(db: Database, user: string, tenant: string, raw: unknown) {
   return ministry(db, user, tenant, true, async (tx, scope) => {
@@ -261,4 +356,48 @@ export const getCatalogContent = (db: Database, user: string, slug: string) => a
 export async function catalogDownload(db: Database, user: string, slug: string, fileId: string, storage: () => Pick<StorageAdapter, "presignDownload">) {
   const file = await access<{ key: string; name: string }>(db, slug, "file", user, fileId);
   return { url: await storage().presignDownload(file.key, file.name) };
+}
+
+// 0131 learner progress and notes. Every write goes through public.catalog_learner, which first passes catalog_access(slug, 'content'): only an
+// enrolled learner with an active grant, on a published lesson of a course they can open, writes, and only their own row.
+const noteBody = z.string().max(noteLimit).refine((value) => validNote(value));
+async function learner(db: Database, user: string, slug: string, lesson: string, action: "complete" | "incomplete" | "note", body?: string) {
+  ensureEnabled();
+  if (!slugSchema.safeParse(slug).success || !uuid.safeParse(lesson).success) throw notFound();
+  const result = await withUser(db, user, (tx) => tx.execute<{ data: Record<string, boolean> | null }>(
+    sql`select public.catalog_learner(${slug}, ${lesson}::uuid, ${action}, ${body ?? null}) as data`));
+  const data = result.rows[0]?.data;
+  if (data == null) throw notFound();
+  return data;
+}
+/** Marks one lesson complete or not complete for the signed-in learner. */
+export async function setLessonComplete(db: Database, user: string, slug: string, lesson: string, raw: unknown) {
+  const { completed } = z.object({ completed: z.boolean() }).strict().parse(raw);
+  return learner(db, user, slug, lesson, completed ? "complete" : "incomplete") as Promise<{ completed: boolean }>;
+}
+/** Saves the learner's private note on one lesson; an empty note deletes it. Plain text, at most 4000 characters. */
+export async function saveLessonNote(db: Database, user: string, slug: string, lesson: string, raw: unknown) {
+  const { body } = z.object({ body: noteBody }).strict().parse(raw);
+  return learner(db, user, slug, lesson, "note", body) as Promise<{ saved: true }>;
+}
+export type MyNote = { lessonId: string; body: string; updatedAt: string; course: { slug: string; title: string } | null; lesson: string | null };
+/** The signed-in person's notes across courses, newest first. */
+export async function listMyNotes(db: Database, user: string) {
+  ensureEnabled();
+  const result = await withUser(db, user, (tx) => tx.execute<{ data: MyNote[] | null }>(sql`select public.catalog_my_notes() as data`));
+  return result.rows[0]?.data ?? [];
+}
+/**
+ * Owners and admins: one course's enrolment and per-lesson completion counts. Counts of 1 to 4 are withheld (null) by the database and again here
+ * (the shared small-group rule). No learner, row or note is ever returned.
+ */
+export function getCatalogProgress(db: Database, user: string, tenant: string, id: string) {
+  return ministry(db, user, tenant, true, async (tx, scope) => {
+    if (!uuid.safeParse(id).success) throw notFound();
+    const result = await tx.execute<{ data: ProgressSummary | null }>(sql`select public.catalog_progress_summary(${scope}::uuid, ${id}::uuid) as data`);
+    const data = result.rows[0]?.data;
+    if (!data) throw notFound();
+    return { ...data, enrolled: data.enrolled === null ? null : suppressSmall(data.enrolled),
+      lessons: data.lessons.map((row) => ({ ...row, completed: row.completed === null ? null : suppressSmall(row.completed) })) };
+  });
 }
