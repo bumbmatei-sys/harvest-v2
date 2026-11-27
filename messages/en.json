@@ -8552,7 +8552,9 @@
       "problems": {
         "title": "Add a title.",
         "address": "Use 3 to 60 lowercase letters, numbers or hyphens for the address.",
-        "lessonTitle": "Give every lesson a title."
+        "lessonTitle": "Give every lesson a title.",
+        "videoLink": "Use a video link from a supported site.",
+        "label": "Keep each name to 24 characters."
       },
       "saved": "Saved.",
       "done": {
@@ -8604,19 +8606,44 @@
       "cancel": "Cancel"
     },
     "lessons": {
-      "empty": "No lessons yet",
-      "add": "Add lesson",
-      "label": "Lessons",
-      "titleLabel": "Title of lesson {number}",
-      "titlePlaceholder": "Lesson title",
-      "moveUp": "Move lesson {number} up",
-      "moveDown": "Move lesson {number} down",
-      "remove": "Remove lesson {number}",
       "published": "Published",
       "draft": "Draft",
       "hideBody": "Close",
       "editBody": "Edit lesson",
-      "bodyLabel": "Content of lesson {number}"
+      "video": "Video link",
+      "videoInvalid": "Use a supported video link.",
+      "videoPlaceholder": "https://"
+    },
+    "structure": {
+      "namesTitle": "Names",
+      "nameLabels": {
+        "level": "Level name",
+        "section": "Section name",
+        "lesson": "Lesson name"
+      },
+      "defaults": {
+        "level": "Level",
+        "section": "Section",
+        "lesson": "Lesson"
+      },
+      "words": {
+        "level": "level",
+        "section": "section",
+        "lesson": "lesson"
+      },
+      "empty": "No content yet",
+      "add": "Add {label}",
+      "lessons": "Course content",
+      "structure": "Course structure",
+      "lessonsIn": "Lessons in {name}",
+      "sectionsIn": "Sections in {name}",
+      "numbered": "{label} {number}",
+      "titleLabel": "Title of {label} {number}",
+      "titlePlaceholder": "{label} title",
+      "bodyLabel": "Content of {label} {number}",
+      "moveUp": "Move {label} {number} up",
+      "moveDown": "Move {label} {number} down",
+      "remove": "Remove {label} {number}"
     },
     "files": {
       "chosen": "Files in this download",
@@ -9403,7 +9430,7 @@
         "checkNamed": "Check now: {name}",
         "checking": "Checking…",
         "checkedAt": "Checked {time}",
-          "networkCurrency": "{network} · {currency}",
+        "networkCurrency": "{network} · {currency}",
         "never": "Not checked yet",
         "summary": {
           "ok": "Healthy",
@@ -9806,10 +9833,13 @@
     "lessons": "Lessons",
     "noLessons": "No lessons yet",
     "yourPlace": "Your place",
-    "lessonOf": "Lesson {current} of {total}",
     "previous": "Previous lesson",
     "next": "Next lesson",
-    "backToCourse": "Back to course"
+    "backToCourse": "Back to course",
+    "playVideo": "Play video",
+    "videoTitle": "Video: {title}",
+    "videoNotice": "The video loads from its host when you press play.",
+    "place": "{label} {current} of {total}"
   },
   "CampaignInvitation": {
     "pageTitle": "Campaign invitation",

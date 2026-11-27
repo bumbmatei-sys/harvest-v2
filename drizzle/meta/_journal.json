@@ -869,6 +869,13 @@
       "when": 1795740896157,
       "tag": "0126_newsletter_click_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1795749899205,
+      "tag": "0130_course_structure",
+      "breakpoints": true
     }
   ]
 }
