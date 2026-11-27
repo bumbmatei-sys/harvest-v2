@@ -16,6 +16,13 @@ const smallTargets = (page: Page) => page.evaluate(() => [...document.querySelec
 
 const step = (page: Page, name: string) => { const label = new RegExp(`^${name}\\s+(Done|Current step|Needs attention|Not started|Completed|Upcoming)`);
   return page.getByRole("button", { name: label }).or(page.getByRole("link", { name: label })).or(page.getByRole("tab", { name: label })).first(); };
+/** axe, retried when the dev server reloads the page mid-run (a late compile or a restart); a real violation is returned, never retried away. */
+async function axe(page: Page) {
+  for (let attempt = 0; ; attempt++) {
+    try { return (await new AxeBuilder({ page }).exclude("iframe").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations; }
+    catch (error) { if (attempt >= 3 || !/Execution context was destroyed|navigat/i.test(String(error))) throw error; await page.waitForLoadState("load"); await settleForAxe(page); }
+  }
+}
 async function audit(page: Page, name: string) {
   for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
@@ -24,7 +31,7 @@ async function audit(page: Page, name: string) {
     for (const [label, width, height] of [["phone", 360, 800], ["desktop", 1280, 900]] as const) {
       await page.setViewportSize({ width, height });
       await settleForAxe(page);
-      const found = (await new AxeBuilder({ page }).exclude("iframe").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations;
+      const found = await axe(page);
       expect(found.map((v) => `${label}/${scheme} ${v.id}: ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(" | ")}`)).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       if (width === 360) expect(await smallTargets(page), `${name} ${scheme}`).toEqual([]);

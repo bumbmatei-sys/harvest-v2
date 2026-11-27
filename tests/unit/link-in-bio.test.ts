@@ -3,7 +3,7 @@ vi.mock("server-only", () => ({}));
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { bioBlockSchema, bioDefinitionSchema, bioLimits, bioReservedHandles, blockShown, emptyBioDefinition, fieldIssues, handleProblem, isLegacyTabId, messageNotice, moveItem, newBlockId,
-  publishIssues, shownTabs, bioClickTypes, mapsHref, telHref, whatsappHref, safeHttpsUrl, suggestHandle, bioMessageSchema } from "../../src/lib/link-in-bio";
+  publishIssues, shownTabs, oneLine, bioClickTypes, mapsHref, telHref, whatsappHref, safeHttpsUrl, suggestHandle, bioMessageSchema } from "../../src/lib/link-in-bio";
 import { BIO_MESSAGES_PRODUCTION_ENABLED, bioMessagesKey, linkInBioEnabled } from "../../src/server/link-in-bio-mode";
 import { bioVisitorKey } from "../../src/server/link-in-bio-public";
 import { issueBioProof } from "../../src/server/link-in-bio";
@@ -101,6 +101,13 @@ describe("header and tabs (rework, 25 Nov)", () => {
     const parsed = bioDefinitionSchema.parse({ ...base, tabs: [tab("home"), tab("abcdefgh", "  ")] });
     expect(fieldIssues(parsed)).toEqual({ "tab:abcdefgh": "required" });
     expect(fieldIssues({ ...parsed, layout: "single" })).toEqual({});
+  });
+  it("keeps one line of short bio, takes a subtitle as that line, and drops the details list (founder decision 27 Nov)", () => {
+    expect(bioDefinitionSchema.parse({ ...base, bio: "  Line one \n line two " })).toMatchObject({ bio: "Line one", subtitle: "", details: [] });
+    expect(bioDefinitionSchema.parse({ ...base, bio: "", subtitle: "Church planter" }).bio).toBe("Church planter");
+    expect(bioDefinitionSchema.parse({ ...base, bio: "x".repeat(400) }).bio).toHaveLength(bioLimits.bioLine);
+    expect(bioDefinitionSchema.parse({ ...base, details: [{ id: "dddddd01", kind: "location", value: "Lisbon", hidden: false }] }).details).toEqual([]);
+    expect(oneLine("\n\n  a  \nb")).toBe("a");
   });
   it("accepts only the known layout, photo position and icon style", () => {
     for (const [key, ok, bad] of [["layout", "single", "grid"], ["photoAlign", "left", "right"], ["iconStyle", "color", "mono"], ["cover", false, "no"]] as const) {

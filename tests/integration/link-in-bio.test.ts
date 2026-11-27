@@ -286,16 +286,19 @@ describe("photo, choices and cross-ministry safety", () => {
 });
 
 describe("tabs, details and the cover", () => {
-  it("shows only the details the owner entered and left visible, and no hidden tab or its blocks", async () => {
+  it("drops the details list and keeps one line of short bio (founder decision 27 Nov), and shows no hidden tab or its blocks", async () => {
     version = (await getBioPage(db(), people.owner, people.tenant)).version;
     const detail = (id: string, kind: "location" | "role", value: string, hidden: boolean) => ({ id, kind, value, hidden });
-    const definition: BioDefinition = { ...def([link("aaaaaaaa"), message]), details: [detail("dddddd01", "location", "Lisbon", false), detail("dddddd02", "role", "Pastor", true)],
+    const definition: BioDefinition = { ...def([link("aaaaaaaa"), message]), subtitle: "Church planter", bio: "", details: [detail("dddddd01", "location", "Lisbon", false), detail("dddddd02", "role", "Pastor", true)],
       tabs: [{ id: "home", label: "", hidden: false }, { id: "partnership", label: "", hidden: false }] };
-    await save(people.owner, undefined, definition);
+    const saved = await save(people.owner, undefined, definition);
+    expect(saved.draft).toMatchObject({ subtitle: "", bio: "Church planter", details: [] });
     await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
     const open = (await getPublicBio(db(), "grace-church"))!;
-    expect(open.details).toEqual([{ id: "dddddd01", kind: "location", value: "Lisbon" }]);
-    expect(JSON.stringify(open)).not.toContain("Pastor");
+    expect(open.bio).toBe("Church planter");
+    expect(JSON.stringify(open)).not.toContain("Pastor"); expect(JSON.stringify(open)).not.toContain("Lisbon");
+    await save(people.owner, undefined, { ...definition, subtitle: "", bio: "\n  First line  \nSecond line" });
+    expect((await getBioPage(db(), people.owner, people.tenant)).draft.bio).toBe("First line");
     expect((await respondToBioProof(request("/l/grace-church/message"), ctx("grace-church"))).status).toBe(200);
     await save(people.owner, undefined, { ...definition, tabs: [{ id: "partnership", label: "", hidden: true }, { id: "home", label: "", hidden: false }] });
     await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
