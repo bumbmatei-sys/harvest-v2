@@ -138,7 +138,8 @@ test("desktop 1280: live draft preview, typing, tabs, view as, device, Open in b
   await shown.getByRole("button", { name: "Join" }).click({ force: true });
   await shown.locator("summary").click({ force: true });
   await expect(shown.getByText("Be kind")).toBeVisible();
-  await expect(page).toHaveURL(new RegExp(`${url}$`));
+  // No navigation: only the step in the address (shell slice S8) may differ.
+  await expect(page).toHaveURL(new RegExp(`${url}(\\?step=[a-z]+)?$`));
   expect(requests).toEqual([]);
 
   // Publish: the preview gets Open in browser, and the public page shows the same text.

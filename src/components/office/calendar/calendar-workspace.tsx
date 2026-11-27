@@ -207,7 +207,7 @@ export function CalendarWorkspace({ tenantId, api, connection, noticeVersion, so
           </div>}
 
     <Sheet open={detail !== null} onOpenChange={(open) => { if (!open) setSelected(null); }}>
-      <SheetContent side="right" showCloseButton={false} className="w-full gap-3 pt-4 sm:max-w-md" data-testid="event-panel">
+      <SheetContent side="right" showCloseButton={false} className="w-full gap-3 pt-[calc(1rem+env(safe-area-inset-top))] sm:max-w-md" data-testid="event-panel">
         {detail?.item && <EventDetail key={detail.event.id} tenantId={tenantId} api={api} connectionId={connection.id} item={detail.item} calendarName={calendarName(detail.item.calendarRef)} platform={platform}
           start={detail.event.start} end={detail.event.end} allDay={!!detail.event.allDay} contactId={links[detail.event.id] ?? null} writes={writes}
           onLinked={(contactId) => setLinks((current) => { const next = { ...current }; if (contactId) next[detail.event.id] = contactId; else delete next[detail.event.id]; return next; })} onEdit={() => { setForm({ item: detail.item! }); setSelected(null); }} onChanged={() => setVersion((value) => value + 1)} onClose={() => setSelected(null)} />}

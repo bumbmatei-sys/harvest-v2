@@ -74,7 +74,7 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
       {column && <aside aria-label={previewLabel} data-editor-preview className="min-w-0"><div className="sticky top-4">{livePreview("column", { close: closeSheet })}</div></aside>}
     </div>
     <Sheet open={sheetOpen && !column} onOpenChange={(open) => { if (open) openSheet(); else closeSheet(); }}>
-      <SheetContent showCloseButton={false} aria-describedby={undefined} className="h-dvh w-full gap-0 p-0 sm:max-w-full lg:max-w-md"
+      <SheetContent showCloseButton={false} aria-describedby={undefined} className="h-dvh w-full gap-0 p-0 pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] sm:max-w-full lg:max-w-md"
         onCloseAutoFocus={(event) => { event.preventDefault(); if (after) { const { run } = after; setAfter(null); run(); } else opener.current?.focus(); }}>
         <SheetHeader className="flex-row items-center justify-between gap-2 border-b py-2 pr-2">
           <SheetTitle>{t("previewDraft")}</SheetTitle>

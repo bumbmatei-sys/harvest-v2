@@ -15,5 +15,5 @@ export default async function CampaignInvitationPage({ params }: { params: Promi
   if (!/^[A-Za-z0-9_-]{43}$/.test(token)) notFound();
   const session = await optionalSession();
   if (!session) redirect(`/sign-in?next=${encodeURIComponent(`/campaign-invitations/${token}`)}`);
-  return <main id="main-content" className="mx-auto flex min-h-dvh w-full max-w-lg items-center p-4"><AcceptInvitation token={token} email={session.user.email} /></main>;
+  return <main id="main-content" className="mx-auto flex min-h-dvh w-full max-w-lg items-center pt-[max(1rem,env(safe-area-inset-top))] pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))]"><AcceptInvitation token={token} email={session.user.email} /></main>;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MINISTRY_SEARCH_THRESHOLD, filterMinistries, ministryInitials, shouldShowMinistrySearch } from "../../src/lib/ministry-switcher";
+import { MINISTRY_SEARCH_THRESHOLD, filterMinistries, ministryInitials, shouldShowMinistrySearch, switcherRoleKey } from "../../src/lib/ministry-switcher";
 
 describe("ministry switcher helpers", () => {
   it("shows search only above five ministries", () => {
@@ -19,5 +19,11 @@ describe("ministry switcher helpers", () => {
     expect(filterMinistries(list, " CHURCH ").map((item) => item.name)).toEqual(["Grace Church", "Church Plant"]);
     expect(filterMinistries(list, "")).toEqual(list);
     expect(filterMinistries(list, "nothing")).toEqual([]);
+  });
+  it("labels every role with access, collaborators and guests included", () => {
+    expect(["owner", "admin", "member", "viewer", "collaborator", "guest"].map(switcherRoleKey)).toEqual(["owner", "admin", "member", "viewer", "collaborator", "guest"]);
+    expect(switcherRoleKey("collaborator;crm=manage;social=view")).toBe("collaborator");
+    expect(switcherRoleKey("campaign_guest")).toBe("guest");
+    expect(switcherRoleKey("superuser")).toBeNull();
   });
 });
