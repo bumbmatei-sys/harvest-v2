@@ -57,10 +57,17 @@ REVOKE ALL ON FUNCTION public.account_erase_end() FROM PUBLIC, harvest_app;--> s
 ALTER TABLE public.account_deletions ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE public.account_deletions FORCE ROW LEVEL SECURITY;--> statement-breakpoint
 REVOKE ALL ON public.account_deletions FROM PUBLIC, harvest_app;--> statement-breakpoint
--- Owner write policies, one per (table, person column). Each is active only while account_erase_active(), for the caller's rows and for rows
--- with no person (PostgreSQL also checks a detaching update's new row, author set to null, against the SELECT side); every statement in
+-- Owner write policies, one per (table, person column). Each is active only while the caller's erase token is live, for the caller's rows and
+-- for rows with no person (PostgreSQL also checks a detaching update's new row, author set to null, against the SELECT side); every statement in
 -- account_delete filters on the caller's id, so a detached row of someone else is never touched. No policy refers to its own table.
-DO $$ DECLARE pair text[]; BEGIN
+-- The token check is written out in each policy (the same test as account_erase_active()), reading the settings directly, so a policy calls no
+-- erase helper: a role that copies these policies (a restricted definer owner) needs no EXECUTE on it. Reading account_erase_grants is granted
+-- to PUBLIC for the same reason; FORCE RLS and its owner-only policy keep every row invisible to any other role, and a token row never
+-- outlives its transaction.
+GRANT SELECT ON public.account_erase_grants TO PUBLIC;--> statement-breakpoint
+DO $$ DECLARE pair text[]; live text := $l$(pg_catalog.current_setting('app.account_erase', true) <> '' AND EXISTS (SELECT 1 FROM public.account_erase_grants g
+      WHERE g.token::text = pg_catalog.current_setting('app.account_erase', true) AND g.user_id = nullif(pg_catalog.current_setting('app.user_id', true), '')
+        AND g.created_at = pg_catalog.now()))$l$; BEGIN
   FOREACH pair SLICE 1 IN ARRAY ARRAY[
     ARRAY['account_deletions','user_id'], ARRAY['account_export_requests','user_id'], ARRAY['user_profiles','user_id'], ARRAY['workspace_members','user_id'],
     ARRAY['community_memberships','user_id'], ARRAY['community_member_profiles','user_id'], ARRAY['community_applications','user_id'],
@@ -79,21 +86,21 @@ DO $$ DECLARE pair text[]; BEGIN
     ARRAY['crm_notifications','recipient_user_id'], ARRAY['social_approval_notices','recipient_user_id'], ARRAY['platform_staff','user_id'],
     ARRAY['discover_reports','reporter_id'], ARRAY['office_connections','owner_user_id'], ARRAY['crm_saved_views','owner_user_id']] LOOP
     EXECUTE format($p$CREATE POLICY %I ON public.%I TO %I
-      USING ((%I IS NULL OR %I = nullif(current_setting('app.user_id', true), '')) AND public.account_erase_active())
-      WITH CHECK ((%I IS NULL OR %I = nullif(current_setting('app.user_id', true), '')) AND public.account_erase_active())$p$,
-      'account_erase_' || pair[2], pair[1], current_user, pair[2], pair[2], pair[2], pair[2]);
+      USING ((%I IS NULL OR %I = nullif(current_setting('app.user_id', true), '')) AND %s)
+      WITH CHECK ((%I IS NULL OR %I = nullif(current_setting('app.user_id', true), '')) AND %s)$p$,
+      'account_erase_' || pair[2], pair[1], current_user, pair[2], pair[2], live, pair[2], pair[2], live);
   END LOOP;
   EXECUTE format($p$CREATE POLICY account_erase_audit ON public.audit_logs FOR INSERT TO %I
     WITH CHECK (tenant_id IS NULL AND actor_id = nullif(current_setting('app.user_id', true), '') AND action = 'account.delete'
-      AND public.account_erase_active())$p$, current_user);
+      AND %s)$p$, current_user, live);
   -- The sole-owner check names the ministries the caller owns, and nothing else.
   EXECUTE format($p$CREATE POLICY account_erase_ref ON public.workspaces FOR SELECT TO %I
-    USING (public.account_erase_active() AND EXISTS (SELECT 1 FROM public.workspace_members m
-      WHERE m.tenant_id = workspaces.tenant_id AND m.user_id = nullif(current_setting('app.user_id', true), '') AND public.access_role(m.tenant_id, m.user_id, 'owner_admin', m.role_id) = 'owner'))$p$, current_user);
+    USING (%s AND EXISTS (SELECT 1 FROM public.workspace_members m
+      WHERE m.tenant_id = workspaces.tenant_id AND m.user_id = nullif(current_setting('app.user_id', true), '') AND public.access_role(m.tenant_id, m.user_id, 'owner_admin', m.role_id) = 'owner'))$p$, current_user, live);
   -- Co-owners are counted (not read) to decide whether the caller is the only owner. Roles are read through public.access_role ('owner_admin' is
 -- never grantable to a collaborator, so this is the stored owner role).
   EXECUTE format($p$CREATE POLICY account_erase_owners ON public.workspace_members FOR SELECT TO %I
-    USING (public.account_erase_active() AND public.access_role(tenant_id, user_id, 'owner_admin', role_id) = 'owner')$p$, current_user);
+    USING (%s AND public.access_role(tenant_id, user_id, 'owner_admin', role_id) = 'owner')$p$, current_user, live);
 END $$;--> statement-breakpoint
 -- Internal: the ministries the caller is the only owner of, while the caller's erase token is active.
 CREATE FUNCTION public.account_sole_owner_ministries(p_actor text) RETURNS jsonb
