@@ -1,5 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { sql } from "drizzle-orm";
+import { chargeRateLimit, rateLimitResponse, type RateLimitCharge } from "./request-rate-limit";
 import { getDb, type Database } from "../db/client";
 import { bioVisitorKey } from "./link-in-bio-public";
 import { workerSettings } from "./worker-settings";
@@ -30,23 +29,13 @@ export const publicReadLimits = {
   blog: 120,
 } as const;
 export type PublicReadScope = keyof typeof publicReadLimits;
-export type PublicReadCharge = { limited: false } | { limited: true; retryAfter: number };
+export type PublicReadCharge = RateLimitCharge;
 const PREFIX = "public-read:", SWEEP_EVERY = 50;
 let charges = 0;
 
-/** Counts one request for this visitor and scope. Over the limit, the window is not extended and the count stops growing. */
-export async function chargePublicRead(db: Database, scope: PublicReadScope, visitor: string, now = Date.now(), sweep = ++charges % SWEEP_EVERY === 0): Promise<PublicReadCharge> {
-  const max = publicReadLimits[scope], expired = now - PUBLIC_READ_WINDOW_MS;
-  if (sweep) await db.execute(sql`delete from rate_limits where key like ${`${PREFIX}%`} and last_request <= ${expired}`);
-  const { rows: [row] } = await db.execute<{ count: number; last_request: string | number }>(sql`
-    insert into rate_limits (id, key, count, last_request) values (${randomUUID()}, ${`${PREFIX}${scope}:${visitor}`}, 1, ${now})
-    on conflict (key) do update set
-      count = case when rate_limits.last_request <= ${expired} then 1 else least(rate_limits.count + 1, ${max + 1}) end,
-      last_request = case when rate_limits.last_request <= ${expired} then ${now} else rate_limits.last_request end
-    returning count, last_request`);
-  if (Number(row.count) <= max) return { limited: false };
-  const retryAfter = Math.min(60, Math.max(1, Math.ceil((Number(row.last_request) + PUBLIC_READ_WINDOW_MS - now) / 1000)));
-  return { limited: true, retryAfter };
+/** Counts one request for this visitor and scope. */
+export function chargePublicRead(db: Database, scope: PublicReadScope, visitor: string, now = Date.now(), sweep = ++charges % SWEEP_EVERY === 0): Promise<PublicReadCharge> {
+  return chargeRateLimit(db, PREFIX, `${scope}:${visitor}`, publicReadLimits[scope], PUBLIC_READ_WINDOW_MS, now, sweep);
 }
 
 /** The visitor key for these limits, from request headers. */
@@ -62,8 +51,7 @@ export async function publicReadCharge(headers: Headers, scope: PublicReadScope,
   try { return await chargePublicRead(db, scope, visitor); } catch { console.error("public_read_limit_failed"); return { limited: false }; }
 }
 
-export const publicReadLimited = (retryAfter: number) =>
-  Response.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": String(retryAfter), "Cache-Control": "no-store" } });
+export const publicReadLimited = rateLimitResponse;
 
 /** For route handlers: the 429 to return, or null to carry on. */
 export async function throttlePublicRead(request: Request, scope: PublicReadScope): Promise<Response | null> {
