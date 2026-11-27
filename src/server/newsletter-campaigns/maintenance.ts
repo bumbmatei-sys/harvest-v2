@@ -29,3 +29,19 @@ export async function purgeNewsletterDeliveries(pool: Pool, env: NodeJS.ProcessE
   const { rows: [result] } = await pool.query<{ purged: number }>("select public.newsletter_purge_deliveries($1) as purged", [limit]);
   return result;
 }
+
+/**
+ * Takes today's (UTC) audience counts for up to `limit` ministries per batch: counts only, no person ids. Idempotent per ministry per day.
+ * Runs as the worker login behind the daily maintenance flag, in bounded batches until every ministry has today's row.
+ */
+export async function snapshotNewsletterAudience(pool: Pool, env: NodeJS.ProcessEnv, limit = 100, maxBatches = 20) {
+  if (!newsletterWorkerEnabled(env, "HARVEST_NEWSLETTER_RETENTION_ENABLED")) return null;
+  await requireWorkerRole(pool);
+  let taken = 0;
+  for (let batch = 0; batch < maxBatches; batch++) {
+    const { rows: [result] } = await pool.query<{ taken: number }>("select public.newsletter_snapshot_audience($1) as taken", [limit]);
+    taken += result.taken;
+    if (result.taken < limit) break;
+  }
+  return { taken };
+}

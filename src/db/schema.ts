@@ -2971,6 +2971,17 @@ export const newsletterArchivedCounts = pgTable("newsletter_archived_counts", {
 }, t => [primaryKey({ columns: [t.tenantId, t.campaignId, t.day, t.metric] }),
   foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [newsletterCampaigns.tenantId, newsletterCampaigns.id] })]);
 
+// One row per ministry per UTC day: audience counts only (no person ids), written by the newsletter worker for the growth chart.
+export const newsletterAudienceSnapshots = pgTable("newsletter_audience_snapshots", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  day: date("day").notNull(),
+  subscribed: integer("subscribed").notNull(),
+  unsubscribed: integer("unsubscribed").notNull(),
+  suppressed: integer("suppressed").notNull(),
+  takenAt: timestamp("taken_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.tenantId, t.day] }),
+  check("newsletter_audience_snapshot_counts", sql`${t.subscribed} >= 0 and ${t.unsubscribed} >= 0 and ${t.suppressed} >= 0`)]);
+
 export const newsletterSuppressions = pgTable("newsletter_suppressions", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   // The nil UUID denotes a ministry-wide block. Any other scope is a newsletter list.
