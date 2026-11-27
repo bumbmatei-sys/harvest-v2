@@ -65,10 +65,15 @@ CREATE TRIGGER catalog_guard_cover BEFORE INSERT OR UPDATE OF cover_file_id ON p
 CREATE TRIGGER catalog_guard_attachment BEFORE INSERT ON public.catalog_lesson_attachments
   FOR EACH ROW EXECUTE FUNCTION public.catalog_guard_asset();
 --> statement-breakpoint
-ALTER POLICY catalog_metadata ON public.catalog_items
-  USING (state <> 'draft' AND visibility <> 'community' AND tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND EXISTS (
-    SELECT FROM public.workspace_members m WHERE m.tenant_id = catalog_items.tenant_id
-      AND m.user_id = nullif(current_setting('app.user_id', true), '')));
+-- Preserve the live area-grant and draft rules for editorial metadata.
+DO $$
+DECLARE existing_filter text;
+BEGIN
+  SELECT qual INTO STRICT existing_filter FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'catalog_items' AND policyname = 'catalog_metadata';
+  EXECUTE format('ALTER POLICY catalog_metadata ON public.catalog_items USING ((%s) AND visibility <> %L)',
+    existing_filter, 'community');
+END $$;
 --> statement-breakpoint
 -- Keep the existing staff controls for metadata. Course and product opt-in is the ministry owner's decision.
 CREATE FUNCTION public.catalog_listing_opt_in_guard() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
