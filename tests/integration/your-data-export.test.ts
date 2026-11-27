@@ -17,6 +17,7 @@ beforeAll(async () => {
   vi.stubEnv("HARVEST_COMMUNITIES", "enabled");
   f = await testDatabase({ migrationOwner: true });
   seed = await seedYourData(f.db, f.admin);
+  await f.admin.query("insert into sessions(id, token, expires_at, ip_address, user_agent, user_id) values ('yd-s', 'yd-secret-token', now() + interval '1 day', '203.0.113.7', 'Synthetic browser', $1)", [me]);
 }, 120_000);
 afterAll(async () => { await f?.close(); vi.unstubAllEnvs(); });
 
@@ -42,6 +43,9 @@ it("exports every section of the caller's own data", async () => {
   expect(files[0]).toMatchObject({ link: expect.stringContaining(`expires=${EXPORT_LINK_SECONDS}`), linkExpiresAt: "2026-11-27T11:00:00.000Z" });
   expect(files.every((row) => !("key" in row))).toBe(true);
   expect(data.notes.truncated).toEqual([]);
+  // Sign-in history: session times, address and browser; never the session token.
+  expect(rows(data, "signIns")).toEqual([expect.objectContaining({ ipAddress: "203.0.113.7", userAgent: "Synthetic browser", signedInAt: expect.any(String) })]);
+  expect(JSON.stringify(data)).not.toContain("yd-secret-token");
   // Connect intake is off in tests outside the synthetic mode, so the section says it is unavailable instead of failing the export.
   expect(data.consents).toHaveProperty("connectResponses");
 });
@@ -83,4 +87,15 @@ it("gives the app role no direct access to the request log and leaves no flag se
   expect(forged).toEqual([{ body: "Peer private synthetic note" }]);
   // Unknown or signed-out callers get nothing.
   await expect(withUser(f.db, "nobody", (tx) => tx.execute(sql`select public.account_export() v`))).resolves.toMatchObject({ rows: [{ v: { outcome: "not_found" } }] });
+});
+
+it("blanks every app.* flag any owner-role policy reads (compared with pg_policies), and never reads pg_settings", async () => {
+  const { rows: [fn] } = await f.admin.query("select prosrc from pg_proc where proname = 'account_self_reset'");
+  const flags = (await f.admin.query(`select distinct m[1] as flag from pg_policies p, regexp_matches(coalesce(qual,'')||coalesce(with_check,''), '(app\\.[a-z0-9_]+)', 'g') m
+    where not ('harvest_app' = any(p.roles))`)).rows.map((r) => r.flag as string);
+  expect(flags.length).toBeGreaterThan(30);
+  // app.user_id is the verified caller and is deliberately kept.
+  expect(flags.filter((flag) => flag !== "app.user_id" && !fn.prosrc.includes(`'${flag}'`)).sort()).toEqual([]);
+  for (const blog of ["app.blog_public_file", "app.blog_public_handle", "app.blog_public_tenant", "app.blog_publish"]) expect(fn.prosrc).toContain(`'${blog}'`);
+  expect(fn.prosrc).not.toContain("pg_settings");
 });
