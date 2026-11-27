@@ -183,7 +183,7 @@ DECLARE prior jsonb := '{}'::jsonb; key text;
 BEGIN
   FOREACH key IN ARRAY ARRAY['app.blog_public_handle','app.blog_public_tenant','app.blog_public_file','app.blog_publish','app.access_tenant','app.access_token',
       'app.ads_definer','app.bio_handle','app.bio_tenant','app.campaign_budget_tenant','app.campaign_invite_tenant','app.campaign_invite_token',
-      'app.catalog_slug','app.catalog_tenant','app.chat_purge','app.chat_settings','app.community_definer_tenant','app.community_email_worker',
+      'app.catalog_slug','app.catalog_tenant','app.catalog_learner_tenant','app.catalog_my_notes','app.catalog_progress_tenant','app.chat_purge','app.chat_settings','app.community_definer_tenant','app.community_email_worker',
       'app.community_purge','app.community_resolve_email','app.community_resolve_ids','app.community_resolve_invite','app.community_resolve_slug',
       'app.community_resolve_user','app.community_stats_write','app.connect_campaign','app.connect_flow','app.connect_intake_mode',
       'app.connect_invite_id','app.connect_invite_token','app.connect_invite_worker','app.connect_landing_link','app.connect_metrics',
