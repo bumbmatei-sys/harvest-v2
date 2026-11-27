@@ -24,6 +24,17 @@ function origin(value: string | undefined) {
   throw new Error("SITE_ORIGIN_INVALID");
 }
 
+const syntheticNewsletterOrigin = "https://newsletter.example.test";
+function newsletterAddress(value: string | undefined, app: string | undefined) {
+  if (value) {
+    const configured = origin(value);
+    if (!configured.startsWith("https:")) throw new Error("NEWSLETTER_ORIGIN_INVALID");
+    return configured;
+  }
+  // Delivery and preview rendering require HTTPS even in tests with a loopback app origin.
+  return app?.startsWith("https:") ? app : syntheticNewsletterOrigin;
+}
+
 export function readSiteAddresses(env: SiteAddressEnvironment = process.env as SiteAddressEnvironment) {
   const app = origin(env.BETTER_AUTH_URL);
   const additionalTrusted = env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",").filter(Boolean) ?? [];
@@ -40,7 +51,7 @@ export function readSiteAddresses(env: SiteAddressEnvironment = process.env as S
       throw new Error("AUTH_COOKIE_DOMAIN_INVALID");
     }
   }
-  const newsletter = env.HARVEST_NEWSLETTER_ORIGIN ? origin(env.HARVEST_NEWSLETTER_ORIGIN) : app;
+  const newsletter = newsletterAddress(env.HARVEST_NEWSLETTER_ORIGIN, app);
   return { app, marketing, legacy, cookieDomain, newsletter, trustedOrigins: [app] };
 }
 
@@ -64,8 +75,8 @@ export function newsletterOrigin() {
   const env = process.env as SiteAddressEnvironment;
   const scoped = siteAddressScope.getStore();
   if (scoped) return scoped.newsletter;
-  return env.HARVEST_NEWSLETTER_ORIGIN ? origin(env.HARVEST_NEWSLETTER_ORIGIN) :
-    appOriginIfConfigured() ?? (process.env.NODE_ENV === "production" ? appOrigin() : "https://newsletter.example.test");
+  const app = env.NODE_ENV === "production" ? appOrigin() : appOriginIfConfigured();
+  return newsletterAddress(env.HARVEST_NEWSLETTER_ORIGIN, app);
 }
 
 export function appLink(path: string, query?: Record<string, string>) {
@@ -102,7 +113,7 @@ export const connectExportLink = (tenant: string, campaign: string, link: string
   appLink(`/api/workspaces/${segment(tenant)}/campaigns/${segment(campaign)}/connect/links/${segment(link)}/export`, format ? { format } : undefined);
 export const newsletterSignupLink = (slug: string) => appLink(`/subscribe/${segment(slug)}`);
 export const newsletterFileLink = (tenant: string, file: string) => new URL(publicFilePath(tenant, file), newsletterOrigin()).href;
-export const newsletterUnavailableLink = () => new URL("/newsletter/link", newsletterOrigin()).href;
+export const newsletterUnavailableLink = () => new URL("/newsletter/link", appOriginIfConfigured() ?? newsletterOrigin()).href;
 export function newsletterUnsubscribeLink(token: string) {
   const url = new URL("/api/newsletter/unsubscribe", newsletterOrigin());
   url.searchParams.set("token", token);

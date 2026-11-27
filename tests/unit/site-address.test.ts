@@ -56,6 +56,12 @@ it.each<[() => string, string]>([
   expect(build()).toBe(app + path);
 });
 
+it("keeps synthetic newsletter rendering on HTTPS when the app runs on HTTP loopback", () => {
+  vi.stubEnv("BETTER_AUTH_URL", "http://127.0.0.1:3000");
+  expect(newsletterUnsubscribeLink("synthetic").href).toBe("https://newsletter.example.test/api/newsletter/unsubscribe?token=synthetic");
+  expect(newsletterUnavailableLink()).toBe("http://127.0.0.1:3000/newsletter/link");
+});
+
 it("redirects a configured old origin with path and query intact", () => {
   const request = new Request(`${legacy}/c/code?a=%2F&b=2&a=3`, { headers: { host: "spoof.example.invalid" } });
   expect(legacyRedirect(request)).toBeUndefined();
