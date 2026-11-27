@@ -40,7 +40,7 @@ function useAction() {
   return { busy, error, run, router };
 }
 
-/** The kit's like and comment buttons with the like count below. Liking calls the forum's like route; share and save are not offered. */
+/** The kit's like and comment buttons, with their counts inline as on a social post. Liking calls the forum's like route; share and save are not offered. */
 export function PostEngagement({ slug, postId, title, likes, liked, likesOff, likeDisabled, replies, repliesHref, replyTarget }: { slug: string; postId: string; title: string;
   likes: number; liked: boolean; likesOff: boolean; likeDisabled: boolean; replies: number; repliesHref?: string; replyTarget?: string }) {
   const t = useTranslations("CommunityForum"), request = useCrmRequest();
@@ -54,42 +54,36 @@ export function PostEngagement({ slug, postId, title, likes, liked, likesOff, li
   };
 
   const canLike = !likesOff && !likeDisabled;
-  if (!canLike && !repliesHref && !replyTarget && likesOff) return null;
-  return <>
-    <div className="flex items-center justify-between">
-      <div className="-ms-2 flex items-center gap-1">
-        {canLike && <Button
-          variant="ghost"
-          size="icon-responsive"
-          className="rounded-full"
-          aria-pressed={state.liked} disabled={busy} aria-label={t(state.liked ? "unlikeNamed" : "likeNamed", { name: title })}
-          onClick={() => void toggleLike()}>
-          <Heart
-            className={cn(state.liked && "fill-destructive text-destructive")} aria-hidden="true"
-          />
-        </Button>}
-        {repliesHref && <Button variant="ghost" size="icon-responsive" className="rounded-full" asChild>
-          <Link href={repliesHref} prefetch={false} aria-label={t("repliesNamed", { count: replies, name: title })}>
-            <MessageCircle aria-hidden="true" />
-          </Link>
-        </Button>}
-        {replyTarget && <Button
-          variant="ghost"
-          size="icon-responsive"
-          className="rounded-full" aria-label={t("writeReply")}
-          onClick={() => document.getElementById(replyTarget)?.focus()}>
-          <MessageCircle aria-hidden="true" />
-        </Button>}
-      </div>
-    </div>
-
-    {/* Likes */}
-    {!likesOff && <div className="flex items-center gap-2">
-      <span className="text-sm">
-        {t.rich("likes", { count: state.likes, strong: (chunks) => <span className="font-semibold">{chunks}</span> })}
-      </span>
-    </div>}
-  </>;
+  const action = "text-muted-foreground hover:text-foreground h-11 gap-1.5 rounded-full px-3 lg:h-9";
+  return <div className="flex items-center gap-1 border-t pt-1 [&>:first-child]:-ms-3">
+    {canLike && <Button
+      variant="ghost"
+      className={action}
+      aria-pressed={state.liked} disabled={busy} aria-label={t(state.liked ? "unlikeNamed" : "likeNamed", { name: title })}
+      onClick={() => void toggleLike()}>
+      <Heart
+        className={cn(state.liked && "fill-destructive text-destructive")} aria-hidden="true"
+      />
+      <span aria-hidden="true">{state.likes}</span>
+    </Button>}
+    {!canLike && !likesOff && <span className="text-muted-foreground inline-flex h-11 items-center gap-1.5 px-3 text-sm lg:h-9">
+      <Heart className="size-4" aria-hidden="true" />{t("likeCount", { count: state.likes })}</span>}
+    {repliesHref && <Button variant="ghost" className={action} asChild>
+      <Link href={repliesHref} prefetch={false} aria-label={t("repliesNamed", { count: replies, name: title })}>
+        <MessageCircle aria-hidden="true" />
+        <span aria-hidden="true">{replies}</span>
+      </Link>
+    </Button>}
+    {replyTarget && <Button
+      variant="ghost"
+      className={action} aria-label={t("writeReply")}
+      onClick={() => document.getElementById(replyTarget)?.focus()}>
+      <MessageCircle aria-hidden="true" />
+      <span aria-hidden="true">{replies}</span>
+    </Button>}
+    {!repliesHref && !replyTarget && <span className="text-muted-foreground inline-flex h-11 items-center gap-1.5 px-3 text-sm lg:h-9">
+      <MessageCircle className="size-4" aria-hidden="true" />{t("replies", { count: replies })}</span>}
+  </div>;
 }
 
 /** The kit's "..." menu on a post: copy link for everyone, edit and delete for the author, pin and remove for hosts, report for other members. */

@@ -117,7 +117,7 @@ test("reports, moderation queue, mute and ban, held first posts and banned words
     await expect(members.getByText(/Muted until/)).toBeVisible();
     await author.page.goto(`/communities/${slug}/forum`);
     await expect(author.page.getByText(/You can't post until/)).toBeVisible();
-    await expect(author.page.getByRole("button", { name: "New post" })).toHaveCount(0);
+    await expect(author.page.getByRole("button", { name: "What's on your mind?" })).toHaveCount(0);
     expect((await newPost(author.page, "Still here?")).status()).toBe(403);
     await shoot(page, "members", async () => { await page.getByRole("tab", { name: "Members" }).click(); });
     await page.getByRole("tab", { name: "Members" }).click();

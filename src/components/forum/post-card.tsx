@@ -6,7 +6,6 @@ import { Pin, PlayCircle } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { PostEngagement } from "@/components/forum/forum-actions";
 import { memberInitials } from "@/lib/community-members";
@@ -34,8 +33,8 @@ export function PostCard({ slug, post, category, menu, meta, detail, footer, chi
   const t = useTranslations("CommunityForum"), format = useFormatter(), href = `/communities/${slug}/posts/${post.id}`;
   const author = forumAuthorName(t, post.authorId, post.authorName), Title = detail ? "h2" : "h3";
   return <article aria-label={post.title} className="min-w-0">
-    <Card>
-      <CardHeader>
+    <Card className={footer ? "gap-3 py-4 shadow-sm" : "gap-3 pt-4 pb-2 shadow-sm"}>
+      <CardHeader className="px-4">
         {/* Post Header */}
         <div className="flex min-w-0 items-center gap-3">
           <Avatar>
@@ -45,8 +44,12 @@ export function PostCard({ slug, post, category, menu, meta, detail, footer, chi
             <div className="flex items-center gap-1">
               <span className="truncate text-sm font-semibold">{author}</span>
             </div>
-            <div className="flex flex-wrap items-center gap-x-2">
-              <span className="text-muted-foreground text-xs">{format.dateTime(post.createdAt, { dateStyle: "medium" })}</span>
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground text-xs">
+              <span>{format.dateTime(post.createdAt, { dateStyle: "medium" })}</span>
+              {category && <><span aria-hidden="true">{t("dot")}</span><span>{category.emoji ? `${category.emoji} ` : ""}{category.name}</span></>}
+              {!detail && post.hasVideo && <PlayCircle className="size-3.5" aria-label={t("hasVideo")} />}
+              {post.pinned && <Badge variant="secondary" className="px-1.5 py-0"><Pin className="size-3" aria-hidden="true" />{t("pinned")}</Badge>}
+              {post.held && <Badge variant="outline" className="px-1.5 py-0">{t("awaitingReview")}</Badge>}
               {meta}
             </div>
           </div>
@@ -56,15 +59,14 @@ export function PostCard({ slug, post, category, menu, meta, detail, footer, chi
         </CardAction>}
       </CardHeader>
 
-      <CardContent className="min-w-0 space-y-3">
-        {(post.pinned || post.held || category || (!detail && post.hasVideo)) && <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          {post.pinned && <Badge variant="secondary"><Pin className="size-3" aria-hidden="true" />{t("pinned")}</Badge>}
-          {post.held && <Badge variant="outline">{t("awaitingReview")}</Badge>}
-          {category && <Badge variant="outline">{category.emoji ? `${category.emoji} ` : ""}{category.name}</Badge>}
-          {!detail && post.hasVideo && <PlayCircle className="size-4" aria-label={t("hasVideo")} />}
-        </div>}
-
+      <CardContent className="min-w-0 space-y-2 px-4">
         {/* Post Content */}
+        <Title className={detail ? "text-xl font-semibold break-words" : "text-base font-semibold break-words"}>
+          {detail ? post.title : <Link href={href} prefetch={false} className="hover:underline">{post.title}</Link>}
+        </Title>
+        {detail ? <div className="space-y-3">{detail.body}</div> : post.excerpt && (
+          <p className="line-clamp-3 text-sm break-words">{post.excerpt}</p>
+        )}
         {post.coverFileId && (
           <div className="ring-foreground/5 overflow-hidden rounded-lg ring-1">
             {/* eslint-disable-next-line @next/next/no-img-element -- authenticated redirect to a short-lived signed URL; not optimisable */}
@@ -72,30 +74,15 @@ export function PostCard({ slug, post, category, menu, meta, detail, footer, chi
           </div>
         )}
 
-        <Title className={detail ? "text-2xl font-semibold break-words" : "text-base font-semibold break-words"}>
-          {detail ? post.title : <Link href={href} prefetch={false} className="hover:underline">{post.title}</Link>}
-        </Title>
-        {detail ? detail.body : post.excerpt && (
-          <p className="line-clamp-3 text-sm break-words text-muted-foreground">{post.excerpt}</p>
-        )}
-
         {/* Post Actions */}
         <PostEngagement slug={slug} postId={post.id} title={post.title} likes={post.likes} liked={post.liked} likesOff={post.likesOff}
           likeDisabled={detail?.likeDisabled ?? false} replies={post.comments} repliesHref={detail ? undefined : href} replyTarget={detail?.replyTarget} />
-
-        {/* Comments Link */}
-        {!detail && post.comments > 0 && (
-          <Button variant="link" asChild
-            className="text-muted-foreground hover:text-foreground h-auto min-h-11 p-0 text-xs font-normal lg:min-h-0">
-            <Link href={href} prefetch={false}>{t("viewReplies", { count: post.comments })}</Link>
-          </Button>
-        )}
 
         {children}
       </CardContent>
 
       {/* Add Comment */}
-      {footer && <CardFooter className="gap-2">
+      {footer && <CardFooter className="gap-2 border-t px-4 pt-3 [.border-t]:pt-3">
         {footer}
       </CardFooter>}
     </Card>
@@ -105,7 +92,7 @@ export function PostCard({ slug, post, category, menu, meta, detail, footer, chi
 /** The replies under the expanded card, as the kit's comments section. */
 export function PostComments({ count, children }: { count: number; children: ReactNode }) {
   const t = useTranslations("CommunityForum");
-  return <section aria-labelledby="post-replies" className="space-y-3 border-t pt-3">
+  return <section aria-labelledby="post-replies" className="space-y-3 border-t pt-2">
     <h3 id="post-replies" className="text-muted-foreground text-xs font-medium">{t("replies", { count })}</h3>
     {count > 0 && <ul className="space-y-3">{children}</ul>}
   </section>;
@@ -115,20 +102,18 @@ export function PostComments({ count, children }: { count: number; children: Rea
 export function PostComment({ authorId, authorName, body, createdAt, like, badges, actions }: { authorId: string | null; authorName: string | null; body: string; createdAt: Date;
   like?: ReactNode; badges?: ReactNode; actions?: ReactNode }) {
   const t = useTranslations("CommunityForum"), format = useFormatter(), name = forumAuthorName(t, authorId, authorName);
-  return <li className="flex gap-3">
+  return <li className="flex gap-2">
     <Avatar className="h-8 w-8">
       <AvatarFallback aria-hidden="true">{memberInitials(authorId === null ? "" : authorName ?? "")}</AvatarFallback>
     </Avatar>
     <div className="min-w-0 flex-1">
-      <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 pt-1 text-sm break-words whitespace-pre-line">
-          <span className="text-sm font-semibold">{name}</span>
-          <span className="ml-2 text-sm">{body}</span>
-        </p>
-        {like}
+      <div className="w-fit max-w-full rounded-2xl bg-muted px-3 py-2">
+        <p className="text-sm font-semibold">{name}</p>
+        <p className="text-sm break-words whitespace-pre-line">{body}</p>
       </div>
-      <div className="mt-1 flex flex-wrap items-center gap-x-3">
-        <span className="text-muted-foreground text-xs">{format.dateTime(createdAt, { dateStyle: "medium" })}</span>
+      <div className="flex flex-wrap items-center gap-x-1 px-1">
+        <span className="text-muted-foreground px-1 text-xs">{format.dateTime(createdAt, { dateStyle: "medium" })}</span>
+        {like}
         {badges}
         {actions}
       </div>

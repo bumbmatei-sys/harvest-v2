@@ -1,13 +1,14 @@
-/** Derived from bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/social-media/components/create-post-dialog.tsx. Harvest changes: the viewer's name with the forum category in place of the audience select; title and the forum's rich text editor in place of the plain text box; the Photo, Video and Status tabs become Cover (upload), Video (a link) and Files (attachments), with Harvest's upload rules; the replies and likes switches; posting and editing call the existing forum routes; catalogue strings. Notes: docs/ui-sources.md. */
+/** Derived from bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/social-media/components/create-post-dialog.tsx. Harvest changes: the kit Create Post button becomes a card at the top of the feed (avatar, a rounded "What's on your mind?" prompt, a photo button and Photo, Attach and Event shortcuts that open the window on the matching tab); the viewer's name with the forum category in place of the audience select; title and the forum's rich text editor in place of the plain text box; the Photo, Video and Status tabs become Cover (upload), Video (a link) and Files (attachments), with Harvest's upload rules; the replies and likes switches; posting and editing call the existing forum routes; catalogue strings. Notes: docs/ui-sources.md. */
 "use client";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { FileText, ImageIcon, Paperclip, Plus, Video, X } from "lucide-react";
+import { CalendarDays, FileText, ImageIcon, Paperclip, Video, X } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -39,7 +40,7 @@ export type ComposerFile = { id: string; name: string };
 export type ComposerInitial = { id: string; categoryId: string; title: string; body: RichDoc; videoUrl: string | null; cover: ComposerFile | null; attachments: ComposerFile[];
   commentsOff: boolean; likesOff: boolean };
 
-/** The kit's "Create Post" window for the forum: new posts from the forum, edits from a post's menu (opened with defaultOpen and onClose, no trigger). */
+/** The kit's "Create Post" window for the forum. New posts open from the card at the top of the feed ("What's on your mind?", Photo, Attach, Event); edits open from a post's menu (defaultOpen and onClose, no card). */
 export function PostComposer({ slug, categories, defaultCategory, initial, canModerate, author, defaultOpen = false, onClose }: { slug: string; categories: ComposerCategory[];
   defaultCategory?: string; initial?: ComposerInitial; canModerate: boolean; /** The viewer's name for the header. */ author: string; defaultOpen?: boolean; onClose?: () => void }) {
   const t = useTranslations("CommunityForum"), request = useCrmRequest(), router = useRouter();
@@ -58,6 +59,8 @@ export function PostComposer({ slug, categories, defaultCategory, initial, canMo
     if (isOpen) { setForm(fresh()); setNewPostType("image"); }
     else onClose?.();
   };
+  /** The feed card's shortcuts open the same window on the matching tab (attachment and event pickers come later; both open the composer for now). */
+  const openAt = (tab: string) => { handleOpenChange(true); setNewPostType(tab); };
 
   async function upload(file: File | undefined, kind: "cover" | "attachment") {
     if (!file) return;
@@ -83,12 +86,28 @@ export function PostComposer({ slug, categories, defaultCategory, initial, canMo
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       {!onClose && (
-        <DialogTrigger asChild>
-          <Button variant="outline" className="mt-4 min-h-11 w-full">
-            <Plus aria-hidden="true" />
-            {t("newPost")}
-          </Button>
-        </DialogTrigger>
+        <Card className="gap-0 py-0 shadow-sm">
+          <div className="flex items-center gap-3 p-4 pb-3">
+            <Avatar className="size-10">
+              <AvatarFallback aria-hidden="true">{memberInitials(author)}</AvatarFallback>
+            </Avatar>
+            <DialogTrigger asChild>
+              <Button variant="ghost" className="bg-muted text-muted-foreground hover:bg-accent hover:text-foreground min-h-11 flex-1 justify-start rounded-full px-4 font-normal">
+                {t("mindPrompt")}
+              </Button>
+            </DialogTrigger>
+            <Button variant="ghost" size="icon-responsive" className="text-primary rounded-full" aria-label={t("addPhoto")} onClick={() => openAt("image")}>
+              <ImageIcon aria-hidden="true" />
+            </Button>
+          </div>
+          <div role="group" aria-label={t("shortcuts")} className="grid grid-cols-3 border-t p-1">
+            {([["image", ImageIcon, "shortcutPhoto"], ["files", Paperclip, "shortcutAttach"], ["image", CalendarDays, "shortcutEvent"]] as const).map(([tab, Icon, label]) =>
+              <Button key={label} variant="ghost" className="text-muted-foreground hover:text-foreground min-h-11 rounded-md lg:min-h-9" onClick={() => openAt(tab)}>
+                <Icon className="text-primary" aria-hidden="true" />
+                {t(label)}
+              </Button>)}
+          </div>
+        </Card>
       )}
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>

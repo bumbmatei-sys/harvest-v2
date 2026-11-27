@@ -40,8 +40,8 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   const footer = post.held ? null : post.commentsOff ? <p className="text-sm text-muted-foreground">{t("commentsClosed")}</p>
     : muted ? <Alert><AlertDescription>{t("mutedUntil", { date: format.dateTime(muted, { dateStyle: "medium", timeStyle: "short" }) })}</AlertDescription></Alert>
     : <ReplyForm slug={context.slug} postId={post.id} me={myName} />;
-  return <div className="mx-auto w-full min-w-0 space-y-4 p-4 lg:max-w-2xl lg:p-6">
-    <Link href={`/communities/${context.slug}/forum`} prefetch={false} className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+  return <div data-surface="sunken" className="min-w-0 p-4 lg:p-6"><div className="mx-auto w-full min-w-0 space-y-3 lg:max-w-2xl">
+    <Link href={`/communities/${context.slug}/forum`} prefetch={false} className="inline-flex min-h-11 items-center gap-2 text-sm text-foreground/80 hover:text-foreground">
       <ArrowLeft className="size-4" aria-hidden="true" />{t("backToForum")}</Link>
     <PostCard slug={context.slug} category={category} footer={footer}
       post={{ ...post, excerpt: "", comments: comments.length, hasVideo: Boolean(post.video) }}
@@ -56,7 +56,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           commentsOff: post.commentsOff, likesOff: post.likesOff } } : undefined} />}>
       <PostComments count={comments.length}>
         {comments.map((c) => { const name = forumAuthorName(t, c.authorId, c.authorName); return <PostComment key={c.id} authorId={c.authorId} authorName={c.authorName} body={c.body} createdAt={c.createdAt}
-          like={<LikeButton slug={context.slug} targetType="comment" targetId={c.id} likes={c.likes} liked={c.liked} disabled={post.likesOff || c.held || Boolean(muted)} label={name} />}
+          like={<LikeButton className="text-muted-foreground h-auto min-h-11 px-2 text-xs lg:min-h-8" slug={context.slug} targetType="comment" targetId={c.id} likes={c.likes} liked={c.liked} disabled={post.likesOff || c.held || Boolean(muted)} label={name} />}
           badges={c.held && <Badge variant="outline">{t("awaitingReview")}</Badge>}
           actions={<>
             <CommentActions slug={context.slug} commentId={c.id} isAuthor={c.authorId === me} canModerate={context.canModerate} name={name} />
@@ -65,5 +65,5 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           </>} />; })}
       </PostComments>
     </PostCard>
-  </div>;
+  </div></div>;
 }

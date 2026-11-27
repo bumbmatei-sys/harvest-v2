@@ -103,7 +103,7 @@ test("forum: categories, a full post, likes and replies, edits, pinning and remo
 
     // A member writes a full post; the hosts-only category is not offered.
     const a = author.page;
-    await a.getByRole("button", { name: "New post", exact: true }).click();
+    await a.getByRole("button", { name: "What's on your mind?", exact: true }).click();
     const composer = a.getByRole("dialog", { name: "New post" });
     await composer.getByLabel("Title", { exact: true }).fill("Romans reading plan");
     await composer.getByLabel("Category", { exact: true }).click();
@@ -197,10 +197,10 @@ test("forum: categories, a full post, likes and replies, edits, pinning and remo
     await expect(a).toHaveURL(/sort=best/);
     await a.getByRole("link", { name: /Announcements/ }).click();
     await expect(a.getByText("No posts yet", { exact: true })).toBeVisible();
-    await expect(a.getByRole("button", { name: "New post", exact: true })).toBeVisible();
+    await expect(a.getByRole("button", { name: "What's on your mind?", exact: true })).toBeVisible();
     await a.goto(`/communities/${slug}/forum`);
     await shoot(a, "forum");
-    await shoot(a, "composer", async () => { await a.getByRole("button", { name: "New post", exact: true }).click(); await expect(a.getByRole("dialog", { name: "New post" })).toBeVisible(); });
+    await shoot(a, "composer", async () => { await a.getByRole("button", { name: "What's on your mind?", exact: true }).click(); await expect(a.getByRole("dialog", { name: "New post" })).toBeVisible(); });
 
     // A member cannot post into the hosts-only category through the API either.
     const cats = (await (await page.request.get(`/api/workspaces/${tenant}/communities/${community.id}/categories`)).json()) as { id: string; name: string }[];
@@ -293,8 +293,10 @@ test("forum redesign: feed, post and composer at 1280 and 360, light and dark", 
   const doc = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
   const author = await person(browser, errors), reader = await person(browser, errors);
   try {
-    await join(author.page, slug); await join(reader.page, slug);
     const a = author.page, r = reader.page;
+    for (const [who, name] of [[a, "Ruth Adams"], [r, "Samuel Cole"]] as const)
+      expect((await who.request.put("/api/account/profile", { headers: { origin }, data: { name, locale: null, cityRegion: null } })).ok()).toBe(true);
+    await join(a, slug); await join(r, slug);
     const post = (await (await a.request.post(`/api/communities/${slug}/posts`, { headers: { origin }, data: { categoryId: general, title: "Thursday study notes",
       body: doc("We finished Romans 8 this week. Bring your questions for next time."), videoUrl: null, coverFileId: null, attachmentIds: [], commentsOff: false, likesOff: false } })).json()) as { id: string };
     expect((await a.request.post(`/api/communities/${slug}/posts`, { headers: { origin }, data: { categoryId: general, title: "Prayer requests",
@@ -306,7 +308,7 @@ test("forum redesign: feed, post and composer at 1280 and 360, light and dark", 
       ["feed", `/communities/${slug}/forum`],
       ["post", `/communities/${slug}/posts/${post.id}`],
       ["menu", `/communities/${slug}/posts/${post.id}`, async () => { await r.getByRole("button", { name: "More actions for Thursday study notes" }).click(); await expect(r.getByRole("menuitem", { name: "Report", exact: true })).toBeVisible(); }],
-      ["composer", `/communities/${slug}/forum`, async () => { await r.getByRole("button", { name: "New post", exact: true }).click(); await expect(r.getByRole("dialog", { name: "New post" })).toBeVisible(); }],
+      ["composer", `/communities/${slug}/forum`, async () => { await r.getByRole("button", { name: "What's on your mind?", exact: true }).click(); await expect(r.getByRole("dialog", { name: "New post" })).toBeVisible(); }],
     ];
     for (const [name, url, prepare] of scenes) for (const scheme of ["light", "dark"] as const) {
       await r.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
@@ -322,6 +324,10 @@ test("forum redesign: feed, post and composer at 1280 and 360, light and dark", 
           for (const target of [r.getByRole("button", { name: "More actions for Thursday study notes" }), r.getByRole("button", { name: "Unlike Thursday study notes" }),
             r.getByRole("button", { name: "Write a reply" }), r.getByRole("button", { name: "Reply", exact: true })]) expect((await target.boundingBox())!.height).toBeGreaterThanOrEqual(44);
         }
+        if (label === "phone" && name === "feed") {
+          for (const target of [r.getByRole("button", { name: "What's on your mind?", exact: true }), r.getByRole("button", { name: "Attach", exact: true }),
+            r.getByRole("link", { name: "All posts", exact: true }), r.getByRole("link", { name: "Best this week", exact: true })]) expect((await target.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+        }
         await r.screenshot({ path: `${shots}/${name}-${label}-${scheme}.png`, fullPage: true });
       }
     }
@@ -335,7 +341,10 @@ test("forum redesign: feed, post and composer at 1280 and 360, light and dark", 
     await expect(r.getByText("Amen.", { exact: true })).toBeVisible();
     // The feed card links to the post from the reply count.
     await r.goto(`/communities/${slug}/forum`);
-    await expect(r.getByRole("link", { name: "View all 2 replies" })).toBeVisible();
+    await expect(r.getByRole("link", { name: "2 replies on Thursday study notes" })).toBeVisible();
+    // The feed card shortcuts open the composer on the matching tab.
+    await r.getByRole("button", { name: "Attach", exact: true }).click();
+    await expect(r.getByRole("dialog", { name: "New post" }).getByRole("tab", { name: "Files", exact: true })).toHaveAttribute("aria-selected", "true");
   } finally { await author.context.close(); await reader.context.close(); }
   expect(errors).toEqual([]);
 });
