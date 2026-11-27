@@ -788,7 +788,9 @@
     "newsletterImageSuggestionUnavailable": "A thumbnail suggestion is not available.",
     "waysToGiveLimit": "This ministry already has the most ways to give allowed.",
     "campaignNotFound": "Campaign not found",
-    "dataExportLimited": "You can download your data 3 times an hour. Try again later."
+    "dataExportLimited": "You can download your data 3 times an hour. Try again later.",
+    "reviewAlreadyRequested": "A review request is already open.",
+    "reviewRequestLimited": "Too many review requests today. Try again tomorrow."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
@@ -10653,7 +10655,16 @@
     "owner": {
       "title": "Paused by Harvest",
       "reason": "This community's public page, Discover listing and member area are paused. Reason: {reason}",
-      "noReason": "This community's public page, Discover listing and member area are paused."
+      "noReason": "This community's public page, Discover listing and member area are paused.",
+      "requestReview": "Request review",
+      "requestTitle": "Request a review",
+      "requestMessage": "What did you change?",
+      "send": "Send request",
+      "sending": "Sending…",
+      "cancel": "Cancel",
+      "requested": "Review requested {date, date, medium}. Harvest will reply by restoring or keeping the pause.",
+      "declined": "Harvest kept the pause after your last request.",
+      "sent": "Review requested."
     },
     "staff": {
       "title": "Community reports",
@@ -10721,7 +10732,16 @@
       "restoredDone": "Restored.",
       "reauth": "Sign in again to continue.",
       "signInAgain": "Sign in again",
-      "openBadge": "{count, plural, one {# open report} other {# open reports}}"
+      "openBadge": "{count, plural, one {# open report} other {# open reports}}",
+      "appeal": "Review request",
+      "appealStatus": {
+        "open": "Open",
+        "declined": "Declined",
+        "restored": "Restored"
+      },
+      "declineAppeal": "Keep paused and close request",
+      "appealDeclined": "Request closed.",
+      "address": "/communities/{slug}"
     }
   },
   "YourData": {

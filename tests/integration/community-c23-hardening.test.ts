@@ -37,7 +37,7 @@ const appGrants: Record<string, string> = {
   community_dm_participants: "S", community_dm_report_evidence: "", community_email_deliveries: "", community_event_links: "", community_exits: "S",
   community_files: "SIU", community_harvest_report_quotas: "", community_harvest_reports: "", community_invites: "SIU", community_likes: "SIU", community_live_events: "S", community_member_profiles: "",
   community_memberships: "SIU", community_message_reactions: "S", community_messages: "S", community_moderation_actions: "S",
-  community_notifications: "SI", community_post_revisions: "S", community_posts: "SIU", community_product_links: "SIUD", community_reports: "S", community_takedowns: "S",
+  community_notifications: "SI", community_post_revisions: "S", community_posts: "SIU", community_product_links: "SIUD", community_reports: "S", community_takedown_appeals: "S", community_takedowns: "S",
   community_warnings: "S", discover_controls: "SIU", discover_listings: "SIUD", discover_ministry_standing: "", discover_reports: "", discover_review_events: "",
 };
 

@@ -1,24 +1,31 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("../../src/db/client", () => ({ getDb: () => f.db }));
+vi.mock("../../src/server/auth-instance", () => ({ getAuth: vi.fn() }));
+import { errorResponse } from "../../src/server/http";
 import { sql } from "drizzle-orm";
 import { testDatabase } from "../database";
 import { users } from "../../src/db/schema";
-import { createWorkspace } from "../../src/server/workspaces";
+import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { createCommunity, getCommunity, listCategories, publishCommunity, updateCommunity } from "../../src/server/communities";
 import { enterCommunity, getPublicCommunity, listDiscover } from "../../src/server/community-joining";
 import { forumContext, getPost, listPosts, moderate, saveComment, savePost } from "../../src/server/community-forum";
 import { communityTakedownFor, harvestPaused, respondToCommunityHarvestReport, staffCommunityOpenCount, staffCommunityReports, staffCommunityTakedown,
   staffResolveCommunityReport, submitContentHarvestReport } from "../../src/server/community-takedown";
-import { withUser } from "../../src/server/tenancy";
+import { withTenant, withUser } from "../../src/server/tenancy";
+import { requestHarvestReview, staffDeclineAppeal } from "../../src/server/community-takedown";
+import { decideApplication } from "../../src/server/community-applications";
+import { getBioPage, getPublicBio, saveBioDraft, transitionBioPage } from "../../src/server/link-in-bio";
+import { emptyBioDefinition } from "../../src/lib/link-in-bio";
 
 // Harvest staff takedown for communities, posts and replies (0137): reports, rate limits, staff roles, the public 404, Discover, hidden posts,
 // restore, audit and ministry isolation. The migrations run as a non-bypass owner, so every owner policy is exercised as in production.
 let f: Awaited<ReturnType<typeof testDatabase>>;
 let a: string, b: string, clubA: string, clubB: string, generalA: string, generalB: string;
 const origin = "http://localhost:3000";
-const people = ["t-owner", "t-host", "t-one", "t-two", "t-outsider", "t-bowner", "t-bone", "t-staff", "t-reviewer"];
-const status = (promise: Promise<unknown>) => promise.then(() => 200, (e: { status?: number; name?: string }) => e.status ?? (e.name === "ZodError" ? 400 : 500));
+const people = ["t-owner", "t-host", "t-one", "t-two", "t-outsider", "t-bowner", "t-bone", "t-staff", "t-reviewer", "t-admin", "t-new", "t-applicant"];
+// The answer a route gives for the error (errorResponse maps database refusals such as P0404 the way the API does).
+const status = (promise: Promise<unknown>) => promise.then(() => 200, (e: { status?: number; name?: string }) => e.status ?? (e.name === "ZodError" ? 400 : errorResponse(e).status));
 const body = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 const visitorReport = (slug: string, data: unknown, ip = "203.0.113.40", extra: Record<string, string> = {}) => respondToCommunityHarvestReport(new Request(`${origin}/api/communities/${slug}/harvest-report`,
   { method: "POST", headers: { origin, "content-type": "application/json", "x-forwarded-for": ip, ...extra }, body: JSON.stringify(data) }), { params: Promise.resolve({ slug }) });
@@ -47,6 +54,7 @@ beforeAll(async () => {
   vi.stubEnv("BETTER_AUTH_SECRET", "t".repeat(40));
   await f.db.insert(users).values(people.map((id) => ({ id, name: id, email: `${id}@example.invalid`, emailVerified: true })));
   a = (await createWorkspace(f.db, "t-owner", "Grace Church", "church")).tenantId;
+  await putMember(f.db, "t-owner", a, "t-admin@example.invalid", "admin");
   b = (await createWorkspace(f.db, "t-bowner", "Hope Mission", "church")).tenantId;
   clubA = await community("t-owner", a, "Grace prayer", "grace-prayer");
   clubB = await community("t-bowner", b, "Hope circle", "hope-circle");
@@ -165,10 +173,10 @@ describe("hiding and restoring a community", () => {
     expect(await harvestPaused(f.db, "t-owner", "grace-prayer")).toEqual({ slug: "grace-prayer", name: "Grace prayer", manager: true, reason: "Fundraising scam" });
     expect(await harvestPaused(f.db, "t-outsider", "grace-prayer")).toBeNull();
     expect(await harvestPaused(f.db, "t-bone", "hope-circle")).toBeNull();
-    expect(await communityTakedownFor(f.db, "t-owner", a, clubA)).toEqual({ hidden: true, reason: "Fundraising scam" });
+    expect(await communityTakedownFor(f.db, "t-owner", a, clubA)).toEqual({ hidden: true, reason: "Fundraising scam", appeal: null });
     // The other ministry is untouched and cannot see the first ministry's standing.
     expect(await forumContext(f.db, "t-bone", "hope-circle")).not.toBeNull();
-    expect(await communityTakedownFor(f.db, "t-bowner", b, clubB)).toEqual({ hidden: false, reason: null });
+    expect(await communityTakedownFor(f.db, "t-bowner", b, clubB)).toEqual({ hidden: false, reason: null, appeal: null });
     expect(await withUser(f.db, "t-bowner", (tx) => tx.execute(sql`select * from community_takedowns`)).then((r) => r.rows)).toEqual([]);
     expect((await staffCommunityReports(f.db, "t-staff", "reviewed")).reports[0]).toMatchObject({ targetId: clubA, hidden: true });
 
@@ -178,7 +186,7 @@ describe("hiding and restoring a community", () => {
     expect(await approvedDiscover()).toContain("grace-prayer");
     expect(await forumContext(f.db, "t-one", "grace-prayer")).not.toBeNull();
     expect(await harvestPaused(f.db, "t-one", "grace-prayer")).toBeNull();
-    expect(await communityTakedownFor(f.db, "t-owner", a, clubA)).toEqual({ hidden: false, reason: null });
+    expect(await communityTakedownFor(f.db, "t-owner", a, clubA)).toEqual({ hidden: false, reason: null, appeal: null });
     expect((await audit("community.takedown.hide")).map((r) => [r.actor_id, r.target_type, r.target_id, r.tenant_id])).toEqual([["t-staff", "community", clubA, a]]);
     expect((await audit("community.takedown.restore")).map((r) => [r.actor_id, r.target_id])).toEqual([["t-staff", clubA]]);
   });
@@ -230,5 +238,107 @@ describe("hiding and restoring a post or reply", () => {
     expect(rows).toEqual({ n: 0 });
     // community_definer_reset (run on entry by every community definer) blanks the flag too.
     expect((await f.admin.query("select prosrc from pg_proc where proname = 'community_definer_reset'")).rows[0].prosrc).toContain("'app.community_takedown'");
+  });
+});
+
+describe("founder answers (27 Nov): review requests, read-only while paused, no new joins", () => {
+  const pause = (hidden: boolean) => staffCommunityTakedown(f.db, "t-staff", { targetType: "community", targetId: clubA, hidden, ...(hidden ? { reason: "Fundraising scam" } : {}) });
+  const ask = (user: string, message = "We removed the fundraiser.", tenant = a, community = clubA) => requestHarvestReview(f.db, user, tenant, community, { message });
+
+  it("lets owners and admins request one review at a time, shows it to staff, and closes it on decline or restore", async () => {
+    expect(await status(ask("t-owner"))).toBe(404); // not paused: nothing to review
+    await pause(true);
+    for (const user of ["t-one", "t-host", "t-outsider", "t-bowner"]) expect(await status(ask(user)), user).toBe(404);
+    expect(await status(ask("t-owner", "x".repeat(1001)))).toBe(400);
+    expect(await status(ask("t-owner", "   "))).toBe(400);
+    expect(await ask("t-owner")).toEqual({ requested: true });
+    expect(await status(ask("t-admin"))).toBe(409); // one open request at a time
+    expect(await communityTakedownFor(f.db, "t-owner", a, clubA)).toMatchObject({ hidden: true, appeal: { status: "open" } });
+    const row = (await staffCommunityReports(f.db, "t-reviewer", "reviewed")).reports.find((r) => r.targetId === clubA)!;
+    expect(row).toMatchObject({ hidden: true, appeal: { status: "open", message: "We removed the fundraiser." } });
+    expect(await status(staffDeclineAppeal(f.db, "t-reviewer", row.appeal!.id))).toBe(404); // admins only
+    expect(await staffDeclineAppeal(f.db, "t-staff", row.appeal!.id)).toEqual({ declined: true });
+    expect(await communityTakedownFor(f.db, "t-owner", a, clubA)).toMatchObject({ appeal: { status: "declined" } });
+    // Three a day per community.
+    expect(await ask("t-admin", "Second try")).toEqual({ requested: true });
+    await staffDeclineAppeal(f.db, "t-staff", (await staffCommunityReports(f.db, "t-staff", "reviewed")).reports.find((r) => r.targetId === clubA)!.appeal!.id);
+    expect(await ask("t-owner", "Third try")).toEqual({ requested: true });
+    // Restoring answers the open request.
+    await pause(false);
+    expect((await f.admin.query("select status from community_takedown_appeals where community_id = $1 order by created_at", [clubA])).rows.map((r) => r.status))
+      .toEqual(["declined", "declined", "restored"]);
+    await pause(true);
+    expect(await status(ask("t-owner", "Fourth"))).toBe(429);
+    await pause(false);
+    // Audited: the ministry's log and the staff log. The message never goes into an audit row.
+    expect((await f.admin.query("select actor_id from audit_logs where action = 'community.takedown.appeal' and tenant_id = $1 order by created_at", [a])).rows.map((r) => r.actor_id))
+      .toEqual(["t-owner", "t-admin", "t-owner"]);
+    expect((await audit("community.appeal.declined")).map((r) => r.actor_id)).toEqual(["t-staff", "t-staff"]);
+    expect(JSON.stringify((await f.admin.query("select * from audit_logs where action = 'community.takedown.appeal'")).rows)).not.toContain("fundraiser");
+    // The other ministry cannot read these requests.
+    expect((await withUser(f.db, "t-bowner", (tx) => tx.execute(sql`select * from community_takedown_appeals`))).rows).toEqual([]);
+  });
+
+  it("keeps settings open to owners and admins but makes forum and chat read-only for everyone, in the database", async () => {
+    const post = await savePost(f.db, "t-two", "grace-prayer", { categoryId: generalA, title: "Before the pause", body: body("Hi") });
+    await pause(true);
+    // Settings still work for the ministry.
+    const { version } = await getCommunity(f.db, "t-owner", a, clubA);
+    expect((await updateCommunity(f.db, "t-admin", a, clubA, { version, tagline: "Fixed" })).tagline).toBe("Fixed");
+    // Forum: nobody posts, replies, likes or edits, through the member path or the ministry's staff path.
+    for (const user of ["t-owner", "t-host", "t-two"]) expect(await status(savePost(f.db, user, "grace-prayer", { categoryId: generalA, title: "No", body: body("No") })), user).toBe(404);
+    const staffWrite = (statement: ReturnType<typeof sql>) => withTenant(f.db, "t-owner", a, "communities:manage", (tx) => tx.execute(statement));
+    await expect(staffWrite(sql`insert into community_posts (tenant_id, community_id, category_id, author_id, title, body, body_text) values (${a}::uuid, ${clubA}::uuid, ${generalA}::uuid, 't-owner', 'x', '{}'::jsonb, 'x')`))
+      .rejects.toMatchObject({ cause: { code: "P0404" } });
+    await expect(staffWrite(sql`update community_posts set title = 'Edited' where id = ${post.id}::uuid`)).rejects.toMatchObject({ cause: { code: "P0404" } });
+    await expect(f.admin.query("insert into community_comments (tenant_id, community_id, post_id, author_id, body) values ($1, $2, $3, 't-owner', 'x')", [a, clubA, post.id])).rejects.toMatchObject({ code: "P0404" });
+    await expect(f.admin.query("insert into community_likes (tenant_id, community_id, target_type, target_id, user_id) values ($1, $2, 'post', $3, 't-owner')", [a, clubA, post.id])).rejects.toMatchObject({ code: "P0404" });
+    // Chat and private messages: no chat role for anyone, owners included.
+    const role = async (user: string) => (await f.admin.query("select public.community_chat_role($1, $2, $3) r", [a, clubA, user])).rows[0].r;
+    expect([await role("t-owner"), await role("t-admin"), await role("t-host"), await role("t-two")]).toEqual([null, null, null, null]);
+    // Deleting still works (retention and account erasure), and the neutral API answer is the missing-community 404.
+    await f.admin.query("delete from community_posts where id = $1", [post.id]);
+    await pause(false);
+    expect(await role("t-owner")).toBe("owner");
+    expect(await savePost(f.db, "t-two", "grace-prayer", { categoryId: generalA, title: "After", body: body("Back") })).toMatchObject({ outcome: "ok" });
+  });
+
+  it("refuses new joins and applications while paused, through any path, with the missing-community answer", async () => {
+    const apply = (await createCommunity(f.db, "t-owner", a, { name: "Grace apply", slug: "grace-apply" })).id;
+    const v = (await getCommunity(f.db, "t-owner", a, apply)).version;
+    const u = await updateCommunity(f.db, "t-owner", a, apply, { version: v, visibility: "listed", allowApply: true });
+    await publishCommunity(f.db, "t-owner", a, apply, { version: u.version, published: true });
+    expect(await enterCommunity(f.db, "t-applicant", "grace-apply", { rulesVersion: 0, adult: true })).toMatchObject({});
+    const [pending] = (await f.admin.query("select id from community_applications where community_id = $1", [apply])).rows;
+    expect((await visitorReport("grace-apply", { reason: "other" }, "203.0.113.120")).status).toBe(200);
+    await staffCommunityTakedown(f.db, "t-staff", { targetType: "community", targetId: apply, hidden: true, reason: "Review" });
+    await pause(true);
+    const missing = await status(enterCommunity(f.db, "t-new", "no-such-community", { rulesVersion: 0, adult: true }));
+    expect(await status(enterCommunity(f.db, "t-new", "grace-prayer", { rulesVersion: 0, adult: true }))).toBe(missing);
+    expect(await status(enterCommunity(f.db, "t-new", "grace-apply", { rulesVersion: 0, adult: true }))).toBe(missing);
+    expect(missing).toBe(404);
+    // Approving an earlier application and a direct insert are refused too.
+    expect(await status(decideApplication(f.db, "t-owner", a, apply, pending.id, { action: "approve" }))).toBe(404);
+    await expect(f.admin.query("insert into community_memberships (tenant_id, community_id, user_id, role, status, joined_at) values ($1, $2, 't-new', 'member', 'active', now())", [a, clubA]))
+      .rejects.toMatchObject({ code: "P0404" });
+    // Existing members can still leave.
+    await f.admin.query("update community_memberships set status = 'left' where user_id = 't-two' and community_id = $1", [clubA]);
+    await expect(f.admin.query("update community_memberships set status = 'active' where user_id = 't-two' and community_id = $1", [clubA])).rejects.toMatchObject({ code: "P0404" });
+    await pause(false);
+    await f.admin.query("update community_memberships set status = 'active' where user_id = 't-two' and community_id = $1", [clubA]);
+    expect(await enterCommunity(f.db, "t-new", "grace-prayer", { rulesVersion: 0, adult: true })).toBeTruthy();
+  });
+
+  it("leaves a paused community out of link in bio, and brings it back on restore", async () => {
+    const page = await getBioPage(f.db, "t-owner", a);
+    const saved = await saveBioDraft(f.db, "t-owner", a, { version: page.version, handle: "grace-takedown",
+      definition: { ...emptyBioDefinition("Grace Church"), blocks: [{ type: "community", id: "cccccccc", hidden: false, tab: "home", communityId: clubA }] } });
+    await transitionBioPage(f.db, "t-owner", a, { action: "publish", version: saved.version });
+    const view = async () => JSON.stringify(await getPublicBio(f.db, "grace-takedown"));
+    expect(await view()).toContain("Grace prayer");
+    await pause(true);
+    expect(await view()).not.toContain("Grace prayer");
+    await pause(false);
+    expect(await view()).toContain("Grace prayer");
   });
 });

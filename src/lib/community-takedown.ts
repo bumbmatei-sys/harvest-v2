@@ -16,3 +16,6 @@ export const contentHarvestReportSchema = z.object({ targetType: z.enum(["post",
 /** A staff admin hides (a reason is required) or restores one reported community, post or reply. */
 export const takedownSchema = z.object({ targetType: z.enum(harvestReportTargets), targetId: z.uuid(), hidden: z.boolean(), reason: z.string().trim().min(1).max(500).optional() })
   .strict().refine((v) => !v.hidden || v.reason !== undefined);
+/** A ministry's request that Harvest review a paused community. */
+export const appealMessageMax = 1000;
+export const appealSchema = z.object({ message: z.string().trim().min(1).max(appealMessageMax).refine((value) => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value)) }).strict();

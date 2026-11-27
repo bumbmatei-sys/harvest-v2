@@ -3875,6 +3875,19 @@ export const communityTakedowns = pgTable("community_takedowns", {
   check("community_takedowns_target", sql`${t.targetType} in ('community', 'post', 'comment') and (${t.targetType} <> 'community' or ${t.targetId} = ${t.communityId})`),
   check("community_takedowns_reason", sql`${t.reason} is null or length(${t.reason}) between 1 and 500`),
   check("community_takedowns_hidden_reason", sql`not ${t.hidden} or ${t.reason} is not null`)]);
+// A ministry's request that Harvest review a paused community (founder, 27 Nov): a short message, one open at a time, rate limited in the database.
+export const communityTakedownAppeals = pgTable("community_takedown_appeals", {
+  id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  message: text("message").notNull(), status: text("status").$type<"open" | "declined" | "restored">().notNull().default("open"),
+  // The appeal outlives an account deletion (set null), like the report it answers.
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  decidedBy: text("decided_by").references(() => users.id), decidedAt: timestamp("decided_at", { withTimezone: true }),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  uniqueIndex("community_takedown_appeals_open_idx").on(t.communityId).where(sql`${t.status} = 'open'`),
+  index("community_takedown_appeals_recent_idx").on(t.communityId, t.createdAt),
+  check("community_takedown_appeals_message", sql`length(${t.message}) between 1 and 1000`),
+  check("community_takedown_appeals_status", sql`${t.status} in ('open','declined','restored') and ((${t.status} = 'open') = (${t.decidedAt} is null))`)]);
 // One-minute report counters for Harvest reports (the hashed visitor key lives here only, purged after two minutes).
 export const communityHarvestReportQuotas = pgTable("community_harvest_report_quotas", {
   scope: text("scope").notNull(), minute: timestamp("minute", { withTimezone: true }).notNull(), attempts: integer("attempts").notNull(),

@@ -1,10 +1,12 @@
 import { createHash, createHmac } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "../db/client";
 import { getDb } from "../db/client";
-import { communityTakedowns } from "../db/schema";
-import { communityHarvestReportSchema, contentHarvestReportSchema, takedownSchema, type HarvestReportTarget } from "../lib/community-takedown";
+import { communityTakedownAppeals, communityTakedowns } from "../db/schema";
+import { appealSchema, communityHarvestReportSchema, contentHarvestReportSchema, takedownSchema, type HarvestReportTarget } from "../lib/community-takedown";
+import { message } from "../i18n/messages";
+import { AccessError } from "./permissions";
 import { communitySlug } from "./communities";
 import { communitiesEnabled } from "./communities-mode";
 import { errorResponse, verifyOrigin } from "./http";
@@ -88,19 +90,38 @@ export async function harvestPaused(db: Database, userId: string, slug: string):
   return withUser(db, userId, async (tx) => (await tx.execute<{ v: HarvestPaused | null }>(sql`select public.community_harvest_paused(${name.data}) as v`)).rows[0]?.v ?? null);
 }
 /** What the ministry's owners and admins see on the community's settings page: paused by Harvest, with the staff reason. Nothing for anyone else. */
-export async function communityTakedownFor(db: Database, userId: string, tenantId: string, communityId: string): Promise<{ hidden: boolean; reason: string | null }> {
+export type TakedownAppeal = { status: "open" | "declined" | "restored"; createdAt: string };
+export async function communityTakedownFor(db: Database, userId: string, tenantId: string, communityId: string): Promise<{ hidden: boolean; reason: string | null; appeal: TakedownAppeal | null }> {
   // Row security shows the row to the ministry's owners and admins only (Communities at manage); everyone else reads "not hidden".
   return withTenant(db, userId, z.uuid().parse(tenantId), "communities:read", async (tx) => {
     const [row] = await tx.select({ hidden: communityTakedowns.hidden, reason: communityTakedowns.reason }).from(communityTakedowns)
       .where(and(eq(communityTakedowns.targetType, "community"), eq(communityTakedowns.targetId, communityId), eq(communityTakedowns.tenantId, tenantId)));
-    return row?.hidden ? { hidden: true, reason: row.reason } : { hidden: false, reason: null };
+    if (!row?.hidden) return { hidden: false, reason: null, appeal: null };
+    const [appeal] = await tx.select({ status: communityTakedownAppeals.status, createdAt: communityTakedownAppeals.createdAt }).from(communityTakedownAppeals)
+      .where(and(eq(communityTakedownAppeals.communityId, communityId), eq(communityTakedownAppeals.tenantId, tenantId))).orderBy(desc(communityTakedownAppeals.createdAt)).limit(1);
+    return { hidden: true, reason: row.reason, appeal: appeal ? { status: appeal.status, createdAt: appeal.createdAt.toISOString() } : null };
   });
+}
+
+/** Owners and admins ask Harvest to review a paused community: one open request at a time, three a day, a short message. Audited in the ministry. */
+export async function requestHarvestReview(db: Database, userId: string, tenantId: string, communityId: string, raw: unknown) {
+  const body = appealSchema.safeParse(raw), tenant = z.uuid().safeParse(tenantId), community = z.uuid().safeParse(communityId);
+  if (!body.success) throw new AccessError(400, message("Errors.checkTheSuppliedDetails"));
+  if (!tenant.success || !community.success) throw new AccessError(404, message("Errors.communityNotFound"));
+  const outcome = await withUser(db, userId, async (tx) => (await tx.execute<{ r: string }>(sql`select public.community_harvest_appeal(${tenant.data}::uuid, ${community.data}::uuid, ${body.data.message}) as r`)).rows[0].r);
+  if (outcome === "ok") return { requested: true };
+  if (outcome === "open") throw new AccessError(409, message("Errors.reviewAlreadyRequested"));
+  if (outcome === "limited") throw new AccessError(429, message("Errors.reviewRequestLimited"));
+  if (outcome === "invalid") throw new AccessError(400, message("Errors.checkTheSuppliedDetails"));
+  throw new AccessError(404, message("Errors.communityNotFound"));
 }
 
 // ---- Harvest staff ---------------------------------------------------------------------------------------------------------------------------------------
 export type StaffCommunityReport = { id: string; tenantId: string; communityId: string; ministry: string | null; community: string | null; slug: string | null;
   targetType: HarvestReportTarget; targetId: string; reason: string; note: string | null; excerpt: string | null; removed: boolean;
-  status: "open" | "reviewed" | "dismissed"; createdAt: string; hidden: boolean };
+  status: "open" | "reviewed" | "dismissed"; createdAt: string; hidden: boolean;
+  /** The ministry's latest review request (community reports only). */
+  appeal: { id: string; message: string; status: "open" | "declined" | "restored"; createdAt: string } | null };
 const statuses = z.enum(["open", "reviewed", "dismissed"]);
 /** One status page of reports plus the open count (the in-app badge; no email or other alert). Reviewers and admins. */
 export async function staffCommunityReports(db: Database, user: string, rawStatus: string | undefined, limit = 50): Promise<{ reports: StaffCommunityReport[]; openCount: number }> {
@@ -130,6 +151,15 @@ export async function staffCommunityTakedown(db: Database, user: string, raw: un
   const done = await asStaff(db, user, async (tx) => (await tx.execute<{ r: boolean }>(sql`select public.platform_community_takedown(${targetType}, ${targetId}::uuid, ${hidden}, ${reason ?? null}) as r`)).rows[0].r);
   if (!done) throw staffNotFound();
   return { hidden };
+}
+/** Staff admins only: keep the pause and close the ministry's open review request (restoring the community closes it too). */
+export async function staffDeclineAppeal(db: Database, user: string, id: string) {
+  const appeal = z.uuid().safeParse(id);
+  if (!appeal.success) throw staffInvalid();
+  if ((await staffRole(db, user)) !== "admin") throw staffNotFound();
+  const done = await asStaff(db, user, async (tx) => (await tx.execute<{ r: boolean }>(sql`select public.platform_community_appeal_decline(${appeal.data}::uuid) as r`)).rows[0].r);
+  if (!done) throw staffNotFound();
+  return { declined: true };
 }
 /** Staff route wrapper: off with Communities; otherwise the shared staff rules (origin on writes, fresh sign-in, active staff role, neutral 404). */
 export const communityStaffResponse = (request: Request, write: boolean, run: (db: Database, user: string) => Promise<unknown>, now = () => new Date()) =>

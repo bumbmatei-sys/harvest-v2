@@ -1,5 +1,5 @@
 {
-  "id": "7d478ccf-0894-4214-8c50-1877d279cb4c",
+  "id": "e75fcfd8-1d88-47cc-a7df-a72af29ed8a5",
   "prevId": "abc8ccb0-e46c-4b28-a8bf-75722c62a312",
   "version": "7",
   "dialect": "postgresql",
@@ -15378,6 +15378,165 @@
         "community_report_status": {
           "name": "community_report_status",
           "value": "\"community_reports\".\"status\" in ('open', 'dismissed', 'actioned', 'expired')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.community_takedown_appeals": {
+      "name": "community_takedown_appeals",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "community_id": {
+          "name": "community_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "decided_by": {
+          "name": "decided_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "community_takedown_appeals_open_idx": {
+          "name": "community_takedown_appeals_open_idx",
+          "columns": [
+            {
+              "expression": "community_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"community_takedown_appeals\".\"status\" = 'open'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "community_takedown_appeals_recent_idx": {
+          "name": "community_takedown_appeals_recent_idx",
+          "columns": [
+            {
+              "expression": "community_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "community_takedown_appeals_created_by_users_id_fk": {
+          "name": "community_takedown_appeals_created_by_users_id_fk",
+          "tableFrom": "community_takedown_appeals",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "community_takedown_appeals_decided_by_users_id_fk": {
+          "name": "community_takedown_appeals_decided_by_users_id_fk",
+          "tableFrom": "community_takedown_appeals",
+          "tableTo": "users",
+          "columnsFrom": [
+            "decided_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "community_takedown_appeals_tenant_id_community_id_communities_tenant_id_id_fk": {
+          "name": "community_takedown_appeals_tenant_id_community_id_communities_tenant_id_id_fk",
+          "tableFrom": "community_takedown_appeals",
+          "tableTo": "communities",
+          "columnsFrom": [
+            "tenant_id",
+            "community_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "community_takedown_appeals_message": {
+          "name": "community_takedown_appeals_message",
+          "value": "length(\"community_takedown_appeals\".\"message\") between 1 and 1000"
+        },
+        "community_takedown_appeals_status": {
+          "name": "community_takedown_appeals_status",
+          "value": "\"community_takedown_appeals\".\"status\" in ('open','declined','restored') and ((\"community_takedown_appeals\".\"status\" = 'open') = (\"community_takedown_appeals\".\"decided_at\" is null))"
         }
       },
       "isRLSEnabled": false

@@ -40,6 +40,6 @@ export default async function CommunityEditPage({ params }: { params: Promise<{ 
   const shelf = shelfItems ? { tenantId, items: shelfItems, writable: can(workspace.role, "catalog:manage") } : null;
   // 0137: whether Harvest staff paused it; only owners and admins can read the reason (row security), everyone else reads "not paused".
   const takedown = await communityTakedownFor(db, session.user.id, tenantId, communityId).catch(denied);
-  return <CommunityEditor harvestPause={takedown?.hidden ? { reason: takedown.reason } : null} chat={chat} shelf={shelf} initial={community} members={members} invites={invites} applications={applications} categories={categories} host={workspace.name}
+  return <CommunityEditor harvestPause={takedown?.hidden ? { reason: takedown.reason, appeal: takedown.appeal } : null} chat={chat} shelf={shelf} initial={community} members={members} invites={invites} applications={applications} categories={categories} host={workspace.name}
     endpoint={`/api/workspaces/${tenantId}/communities/${communityId}`} listHref={`/workspaces/${tenantId}/communities`} writable={writable} discoverTenant={discoverOpen ? tenantId : undefined} discoverListing={listing} />;
 }

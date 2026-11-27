@@ -53,7 +53,10 @@ export function StaffCommunityReview({ role, initialOpen }: { role: "reviewer" |
   const rows: DataTableRow[] = reports.map((r) => ({ id: r.id, label: name(r), cells: {
     community: <span className="break-words"><span className="font-medium">{name(r)}</span>{r.ministry && <span className="block text-sm text-muted-foreground">{r.ministry}</span>}</span>,
     target: t(`targets.${r.targetType}`),
-    content: r.targetType === "community" ? (r.slug ? `/communities/${r.slug}` : t("none")) : r.removed ? t("removed") : <span className="break-words">{r.excerpt}</span>,
+    content: r.targetType === "community" ? <span className="break-words">{r.slug ? t("address", { slug: r.slug }) : t("none")}
+      {r.appeal && <span className="mt-1 block rounded-md border bg-muted/40 p-2 text-sm" data-community-appeal><span className="flex flex-wrap items-center gap-2 font-medium">{t("appeal")}
+        <StatusBadge tone={r.appeal.status === "open" ? "warning" : "neutral"} label={t(`appealStatus.${r.appeal.status}`)} /></span><span className="mt-1 block">{r.appeal.message}</span></span>}</span>
+      : r.removed ? t("removed") : <span className="break-words">{r.excerpt}</span>,
     reason: tr(`reasons.${r.reason as "other"}`), note: r.note ? <span className="break-words">{r.note}</span> : t("none"),
     reported: format.dateTime(new Date(r.createdAt), { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }),
     visibility: <StatusBadge tone={r.hidden ? "danger" : "success"} label={t(r.hidden ? "hidden" : "shown")} dot />,
@@ -64,7 +67,7 @@ export function StaffCommunityReview({ role, initialOpen }: { role: "reviewer" |
           <DropdownMenuItem className="min-h-11 lg:min-h-0" onSelect={() => void act(`/api/platform/communities/reports/${r.id}/resolve`, { status: "dismissed" }, t("resolved"))}><X aria-hidden="true" />{t("dismiss")}</DropdownMenuItem></>}
         {role === "admin" && <>{r.status === "open" && <DropdownMenuSeparator />}{r.hidden
           ? <DropdownMenuItem className="min-h-11 lg:min-h-0" onSelect={() => setRestoring(r)}><Eye aria-hidden="true" />{t("restore")}</DropdownMenuItem>
-          : <DropdownMenuItem variant="destructive" className="min-h-11 lg:min-h-0" onSelect={() => setHiding(r)}><EyeOff aria-hidden="true" />{t(`hide.${r.targetType}`)}</DropdownMenuItem>}</>}
+          : <DropdownMenuItem variant="destructive" className="min-h-11 lg:min-h-0" onSelect={() => setHiding(r)}><EyeOff aria-hidden="true" />{t(`hide.${r.targetType}`)}</DropdownMenuItem>}{r.appeal?.status === "open" && r.hidden && <DropdownMenuItem className="min-h-11 lg:min-h-0" onSelect={() => void act(`/api/platform/communities/appeals/${r.appeal!.id}/decline`, {}, t("appealDeclined"))}><X aria-hidden="true" />{t("declineAppeal")}</DropdownMenuItem>}</>}
       </DropdownMenuContent></DropdownMenu>,
   } }));
 

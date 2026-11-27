@@ -46,15 +46,39 @@ CREATE INDEX "community_harvest_report_quota_expiry_idx" ON "community_harvest_r
 CREATE INDEX "community_harvest_reports_open_idx" ON "community_harvest_reports" USING btree ("status","created_at");--> statement-breakpoint
 CREATE INDEX "community_harvest_reports_target_idx" ON "community_harvest_reports" USING btree ("target_type","target_id");--> statement-breakpoint
 CREATE INDEX "community_takedowns_target_idx" ON "community_takedowns" USING btree ("target_id");--> statement-breakpoint
--- Harvest staff takedown for communities, forum posts and replies (founder, 27 Nov 2026: "like the giving takedown"). The three tables are reached only
--- through the definers below (FORCE RLS, no app grant), except that a community's owners and admins read whether Harvest paused their community.
+CREATE TABLE "community_takedown_appeals" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"community_id" uuid NOT NULL,
+	"message" text NOT NULL,
+	"status" text DEFAULT 'open' NOT NULL,
+	"created_by" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"decided_by" text,
+	"decided_at" timestamp with time zone,
+	CONSTRAINT "community_takedown_appeals_message" CHECK (length("community_takedown_appeals"."message") between 1 and 1000),
+	CONSTRAINT "community_takedown_appeals_status" CHECK ("community_takedown_appeals"."status" in ('open','declined','restored') and (("community_takedown_appeals"."status" = 'open') = ("community_takedown_appeals"."decided_at" is null)))
+);
+--> statement-breakpoint
+ALTER TABLE "community_takedown_appeals" ADD CONSTRAINT "community_takedown_appeals_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "community_takedown_appeals" ADD CONSTRAINT "community_takedown_appeals_decided_by_users_id_fk" FOREIGN KEY ("decided_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "community_takedown_appeals" ADD CONSTRAINT "community_takedown_appeals_tenant_id_community_id_communities_tenant_id_id_fk" FOREIGN KEY ("tenant_id","community_id") REFERENCES "public"."communities"("tenant_id","id") ON DELETE cascade ON UPDATE no action;
+--> statement-breakpoint
+CREATE UNIQUE INDEX "community_takedown_appeals_open_idx" ON "community_takedown_appeals" USING btree ("community_id") WHERE "community_takedown_appeals"."status" = 'open';
+--> statement-breakpoint
+CREATE INDEX "community_takedown_appeals_recent_idx" ON "community_takedown_appeals" USING btree ("community_id","created_at");--> statement-breakpoint
+-- Harvest staff takedown for communities, forum posts and replies (founder, 27 Nov 2026: "like the giving takedown"). The four tables are reached only
+-- through the definers below (FORCE RLS, no app grant), except that a community's owners and admins read whether Harvest paused their community and
+-- the review requests they sent.
 DO $$
 DECLARE rel text;
   manager text := $s$target_type = 'community' AND tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND EXISTS (
     SELECT FROM public.workspace_members m WHERE m.tenant_id = community_takedowns.tenant_id AND m.user_id = nullif(current_setting('app.user_id', true), '')
       AND public.access_role(m.tenant_id, m.user_id, 'communities', m.role_id) IN ('owner', 'admin'))$s$;
 BEGIN
-  FOREACH rel IN ARRAY ARRAY['community_takedowns','community_harvest_reports','community_harvest_report_quotas'] LOOP
+  FOREACH rel IN ARRAY ARRAY['community_takedowns','community_harvest_reports','community_harvest_report_quotas','community_takedown_appeals'] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', rel);
     EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY', rel);
     EXECUTE format('REVOKE ALL ON public.%I FROM PUBLIC, harvest_app', rel);
@@ -62,8 +86,10 @@ BEGIN
     EXECUTE format($p$CREATE POLICY community_takedown_definer ON public.%I TO %I USING (current_setting('app.community_takedown', true) = 'on') WITH CHECK (current_setting('app.community_takedown', true) = 'on')$p$, rel, current_user);
   END LOOP;
   EXECUTE 'CREATE POLICY community_takedowns_manage_read ON public.community_takedowns FOR SELECT TO harvest_app USING (' || manager || ')';
+  EXECUTE 'CREATE POLICY community_takedown_appeals_manage_read ON public.community_takedown_appeals FOR SELECT TO harvest_app USING ('
+    || replace(replace(manager, 'target_type = ''community'' AND ', ''), 'community_takedowns.tenant_id', 'community_takedown_appeals.tenant_id') || ')';
 END $$;--> statement-breakpoint
-GRANT SELECT ON public.community_takedowns TO harvest_app;--> statement-breakpoint
+GRANT SELECT ON public.community_takedowns, public.community_takedown_appeals TO harvest_app;--> statement-breakpoint
 -- Whether Harvest staff hid this community, post or reply (ids are unique across the three kinds). A yes or no only, for the row policies and the
 -- member read predicate below; sets and restores one flag, so it is safe inside any other definer.
 CREATE FUNCTION public.community_harvest_hidden(p_target uuid) RETURNS boolean
@@ -324,7 +350,10 @@ BEGIN
   PERFORM set_config('app.community_takedown', 'on', true);
   SELECT coalesce(jsonb_agg(jsonb_build_object('id', x.id, 'tenantId', x.tenant_id, 'communityId', x.community_id, 'targetType', x.target_type, 'targetId', x.target_id,
       'reason', x.reason, 'note', x.note, 'status', x.status, 'createdAt', x.created_at,
-      'hidden', EXISTS (SELECT FROM public.community_takedowns t WHERE t.target_type = x.target_type AND t.target_id = x.target_id AND t.hidden)) ORDER BY x.created_at DESC, x.id DESC), '[]'::jsonb)
+      'hidden', EXISTS (SELECT FROM public.community_takedowns t WHERE t.target_type = x.target_type AND t.target_id = x.target_id AND t.hidden),
+      -- The ministry's latest review request, shown next to the community's report and pause.
+      'appeal', CASE WHEN x.target_type = 'community' THEN (SELECT jsonb_build_object('id', a.id, 'message', a.message, 'status', a.status, 'createdAt', a.created_at)
+        FROM public.community_takedown_appeals a WHERE a.community_id = x.community_id ORDER BY a.created_at DESC LIMIT 1) END) ORDER BY x.created_at DESC, x.id DESC), '[]'::jsonb)
     INTO raw FROM (SELECT * FROM public.community_harvest_reports h WHERE h.status = p_status ORDER BY h.created_at DESC, h.id DESC LIMIT least(greatest(coalesce(p_limit, 25), 1), 100)) x;
   PERFORM set_config('app.community_takedown', '', true);
   -- Names and a short excerpt of what was reported, read one ministry at a time through the existing tenant-keyed definer policies.
@@ -376,6 +405,10 @@ BEGIN
   INSERT INTO public.community_takedowns (target_type, target_id, tenant_id, community_id, hidden, reason, changed_by, changed_at)
     VALUES (p_type, p_target, scope.tenant_id, scope.community_id, p_hidden, CASE WHEN p_hidden THEN left(btrim(p_reason), 500) END, actor, now())
     ON CONFLICT (target_type, target_id) DO UPDATE SET hidden = EXCLUDED.hidden, reason = EXCLUDED.reason, changed_by = EXCLUDED.changed_by, changed_at = EXCLUDED.changed_at;
+  -- Restoring a community answers its open review request.
+  IF p_type = 'community' AND NOT p_hidden THEN
+    UPDATE public.community_takedown_appeals SET status = 'restored', decided_by = actor, decided_at = now() WHERE community_id = p_target AND status = 'open';
+  END IF;
   PERFORM set_config('app.community_takedown', '', true);
   PERFORM public.platform_staff_log(actor, CASE WHEN p_hidden THEN 'community.takedown.hide' ELSE 'community.takedown.restore' END, p_type, p_target::text, scope.tenant_id);
   RETURN true;
@@ -395,4 +428,108 @@ END $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.platform_community_reports(text, integer), public.platform_community_resolve_report(uuid, text), public.platform_community_takedown(text, uuid, boolean, text),
   public.platform_community_open_count() FROM PUBLIC;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.platform_community_reports(text, integer), public.platform_community_resolve_report(uuid, text), public.platform_community_takedown(text, uuid, boolean, text),
-  public.platform_community_open_count() TO harvest_app;
+  public.platform_community_open_count() TO harvest_app;--> statement-breakpoint
+-- Founder answers (27 Nov), part 1: a ministry's owners and admins ask Harvest to review a paused community. A short message, one open request at a
+-- time, three a day per community; the request goes to the staff queue next to the report and the pause, and is written to the ministry's audit log.
+CREATE FUNCTION public.community_harvest_appeal(p_tenant uuid, p_community uuid, p_message text) RETURNS text
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); body text := btrim(coalesce(p_message, '')); result text;
+BEGIN
+  PERFORM public.community_definer_reset();
+  IF actor IS NULL OR p_tenant IS NULL OR p_community IS NULL THEN RETURN 'not_found'; END IF;
+  PERFORM set_config('app.community_definer_tenant', p_tenant::text, true);
+  IF NOT EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id = p_tenant AND m.user_id = actor
+      AND public.access_role(m.tenant_id, m.user_id, 'communities', m.role_id) IN ('owner', 'admin'))
+    OR NOT EXISTS (SELECT FROM public.communities c WHERE c.tenant_id = p_tenant AND c.id = p_community)
+    OR NOT public.community_harvest_hidden(p_community) THEN
+    PERFORM public.community_definer_reset(); RETURN 'not_found';
+  END IF;
+  IF length(body) NOT BETWEEN 1 AND 1000 OR body ~ '[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]' THEN PERFORM public.community_definer_reset(); RETURN 'invalid'; END IF;
+  PERFORM set_config('app.community_takedown', 'on', true);
+  IF EXISTS (SELECT FROM public.community_takedown_appeals a WHERE a.community_id = p_community AND a.status = 'open') THEN result := 'open';
+  ELSIF (SELECT count(*) FROM public.community_takedown_appeals a WHERE a.community_id = p_community AND a.created_at > now() - interval '24 hours') >= 3 THEN result := 'limited';
+  ELSE
+    INSERT INTO public.community_takedown_appeals (tenant_id, community_id, message, created_by) VALUES (p_tenant, p_community, body, actor);
+    result := 'ok';
+  END IF;
+  PERFORM set_config('app.community_takedown', '', true);
+  IF result = 'ok' THEN
+    INSERT INTO public.audit_logs (tenant_id, actor_id, action, target_id) VALUES (p_tenant, actor, 'community.takedown.appeal', p_community::text);
+  END IF;
+  PERFORM public.community_definer_reset();
+  RETURN result;
+END $$;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.community_harvest_appeal(uuid, uuid, text) FROM PUBLIC;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.community_harvest_appeal(uuid, uuid, text) TO harvest_app;--> statement-breakpoint
+-- Staff admins keep the pause and close the open request (restoring the community closes it too). Audited.
+CREATE FUNCTION public.platform_community_appeal_decline(p_id uuid) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); tenant uuid;
+BEGIN
+  PERFORM public.community_definer_reset();
+  IF public.platform_staff_role(actor) IS DISTINCT FROM 'admin' THEN RAISE EXCEPTION 'not staff' USING ERRCODE = 'P0001'; END IF;
+  PERFORM set_config('app.community_takedown', 'on', true);
+  UPDATE public.community_takedown_appeals SET status = 'declined', decided_by = actor, decided_at = now() WHERE id = p_id AND status = 'open' RETURNING tenant_id INTO tenant;
+  PERFORM set_config('app.community_takedown', '', true);
+  IF tenant IS NULL THEN RETURN false; END IF;
+  PERFORM public.platform_staff_log(actor, 'community.appeal.declined', 'community_takedown_appeal', p_id::text, tenant);
+  RETURN true;
+END $$;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.platform_community_appeal_decline(uuid) FROM PUBLIC;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.platform_community_appeal_decline(uuid) TO harvest_app;--> statement-breakpoint
+-- Founder answers, part 2: while Harvest pauses a community its forum and chat are read-only for everyone, owners and admins included, whatever path
+-- the write takes (member definers, chat definers, the ministry's staff path). New rows are refused; an update may change only the columns an account
+-- deletion clears or a purge recounts (reply counts, revision numbers). Deletions (retention, account erasure) still run. The same neutral answer as a missing community (SQLSTATE P0404).
+CREATE FUNCTION public.community_harvest_write_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+  IF public.community_harvest_hidden(NEW.community_id) AND (TG_OP = 'INSERT'
+      OR (to_jsonb(NEW) - ARRAY['author_id', 'user_id', 'sender_id', 'updated_at', 'reply_count', 'rev']) IS DISTINCT FROM (to_jsonb(OLD) - ARRAY['author_id', 'user_id', 'sender_id', 'updated_at', 'reply_count', 'rev'])) THEN
+    RAISE EXCEPTION 'community unavailable' USING ERRCODE = 'P0404';
+  END IF;
+  RETURN NEW;
+END $$;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.community_harvest_write_guard() FROM PUBLIC, harvest_app;--> statement-breakpoint
+-- Part 3: a paused community takes no new members and no new or resubmitted applications, through any path (join, invitation, approval).
+CREATE FUNCTION public.community_harvest_join_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+  IF public.community_harvest_hidden(NEW.community_id) AND (TG_OP = 'INSERT'
+      OR (NEW.status IS DISTINCT FROM OLD.status AND NEW.status IN ('active', 'pending', 'info_requested', 'approved'))) THEN
+    RAISE EXCEPTION 'community unavailable' USING ERRCODE = 'P0404';
+  END IF;
+  RETURN NEW;
+END $$;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.community_harvest_join_guard() FROM PUBLIC, harvest_app;--> statement-breakpoint
+DO $$ DECLARE rel text; BEGIN
+  FOREACH rel IN ARRAY ARRAY['community_posts','community_comments','community_likes','community_messages','community_message_reactions','community_dm_messages'] LOOP
+    EXECUTE format('CREATE TRIGGER community_harvest_write_guard BEFORE INSERT OR UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.community_harvest_write_guard()', rel);
+  END LOOP;
+  FOREACH rel IN ARRAY ARRAY['community_memberships','community_applications'] LOOP
+    EXECUTE format('CREATE TRIGGER community_harvest_join_guard BEFORE INSERT OR UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.community_harvest_join_guard()', rel);
+  END LOOP;
+END $$;--> statement-breakpoint
+-- Chat and private messages: no chat role in a paused community, so owners and admins cannot open chat either (settings stay open to them). Patched
+-- on the live definition (0057, rewritten by 0113) so earlier rewrites are kept; the migration fails if the body no longer has the expected shape.
+DO $$ DECLARE def text; patched text; BEGIN
+  def := pg_get_functiondef('public.community_chat_role(uuid,uuid,text)'::regprocedure);
+  patched := regexp_replace(def, '\mBEGIN\M', E'BEGIN\n IF public.community_harvest_hidden(p_community) THEN RETURN NULL; END IF;');
+  IF patched = def OR position('p_community uuid' in def) = 0 THEN RAISE EXCEPTION '0137: community_chat_role has an unexpected shape'; END IF;
+  EXECUTE patched;
+END $$;--> statement-breakpoint
+-- Reviewer (#324): owner-role readers bypass the application's row policies, so the email digest leaves out the titles of posts Harvest hid, and link
+-- in bio leaves out paused communities. Patched on the live definitions (other open PRs redefine bio_public_page_scoped); each patch must apply.
+DO $$ DECLARE def text; patched text; fn regprocedure; n integer := 0; BEGIN
+  def := pg_get_functiondef('public.community_email_claim(integer)'::regprocedure);
+  patched := replace(def, 'CASE WHEN p.removed_at IS NULL AND p.held_at IS NULL THEN p.title END',
+    'CASE WHEN p.removed_at IS NULL AND p.held_at IS NULL AND NOT public.community_harvest_hidden(p.id) THEN p.title END');
+  IF (length(patched) - length(def)) <> 2 * length(' AND NOT public.community_harvest_hidden(p.id)') THEN RAISE EXCEPTION '0137: community_email_claim has an unexpected shape'; END IF;
+  EXECUTE patched;
+  FOR fn IN SELECT p.oid::regprocedure FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = 'bio_public_page_scoped' LOOP
+    def := pg_get_functiondef(fn);
+    patched := replace(def, $s$c.status = 'published' AND c.visibility <> 'hidden'$s$, $s$c.status = 'published' AND c.visibility <> 'hidden' AND NOT public.community_harvest_hidden(c.id)$s$);
+    IF patched = def THEN RAISE EXCEPTION '0137: bio_public_page_scoped has an unexpected shape'; END IF;
+    EXECUTE patched; n := n + 1;
+  END LOOP;
+  IF n = 0 THEN RAISE EXCEPTION '0137: bio_public_page_scoped not found'; END IF;
+END $$;

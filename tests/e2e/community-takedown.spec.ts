@@ -148,7 +148,22 @@ test("report, staff pause and restore a community, hide and restore a post", asy
     await audit(member.page, "member-paused");
     await go(page, `/workspaces/${tenant}/communities/${community.id}/edit`);
     await expect(page.locator("[data-harvest-paused]")).toContainText("Reason: Fundraising outside Harvest's rules");
+    await expect(page.getByRole("button", { name: "Request review" })).toBeVisible();
     await audit(page, "owner-paused");
+    // The owner asks for a review; staff see it next to the report and the pause.
+    await page.getByRole("button", { name: "Request review" }).click();
+    const review = page.getByRole("dialog", { name: "Request a review" });
+    await review.getByLabel("What did you change?").fill("We removed the outside fundraiser and the private message requests.");
+    await audit(page, "owner-request-review-dialog");
+    await review.getByRole("button", { name: "Send request" }).click();
+    await expect(page.locator("[data-review-requested]")).toContainText("Review requested", { timeout: 120_000 });
+    await expect(page.getByRole("button", { name: "Request review" })).toHaveCount(0);
+    await audit(page, "owner-review-requested");
+    await go(s, "/platform/communities");
+    await s.getByRole("tab", { name: /Open/ }).click();
+    await expect(s.locator("[data-community-appeal]")).toContainText("We removed the outside fundraiser");
+    await expect(s.locator("[data-community-appeal]")).toContainText("Open");
+    await audit(s, "staff-queue-appeal");
 
     // 5. Restore: everything comes back.
     await go(s, "/platform/communities");
@@ -194,6 +209,8 @@ test("report, staff pause and restore a community, hide and restore a post", asy
 
     const actions = (await admin.q<{ action: string }>("select action from platform_staff_audit where action like 'community.takedown.%' and target_id = any($1) order by created_at", [[community.id, post.id]])).map((r) => r.action);
     expect(actions).toEqual(["community.takedown.hide", "community.takedown.restore", "community.takedown.hide", "community.takedown.restore"]);
+    expect((await admin.q<{ status: string }>("select status from community_takedown_appeals where community_id = $1", [community.id])).map((r) => r.status)).toEqual(["restored"]);
+    // While paused nobody could join; after the restore the forum takes posts again (checked above).
     expect(errors).toEqual([]);
   } finally {
     await admin.end();
