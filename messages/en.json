@@ -1,4 +1,11 @@
 {
+  "OwnershipTransfer": {
+    "ineligible_recipient": "Choose an active admin in this ministry.",
+    "pending_exists": "This ministry already has a pending ownership transfer.",
+    "expired": "This ownership offer has expired.",
+    "membership_changed": "A ministry membership changed. Ask the owner to send a new offer.",
+    "already_closed": "This ownership offer has already been closed."
+  },
   "Office": {
     "personalConnectionNotice": "Connect an account you use personally. Only you can access this connection in Harvest. Harvest fetches content when you open it and keeps connection details, activity records and references you choose to link. You can disconnect at any time. Connecting does not grant anyone permission to contact people.",
     "reviewRequired": "Review this message again before sending."
@@ -790,7 +797,7 @@
     "campaignNotFound": "Campaign not found",
     "dataExportLimited": "You can download your data 3 times an hour. Try again later.",
     "deleteAccountConfirm": "Type DELETE to confirm.",
-    "deleteAccountSoleOwner": "You are the only owner of a ministry. Contact Harvest support to transfer ownership first.",
+    "deleteAccountSoleOwner": "You are the only owner of a ministry. Offer ownership to a ministry admin and wait for them to accept before deleting your account.",
     "deleteAccountDisconnectFailed": "Could not disconnect your mail and calendar. Try again.",
     "blogHandleTaken": "Another ministry already uses this blog address.",
     "blogHandleInvalid": "Use 3 to 30 lower-case letters, numbers or single hyphens.",
@@ -10823,8 +10830,8 @@
     "keptAudit": "Security records of actions taken with your account, without your name or email",
     "keptMinistry": "Contact records a ministry keeps about you. Ask the ministry to remove them.",
     "soleOwnerTitle": "Transfer your ministries first",
-    "soleOwnerBody": "You are the only owner of these ministries. Ownership can't be transferred in the app yet: contact Harvest support to make someone else an owner, then come back.",
-    "soleOwnerShort": "You are the only owner of a ministry. Contact Harvest support to transfer ownership first.",
+    "soleOwnerBody": "You are the only owner of these ministries. Offer ownership to an admin in each ministry. You can delete your account once they accept.",
+    "soleOwnerShort": "You are the only owner of a ministry. Offer ownership to a ministry admin and wait for them to accept before deleting your account.",
     "typeToConfirm": "Type {word} to confirm",
     "deleteAccount": "Delete my account",
     "deleting": "Deleting…",

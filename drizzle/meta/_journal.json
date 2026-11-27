@@ -939,6 +939,13 @@
       "when": 1795787887914,
       "tag": "0136_account_deletion",
       "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1795793420091,
+      "tag": "0150_ownership_transfer",
+      "breakpoints": true
     }
   ]
 }

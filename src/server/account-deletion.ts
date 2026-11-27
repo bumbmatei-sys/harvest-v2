@@ -20,6 +20,16 @@ export type ObjectDeleter = { deleteObject(key: string): Promise<void> };
 export type OfficeRevoker = { provider: Pick<OfficeProvider, "id" | "disconnect">; credential: Credential } | null;
 type OfficeConnectionRow = { id: string; provider: string; kind: "mail" | "calendar" | "files"; ref: string; platform: "google" | "microsoft" | null; profileRef: string | null };
 
+const transferSteps = (ministries: SoleOwnerMinistry[]) => ministries.map(({ id, name }) => ({
+  id, name, transferEndpoint: `/api/workspaces/${id}/ownership-transfer`,
+}));
+const soleOwnerConflict = (ministries: SoleOwnerMinistry[]) => new AccessError(409, message("Errors.deleteAccountSoleOwner"), {
+  code: "SOLE_OWNER", ministries: ministries.length, ownershipTransfers: transferSteps(ministries),
+});
+export async function accountDeletionBlockers(db: Database, userId: string) {
+  return { ownershipTransfers: transferSteps(await soleOwnerMinistries(db, userId)) };
+}
+
 const disconnectFailed = () => new AccessError(409, message("Errors.deleteAccountDisconnectFailed"), { code: "OFFICE_DISCONNECT_FAILED" });
 /**
  * Revoke every mail, calendar and files connection the person owns at its provider, before anything is deleted: Harvest keeps only an account
@@ -61,10 +71,10 @@ export async function deleteMyAccount(db: Database, userId: string, signedInAt: 
   if (!input.success) throw new AccessError(400, message("Errors.deleteAccountConfirm"), { code: "CONFIRMATION_REQUIRED" });
   // Refuse a sole owner before revoking anything; the database checks again under lock.
   const blockers = await soleOwnerMinistries(db, userId);
-  if (blockers.length) throw new AccessError(409, message("Errors.deleteAccountSoleOwner"), { code: "SOLE_OWNER", ministries: blockers.length });
+  if (blockers.length) throw soleOwnerConflict(blockers);
   await revokeOfficeConnections(db, userId, office);
   const result = await withUser(db, userId, async (tx) => (await tx.execute<{ v: Outcome }>(sql`select public.account_delete(${input.data.confirm}) as v`)).rows[0].v);
-  if (result.outcome === "sole_owner") throw new AccessError(409, message("Errors.deleteAccountSoleOwner"), { code: "SOLE_OWNER", ministries: result.ministries.length });
+  if (result.outcome === "sole_owner") throw soleOwnerConflict(result.ministries);
   if (result.outcome === "invalid") throw new AccessError(400, message("Errors.deleteAccountConfirm"), { code: "CONFIRMATION_REQUIRED" });
   if (result.outcome !== "deleted") throw new AccessError(404, message("Errors.accountNotFound"));
   let removed = 0;

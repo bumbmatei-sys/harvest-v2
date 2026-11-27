@@ -100,10 +100,32 @@ export const workspaceMembers = pgTable("workspace_members", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   userId: text("user_id").notNull().references(() => users.id),
   roleId: text("role_id").notNull().references(() => roles.id),
+  revision: uuid("revision").defaultRandom().notNull(),
   // Founder decision (25 Nov): an admin created with this flag acts like an owner for granting, changing and removing admins (never for the owner). Admin only.
   canManageAdmins: boolean("can_manage_admins").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.userId] }), index("workspace_members_user_idx").on(t.userId, t.tenantId), check("workspace_member_admins_flag", sql`${t.canManageAdmins} = false or ${t.roleId} = 'admin'`)]);
+export const workspaceOwnershipOffers = pgTable("workspace_ownership_offers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  fromUserId: text("from_user_id").notNull().references(() => users.id),
+  toUserId: text("to_user_id").notNull().references(() => users.id),
+  fromRevision: uuid("from_revision").notNull(),
+  toRevision: uuid("to_revision").notNull(),
+  status: text("status").notNull().default("pending"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("workspace_ownership_one_offer").on(t.tenantId).where(sql`${t.status} = 'pending'`),
+  check("workspace_ownership_distinct_members", sql`${t.fromUserId} <> ${t.toUserId}`),
+  check("workspace_ownership_offer_status", sql`${t.status} in ('pending','accepted','cancelled','declined','expired','membership_changed')`),
+]);
+export const workspaceOwnershipGrants = pgTable("workspace_ownership_grants", {
+  token: uuid("token").primaryKey(),
+  tenantId: uuid("tenant_id").notNull(),
+  actorId: text("actor_id").notNull(),
+  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+});
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id"),
   // Null identifies an automatic follow-up action; application inserts still require the session actor (RLS).
@@ -654,13 +676,14 @@ export const crmNotes = pgTable("crm_notes", {
   check("crm_note_target", sql`num_nonnulls(${t.contactId}, ${t.companyId}, ${t.opportunityId}) = 1`),
   check("crm_note_body", sql`length(btrim(${t.body})) between 1 and 10000`),
   check("crm_note_version", sql`${t.version} >= 1`)]);
-export const crmNotificationKinds = ["task_assigned", "task_due", "task_overdue"] as const;
+export const crmNotificationKinds = ["task_assigned", "task_due", "task_overdue", "ownership_transfer"] as const;
 export const crmNotifications = pgTable("crm_notifications", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
   recipientUserId: text("recipient_user_id").notNull().references(() => users.id),
   actorUserId: text("actor_user_id").references(() => users.id),
   kind: text("kind").$type<typeof crmNotificationKinds[number]>().notNull(),
-  taskId: uuid("task_id").notNull(),
+  taskId: uuid("task_id"),
+  ownershipOfferId: uuid("ownership_offer_id").references(() => workspaceOwnershipOffers.id),
   // The due time a due/overdue notice was generated for; with the task, recipient and kind it is the dedupe key.
   dueAt: timestamp("due_at", { withTimezone: true }),
   readAt: timestamp("read_at", { withTimezone: true }),
@@ -669,8 +692,9 @@ export const crmNotifications = pgTable("crm_notifications", {
   foreignKey({ columns: [t.tenantId, t.taskId], foreignColumns: [crmTasks.tenantId, crmTasks.id] }),
   index("crm_notifications_recipient_idx").on(t.tenantId, t.recipientUserId, t.readAt, t.createdAt),
   uniqueIndex("crm_notifications_due_unique").on(t.tenantId, t.taskId, t.recipientUserId, t.kind, t.dueAt).where(sql`${t.kind} in ('task_due', 'task_overdue')`),
-  check("crm_notification_kind", sql`${t.kind} in ('task_assigned', 'task_due', 'task_overdue')`),
-  check("crm_notification_due_at", sql`(${t.kind} = 'task_assigned') = (${t.dueAt} is null)`)]);
+  check("crm_notification_target", sql`num_nonnulls(${t.taskId}, ${t.ownershipOfferId}) = 1 and (${t.kind} = 'ownership_transfer') = (${t.ownershipOfferId} is not null)`),
+  check("crm_notification_kind", sql`${t.kind} in ('task_assigned', 'task_due', 'task_overdue', 'ownership_transfer')`),
+  check("crm_notification_due_at", sql`(${t.kind} in ('task_assigned', 'ownership_transfer')) = (${t.dueAt} is null)`)]);
 // Per-person on/off for each due/overdue kind in one ministry (default on; in-app only).
 export const crmNotificationPreferences = pgTable("crm_notification_preferences", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
