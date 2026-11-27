@@ -1,8 +1,10 @@
 import { sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { testDatabase } from "../database";
-import { users } from "../../src/db/schema";
+import * as schema from "../../src/db/schema";
 import { createWorkspace } from "../../src/server/workspaces";
 import { accountDeletionBlockers, deleteMyAccount } from "../../src/server/account-deletion";
 import { withTenant } from "../../src/server/tenancy";
@@ -14,7 +16,7 @@ const offer = () => ownershipTransfer(f.db, owner, tenant, { action: "offer", re
 
 beforeAll(async () => {
   f = await testDatabase({ migrationOwner: true });
-  for (const id of [owner, admin, member, outsider]) await f.db.insert(users).values({ id, name: id, email: `${id}@example.invalid`, emailVerified: true });
+  for (const id of [owner, admin, member, outsider]) await f.db.insert(schema.users).values({ id, name: id, email: `${id}@example.invalid`, emailVerified: true });
   tenant = (await createWorkspace(f.db, owner, "Transfer Ministry", "church")).tenantId;
   other = (await createWorkspace(f.db, outsider, "Other Ministry", "church")).tenantId;
   await f.admin.query("insert into workspace_members(tenant_id,user_id,role_id) values ($1,$2,'admin'), ($1,$3,'member'), ($4,$2,'admin')", [tenant, admin, member, other]);
@@ -63,8 +65,10 @@ it("commits one concurrent acceptance, audits and notifies both people, and unlo
     { id: tenant, name: "Transfer Ministry", transferEndpoint: `/api/workspaces/${tenant}/ownership-transfer` },
   ]);
   await expect(deleteMyAccount(f.db, owner, now, { confirm: "DELETE" }, null, now)).rejects.toMatchObject({ details: { code: "SOLE_OWNER" } });
-  const accept = () => ownershipTransfer(f.db, admin, tenant, { action: "accept", offerId: id! });
-  const both = await Promise.allSettled([accept(), accept()]);
+  const secondPool = new Pool({ connectionString: f.appURL, max: 1 });
+  const secondDb = drizzle(secondPool, { schema });
+  const accept = (db: typeof f.db) => ownershipTransfer(db, admin, tenant, { action: "accept", offerId: id! });
+  const both = await Promise.allSettled([accept(f.db), accept(secondDb)]).finally(() => secondPool.end());
   expect(both.map(({ status }) => status).sort()).toEqual(["fulfilled", "rejected"]);
   expect((await f.admin.query("select user_id,role_id from workspace_members where tenant_id=$1 order by user_id", [tenant])).rows)
     .toEqual([{ user_id: admin, role_id: "owner" }, { user_id: member, role_id: "member" }, { user_id: owner, role_id: "admin" }]);
