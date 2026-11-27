@@ -10,7 +10,7 @@ import { can } from "../../src/lib/permissions";
 import { navEntries } from "../../src/lib/navigation";
 import { blogEnabled, blogPublishWorkerEnabled } from "../../src/server/blog-mode";
 
-const migration = readFileSync("drizzle/0133_native_blog.sql", "utf8");
+const migration = readFileSync("drizzle/0135_native_blog.sql", "utf8");
 const picture = "7d2b9c1e-3f4a-4b5c-8d6e-9f0a1b2c3d4e";
 
 describe("addresses", () => {
