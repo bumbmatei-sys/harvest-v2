@@ -2610,6 +2610,58 @@ export const catalogEnrolments = pgTable("catalog_enrolments", {
   foreignKey({ columns: [t.tenantId, t.itemId], foreignColumns: [catalogItems.tenantId, catalogItems.id] }),
 ]);
 
+// 0190 product and course landing page ("Sales page"). One row per course or download, public only while the item is published and visible
+// (public.catalog_landing). The price is shown only: checkout stays off until the ministry can take payments, and a priced item cannot be
+// enrolled through the free flow (catalog_access refuses it).
+export const catalogLandings = pgTable("catalog_landings", {
+  tenantId: uuid("tenant_id").notNull(), itemId: uuid("item_id").notNull(),
+  subtitle: text("subtitle").notNull().default(""),
+  body: jsonb("body").$type<import("../lib/docs").DocContent>(),
+  included: text("included").array().notNull().default(sql`ARRAY[]::text[]`),
+  aboutHeading: text("about_heading").notNull().default(""),
+  aboutBody: text("about_body").notNull().default(""),
+  aboutPhotoId: uuid("about_photo_id"),
+  faq: jsonb("faq").$type<{ question: string; answer: string }[]>().notNull().default(sql`'[]'::jsonb`),
+  ctaQuote: text("cta_quote").notNull().default(""),
+  ctaLabel: text("cta_label").notNull().default(""),
+  priceCents: integer("price_cents"), currency: text("currency"),
+  saleCents: integer("sale_cents"),
+  saleStartsAt: timestamp("sale_starts_at", { withTimezone: true }), saleEndsAt: timestamp("sale_ends_at", { withTimezone: true }),
+  version: integer("version").notNull().default(1),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId] }),
+  foreignKey({ columns: [t.tenantId, t.itemId], foreignColumns: [catalogItems.tenantId, catalogItems.id] }).onDelete("cascade"),
+  check("catalog_landing_text", sql`length(${t.subtitle}) <= 160 and length(${t.aboutHeading}) <= 120 and length(${t.aboutBody}) <= 1500
+    and length(${t.ctaQuote}) <= 280 and length(${t.ctaLabel}) <= 40 and cardinality(${t.included}) <= 12`),
+  check("catalog_landing_lists", sql`jsonb_typeof(${t.faq}) = 'array' and jsonb_array_length(${t.faq}) <= 12
+    and (${t.body} is null or (jsonb_typeof(${t.body}) = 'object' and octet_length(${t.body}::text) <= 65536))`),
+  check("catalog_landing_price", sql`(${t.priceCents} is null and ${t.currency} is null and ${t.saleCents} is null)
+    or (${t.priceCents} between 100 and 10000000 and ${t.currency} in ('USD','EUR','GBP'))`),
+  check("catalog_landing_sale", sql`(${t.saleCents} is null and ${t.saleStartsAt} is null and ${t.saleEndsAt} is null)
+    or (${t.saleCents} > 0 and ${t.saleCents} < ${t.priceCents} and ${t.saleStartsAt} is not null and ${t.saleEndsAt} > ${t.saleStartsAt})`),
+  check("catalog_landing_version", sql`${t.version} > 0`),
+]);
+
+// 0190 reviews of a course or download: one per person and item, editable, written only through public.catalog_review_save by someone with an
+// active entitlement. Owners and admins can hide one (audited). Account deletion removes the person's reviews (account_delete).
+export const catalogReviews = pgTable("catalog_reviews", {
+  tenantId: uuid("tenant_id").notNull(), itemId: uuid("item_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  rating: integer("rating").notNull(),
+  body: text("body").notNull().default(""),
+  hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+  hiddenBy: text("hidden_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId, t.userId] }),
+  foreignKey({ columns: [t.tenantId, t.itemId], foreignColumns: [catalogItems.tenantId, catalogItems.id] }).onDelete("cascade"),
+  index("catalog_reviews_item_idx").on(t.tenantId, t.itemId, t.updatedAt),
+  check("catalog_review_rating", sql`${t.rating} between 1 and 5`),
+  check("catalog_review_body", sql`length(${t.body}) <= 1000 and translate(${t.body}, E'\\n\\r\\t', '') !~ '[[:cntrl:]]'`),
+]);
+
 export const communityProductLinks = pgTable("community_product_links", {
   tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(), itemId: uuid("item_id").notNull(),
   position: integer("position").notNull().default(0),

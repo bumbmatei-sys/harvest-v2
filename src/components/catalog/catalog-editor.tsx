@@ -26,6 +26,7 @@ import { CatalogFilePicker } from "@/components/catalog/catalog-file-picker";
 import { CatalogPreview } from "@/components/catalog/catalog-preview";
 import { LessonListEditor } from "@/components/catalog/lesson-list-editor";
 import { ProgressSummaryCard } from "@/components/catalog/progress-summary";
+import { SalesPageEditor, type SalesLanding, type SalesReview } from "@/components/catalog/sales-page-editor";
 import type { ProgressSummary } from "@/lib/course-progress";
 import { useRequest } from "@/hooks/use-request";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
@@ -44,8 +45,10 @@ type Moved = { id: string; version: number; state: CatalogState };
  * sends it with the expected version (a stale version is "changed elsewhere, reload"), and Publish saves first. Creating the draft opens the editor for it.
  * Owners and admins edit; everyone else reads. Free only: there is no price, checkout or coupon. The server decides everything; this only guides.
  */
-export function CatalogEditor({ tenantId, kind, initial, communities, files: initialFiles, host, writable, progress = null }: {
+export function CatalogEditor({ tenantId, kind, initial, communities, files: initialFiles, host, writable, progress = null, sales = null }: {
   tenantId: string; kind: CatalogKind; initial: CatalogItem | null; communities: Shelf[]; files: CatalogFile[]; host: string; writable: boolean;
+  /** The Sales page step (landing, reviews and the ready images for the photo); owners and admins of a saved item. */
+  sales?: { landing: SalesLanding; reviews: SalesReview[]; images: { id: string; name: string }[] } | null;
   /** Owners and admins of a course: aggregate learner progress, counts only. */ progress?: ProgressSummary | null;
 }) {
   const t = useTranslations("Catalog.editor"), shared = useTranslations("Catalog"), request = useRequest(), router = useRouter(), hosted = useEditorHosted();
@@ -114,8 +117,8 @@ export function CatalogEditor({ tenantId, kind, initial, communities, files: ini
     setShelves((current) => (on ? [...current, community.id] : current.filter((id) => id !== community.id)));
   }
 
-  const steps = editorSteps.map((id) => ({ id, label: label(id), disabled: id === "publish" && !item,
-    done: id === "details" ? checklist[0].done && checklist[1].done : id === "content" ? checklist[2].done : id === "access" ? true : state === "published",
+  const steps = editorSteps.map((id) => ({ id, label: label(id), disabled: (id === "publish" || id === "sales") && !item,
+    done: id === "details" ? checklist[0].done && checklist[1].done : id === "content" ? checklist[2].done : id === "access" ? true : id === "sales" ? (sales?.landing.version ?? 0) > 0 : state === "published",
     attention: attempted && ((id === "details" && (found.includes("title") || found.includes("address"))) || (id === "content" && found.some((problem) => contentProblems.includes(problem)))) }));
   const sidebar = { typeLabel: shared(`kinds.${kind}`), status: { kind: state === "published" ? "live" as const : "draft" as const, label: shared(`states.${state}`) }, back: { href: listHref, label: listLabel },
     openPage: state === "published" && item ? { href: publicPath(kind, form.slug), label: t("openPage") } : undefined, dirty };
@@ -171,6 +174,9 @@ export function CatalogEditor({ tenantId, kind, initial, communities, files: ini
             {communities.length > 0 && state === "published" && <p className="text-sm text-muted-foreground">{t("shelfNote")}</p>}
           </CardContent></Card>
       </>}
+      {step === "sales" && (item && sales
+        ? <SalesPageEditor tenantId={tenantId} itemId={item.id} initial={sales.landing} reviews={sales.reviews} images={sales.images} disabled={!editable} />
+        : <Alert><AlertDescription>{t("sales.needsItem")}</AlertDescription></Alert>)}
       {step === "publish" && progress && <ProgressSummaryCard summary={progress} />}
       {step === "publish" && <ul className="space-y-2" aria-label={t("checklist")}>
         {checklist.map((check) => <li key={check.id} className="flex min-h-11 flex-wrap items-center gap-3 rounded-md border px-3">

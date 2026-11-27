@@ -13,6 +13,10 @@ import { uuidInput } from "@/lib/contact-input";
 import type { CatalogFile, CatalogItem } from "@/lib/catalog";
 import { AccessState } from "@/components/access-state";
 import { CatalogEditor } from "@/components/catalog/catalog-editor";
+import type { SalesLanding, SalesReview } from "@/components/catalog/sales-page-editor";
+import { getLanding, listLandingImages } from "@/server/catalog-landing";
+
+type SalesData = { landing: SalesLanding; reviews: SalesReview[]; images: { id: string; name: string }[] };
 
 export async function generateMetadata(): Promise<Metadata> { return { title: (await getTranslations("Catalog"))("productsTitle") }; }
 
@@ -31,7 +35,10 @@ export default async function CatalogItemPage({ params }: { params: Promise<{ te
   const [communities, files] = writable ? await Promise.all([listCommunities(db, session.user.id, tenantId).catch(denied),
     item.kind === "download" ? listFiles(db, session.user.id, tenantId).catch(denied) : Promise.resolve([])]) : [[], []];
   const progress = writable && item.kind === "course" ? await getCatalogProgress(db, session.user.id, tenantId, itemId).catch(denied) : null;
+  // The Sales page step: the landing as saved, its reviews (hidden ones too) and the ready images the photo can use. Owners and admins only.
+  const [landing, images] = writable ? await Promise.all([getLanding(db, session.user.id, tenantId, itemId).catch(denied), listLandingImages(db, session.user.id, tenantId).catch(denied)]) : [null, null];
+  const sales = landing ? JSON.parse(JSON.stringify({ landing: landing.landing, reviews: landing.reviews, images: images ?? [] })) as SalesData : null;
   return <CatalogEditor progress={progress} tenantId={tenantId} kind={item.kind} host={workspace.name} writable={writable}
     initial={JSON.parse(JSON.stringify(item)) as CatalogItem} communities={(communities ?? []).map(({ id, name }) => ({ id, name }))}
-    files={JSON.parse(JSON.stringify(files ?? [])) as CatalogFile[]} />;
+    files={JSON.parse(JSON.stringify(files ?? [])) as CatalogFile[]} sales={sales} />;
 }

@@ -99,8 +99,8 @@ export function move<T>(list: readonly T[], from: number, to: number): T[] {
   return next;
 }
 
-export type EditorStepId = "details" | "content" | "access" | "publish";
-export const editorSteps: readonly EditorStepId[] = ["details", "content", "access", "publish"];
+export type EditorStepId = "details" | "content" | "access" | "sales" | "publish";
+export const editorSteps: readonly EditorStepId[] = ["details", "content", "access", "sales", "publish"];
 /** The content step is lessons for a course and files for a download. */
 export const contentStep = (kind: CatalogKind) => (kind === "course" ? "lessons" : "files");
 

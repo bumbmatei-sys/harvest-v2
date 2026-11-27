@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { Transaction } from "../../db/client";
-import { catalogItems, communities, discoverControls, discoverListings, workspaces } from "../../db/schema";
+import { catalogItems, catalogLandings, communities, discoverControls, discoverListings, workspaces } from "../../db/schema";
 import { materialHash, publicSummary, searchText, type DiscoverType } from "../../lib/discover";
 
 type Source = { name: string; summary: string | null; slug: string; free: boolean; published: boolean; optIn: boolean | null; pricing: string; admission: string[]; tagline: string | null };
@@ -47,6 +47,9 @@ async function load(tx: Transaction, tenant: string, type: DiscoverType, id: str
     return c ? { name: c.name, summary: c.tagline, tagline: c.tagline, slug: c.slug, free: c.pricing === "free", pricing: c.pricing, admission: [], published: c.status === "published" && c.visibility === "listed", optIn: c.discoverOptIn } : null;
   }
   const [item] = await tx.select().from(catalogItems).where(and(eq(catalogItems.tenantId, tenant), eq(catalogItems.id, id), eq(catalogItems.kind, type === "course" ? "course" : "download")));
-  // Every course and download is free until the founder opens an LLC (16 Nov exception).
-  return item ? { name: item.title, summary: item.summary, tagline: null, slug: item.slug, free: true, pricing: "free", admission: [], published: item.state === "published" && item.visibility === "listed", optIn: null } : null;
+  if (!item) return null;
+  // A price on the landing page (shown only; checkout stays off until the ministry can take payments) lists the item as paid.
+  const [landing] = await tx.select({ price: catalogLandings.priceCents }).from(catalogLandings).where(and(eq(catalogLandings.tenantId, tenant), eq(catalogLandings.itemId, id)));
+  const free = landing?.price == null;
+  return { name: item.title, summary: item.summary, tagline: null, slug: item.slug, free, pricing: free ? "free" : "paid", admission: [], published: item.state === "published" && item.visibility === "listed", optIn: null };
 }

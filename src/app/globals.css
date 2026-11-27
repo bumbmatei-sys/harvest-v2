@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Screenshots and docs are not UI source: without this, every evidence screenshot an e2e run writes under docs/ rebuilds the CSS and reloads open dev pages. */
+@source not "../../docs";
 @custom-variant dark (&:is(.dark *));
 
 :root, .theme-preview {

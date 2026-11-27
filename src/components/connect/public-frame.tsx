@@ -4,7 +4,9 @@ import { Wheat } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-export async function PublicFrame({ children,personal=false,externalOffers=false,notice=true }: { children: React.ReactNode;personal?:boolean;externalOffers?:boolean;notice?:boolean }) {
+export async function PublicFrame({ children,personal=false,externalOffers=false,notice=true,header,footer }: { children: React.ReactNode;personal?:boolean;externalOffers?:boolean;notice?:boolean;
+  /** Replaces the brand row (a public page with its own top bar, such as a course or product landing page). */ header?:React.ReactNode;
+  /** Content of the shared footer row, shown in place of the notice (the landing page's creator and seller line). */ footer?:React.ReactNode }) {
   const t = await getTranslations("Connect");
   const landing=await getTranslations("LandingEditor");
   const brand=personal?(await getTranslations("Invitations"))("personalBrand"):t("brand");
@@ -12,12 +14,12 @@ export async function PublicFrame({ children,personal=false,externalOffers=false
     <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:p-3">{t("skipToContent")}</a>
     <header className="border-b">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-5 lg:px-6">
-        <p className="flex items-center gap-2 text-base font-semibold"><Wheat className="size-6 text-foreground" aria-hidden="true" />{brand}</p>
-        <Badge variant="outline" lang="en">{t("language")}</Badge>
+        {header ?? <><p className="flex items-center gap-2 text-base font-semibold"><Wheat className="size-6 text-foreground" aria-hidden="true" />{brand}</p>
+        <Badge variant="outline" lang="en">{t("language")}</Badge></>}
       </div>
     </header>
     <main id="main-content" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-10 outline-none sm:py-16 lg:px-6">{children}</main>
-    {notice&&<footer className="mx-auto max-w-6xl border-t px-4 py-6 text-sm text-muted-foreground lg:px-6"><p>{externalOffers?landing("offersNotice"):t("freeNotice")}</p></footer>}
+    {(notice||footer)&&<footer className="mx-auto max-w-6xl border-t px-4 py-6 text-sm text-muted-foreground lg:px-6">{footer??<p>{externalOffers?landing("offersNotice"):t("freeNotice")}</p>}</footer>}
   </div>;
 }
 
