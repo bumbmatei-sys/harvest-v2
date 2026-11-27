@@ -2,8 +2,8 @@ import { vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { bioBlockSchema, bioDefinitionSchema, bioLimits, bioReservedHandles, emptyBioDefinition, fieldIssues, handleProblem, messageNotice, moveItem, newBlockId,
-  publishIssues, safeHttpsUrl, suggestHandle, bioMessageSchema } from "../../src/lib/link-in-bio";
+import { bioBlockSchema, bioDefinitionSchema, bioLimits, bioReservedHandles, blockShown, emptyBioDefinition, fieldIssues, handleProblem, isLegacyTabId, messageNotice, moveItem, newBlockId,
+  publishIssues, shownTabs, oneLine, safeHttpsUrl, suggestHandle, bioMessageSchema } from "../../src/lib/link-in-bio";
 import { BIO_MESSAGES_PRODUCTION_ENABLED, bioMessagesKey, linkInBioEnabled } from "../../src/server/link-in-bio-mode";
 import { bioVisitorKey } from "../../src/server/link-in-bio-public";
 import { issueBioProof } from "../../src/server/link-in-bio";
@@ -65,13 +65,74 @@ describe("definition", () => {
   it("reports per-field problems and publish blockers", () => {
     const draft = { ...base, blocks: [{ ...(link() as object), url: "nope" }] } as unknown as ReturnType<typeof emptyBioDefinition>;
     expect(fieldIssues(draft)).toEqual({ abcd1234: "url" });
-    expect(publishIssues({ ...emptyBioDefinition(""), blocks: [] })).toEqual(["name", "empty"]);
-    expect(publishIssues(bioDefinitionSchema.parse({ ...base, blocks: [link({ hidden: true })] }))).toEqual(["empty"]);
+    expect(publishIssues({ ...emptyBioDefinition(""), blocks: [] }, { hasPhoto: true })).toEqual(["name", "empty"]);
+    expect(publishIssues(bioDefinitionSchema.parse({ ...base, blocks: [link({ hidden: true })] }), { hasPhoto: true })).toEqual(["empty"]);
+    // The profile photo is required (founder decision 25 Nov).
+    expect(publishIssues(bioDefinitionSchema.parse(base), { hasPhoto: false })).toEqual(["photo"]);
+    expect(publishIssues(bioDefinitionSchema.parse(base), { hasPhoto: true })).toEqual([]);
   });
   it("moves items like the drag and the buttons do", () => {
     expect(moveItem(["a", "b", "c"], 0, 2)).toEqual(["b", "c", "a"]); expect(moveItem(["a", "b"], 0, 5)).toEqual(["a", "b"]);
     const values = [0, 0, 0, 0, 0, 0, 0, 0, 0.5]; let n = 0;
     expect(newBlockId(["aaaaaaaa"], () => values[n++ % 9] ?? 0.5)).not.toBe("aaaaaaaa");
+  });
+});
+
+describe("header and tabs (rework, 25 Nov)", () => {
+  const base = { ...emptyBioDefinition("Grace Church"), blocks: [link()] };
+  const tab = (id: string, label = "", hidden = false) => ({ id, label, hidden });
+  it("fills the new fields of a page saved before the rework", () => {
+    const old = { kind: "bio-v1", name: "Grace", subtitle: "", bio: "", details: [], tabs: [{ id: "home", hidden: false }, { id: "partnership", hidden: false }], scheme: "auto", buttons: "filled", socials: [], blocks: [link()] };
+    const parsed = bioDefinitionSchema.parse(old);
+    expect(parsed).toMatchObject({ layout: "tabs", cover: true, photoAlign: "center", iconStyle: "outline" });
+    expect(parsed.tabs).toEqual([tab("home"), tab("partnership")]);
+    expect(fieldIssues(parsed)).toEqual({});
+  });
+  it("takes up to six tabs with eight-character or original ids, unique and named", () => {
+    const six = ["home", "abcdefgh", "ijklmnop", "qrstuvwx", "yz012345", "6789abcd"].map((id) => tab(id, "Tab"));
+    expect(bioDefinitionSchema.safeParse({ ...base, tabs: six }).success).toBe(true);
+    expect(bioDefinitionSchema.safeParse({ ...base, tabs: [...six, tab("zzzzzzzz", "Seven")] }).success).toBe(false);
+    for (const bad of ["Home", "abc", "has space", "ABCDEFGH", "toolongid"]) expect(bioDefinitionSchema.safeParse({ ...base, tabs: [tab(bad, "x")] }).success).toBe(false);
+    expect(bioDefinitionSchema.safeParse({ ...base, tabs: [tab("home"), tab("home")] }).success).toBe(false);
+    expect(bioDefinitionSchema.safeParse({ ...base, tabs: [tab("abcdefgh", "x".repeat(bioLimits.tabLabel + 1))] }).success).toBe(false);
+    expect(bioDefinitionSchema.safeParse({ ...base, tabs: [tab("abcdefgh", "<b>")] }).success).toBe(false);
+    expect(bioDefinitionSchema.safeParse({ ...base, blocks: [link({ tab: "Bad tab" })] }).success).toBe(false);
+    // A tab the owner added needs a name; the two original tabs keep their default names.
+    const parsed = bioDefinitionSchema.parse({ ...base, tabs: [tab("home"), tab("abcdefgh", "  ")] });
+    expect(fieldIssues(parsed)).toEqual({ "tab:abcdefgh": "required" });
+    expect(fieldIssues({ ...parsed, layout: "single" })).toEqual({});
+  });
+  it("keeps one line of short bio, takes a subtitle as that line, and drops the details list (founder decision 27 Nov)", () => {
+    expect(bioDefinitionSchema.parse({ ...base, bio: "  Line one \n line two " })).toMatchObject({ bio: "Line one", subtitle: "", details: [] });
+    expect(bioDefinitionSchema.parse({ ...base, bio: "", subtitle: "Church planter" }).bio).toBe("Church planter");
+    expect(bioDefinitionSchema.parse({ ...base, bio: "x".repeat(400) }).bio).toHaveLength(bioLimits.bioLine);
+    expect(bioDefinitionSchema.parse({ ...base, details: [{ id: "dddddd01", kind: "location", value: "Lisbon", hidden: false }] }).details).toEqual([]);
+    expect(oneLine("\n\n  a  \nb")).toBe("a");
+  });
+  it("accepts only the known layout, photo position and icon style", () => {
+    for (const [key, ok, bad] of [["layout", "single", "grid"], ["photoAlign", "left", "right"], ["iconStyle", "color", "mono"], ["cover", false, "no"]] as const) {
+      expect(bioDefinitionSchema.safeParse({ ...base, [key]: ok }).success).toBe(true);
+      expect(bioDefinitionSchema.safeParse({ ...base, [key]: bad }).success).toBe(false);
+    }
+  });
+  it("shows a block only on a shown tab, or always in the single-page layout", () => {
+    const definition = bioDefinitionSchema.parse({ ...base, tabs: [tab("home"), tab("abcdefgh", "Give", true)] });
+    const onHidden = link({ id: "bbbbbbbb", tab: "abcdefgh" }) as { hidden: boolean; tab: string }, onMissing = link({ id: "cccccccc", tab: "zzzzzzzz" }) as { hidden: boolean; tab: string };
+    expect(blockShown(definition, link() as { hidden: boolean; tab: string })).toBe(true);
+    expect(blockShown(definition, onHidden)).toBe(false);
+    expect(blockShown(definition, onMissing)).toBe(false);
+    expect(blockShown({ ...definition, layout: "single" }, onHidden)).toBe(true);
+    expect(blockShown({ ...definition, layout: "single" }, { ...onHidden, hidden: true })).toBe(false);
+    const blocks = [link({ id: "aaaaaaaa" }), onHidden, onMissing].map((b) => b as { id: string; hidden: boolean; tab: string });
+    expect(shownTabs(definition, blocks).map((t) => [t.id, t.blocks.map((b) => b.id)])).toEqual([["home", ["aaaaaaaa"]]]);
+    expect(shownTabs({ ...definition, layout: "single" }, blocks).map((t) => [t.label, t.blocks.map((b) => b.id)])).toEqual([["", ["aaaaaaaa", "bbbbbbbb", "cccccccc"]]]);
+    expect(isLegacyTabId("home")).toBe(true); expect(isLegacyTabId("abcdefgh")).toBe(false);
+  });
+  it("keeps the database's block rule in step with the application's", () => {
+    const sql = readFileSync("drizzle/0139_bio_tabs_layout.sql", "utf8");
+    expect(sql).toMatch(/coalesce\(p_published->>'layout', 'tabs'\) = 'single'/);
+    expect(sql).toMatch(/p_kind = 'cover' AND \(page\.published->>'cover'\) = 'false'/);
+    expect(sql.split("\n").filter((line) => !line.startsWith("--")).join("\n")).not.toMatch(/SECURITY DEFINER/);
   });
 });
 
