@@ -74,16 +74,19 @@ it("builds idempotent direct charges with canonical server-side course pricing",
 it("verifies and deduplicates events, reconciles a late charge and issues receipts only to the donor", async () => {
   const gift = await startMinistryCheckout(f.db, donor, tenant, { kind: "donation", requestKey: "monthly-1", cadence: "monthly", amountMinor: "5000" });
   expect(gift).toMatchObject({ applicationFeeMinor: "0", mayNotBeTaxDeductible: true, cadence: "monthly" });
-  const paid = { id: "pi_synthetic", amount_received: 5000, currency: "usd", metadata: { harvest_intent_id: gift.id } };
-  const refund = { id: "re_synthetic", payment_intent: paid.id, status: "succeeded", amount: 1000, currency: "usd" };
+  const paid = { id: "pi_synthetic", latest_charge: "ch_synthetic", amount_received: 5000, currency: "usd", metadata: { harvest_intent_id: gift.id } };
+  const refund = { id: "re_synthetic", charge: paid.latest_charge, status: "succeeded", amount: 1000, currency: "usd" };
   expect((await send("evt_invalid", "payment_intent.succeeded", paid, { signed: false })).status).toBe(400);
   expect((await send("evt_replay", "payment_intent.succeeded", paid, { stamp: now - 301 })).status).toBe(400);
   expect(await outcome("evt_refund", "refund.created", refund)).toEqual({ outcome: "recorded" });
   expect(await outcome("evt_refund", "refund.created", refund)).toEqual({ outcome: "duplicate" });
   expect(await outcome("evt_same_refund", "refund.updated", refund)).toEqual({ outcome: "ignored" });
   expect(await outcome("evt_wrong_account", "payment_intent.succeeded", paid, { ministry: outside })).toEqual({ outcome: "ignored" });
+  expect(await outcome("evt_charge_before_intent", "charge.succeeded", {
+    id: paid.latest_charge, payment_intent: paid.id, amount: 5000, currency: "usd",
+  })).toEqual({ outcome: "ignored" });
   expect(await outcome("evt_paid", "payment_intent.succeeded", paid, { created: now - 10 })).toEqual({ outcome: "recorded" });
-  expect(await outcome("evt_second_invoice", "payment_intent.succeeded", { ...paid, id: "pi_next_month" })).toEqual({ outcome: "recorded" });
+  expect(await outcome("evt_second_invoice", "payment_intent.succeeded", { ...paid, id: "pi_next_month", latest_charge: "ch_next_month" })).toEqual({ outcome: "recorded" });
   const receipts = await ownDonationReceipts(f.db, donor);
   expect(receipts.items).toHaveLength(2);
   expect(receipts.items[0]).toMatchObject({ legalName: "Synthetic Missionary", amountMinor: "5000", currency: "USD", mayNotBeTaxDeductible: true });
@@ -91,7 +94,8 @@ it("verifies and deduplicates events, reconciles a late charge and issues receip
   await expect(donationManagementLink(f.db, outsider, receipts.items[0].id, { requestKey: "portal-1" })).rejects.toMatchObject({ status: 404 });
   await expect(donationManagementLink(f.db, donor, receipts.items[0].id, { requestKey: "portal-1" })).resolves.toMatchObject({ portalUrl: expect.stringContaining("example.invalid") });
   const ledger = await ministryFinanceLedger(f.db, admin, tenant);
-  expect(ledger.items.filter(row => row.paymentRef === paid.id).map(row => row.kind).sort()).toEqual(["charge", "refund"]);
+  const charge = ledger.items.find(row => row.kind === "charge" && row.paymentRef === paid.id);
+  expect(ledger.items.find(row => row.kind === "refund")).toMatchObject({ relatedChargeId: charge?.id, paymentRef: paid.latest_charge });
   await expect(ministryFinanceLedger(f.db, donor, tenant)).rejects.toMatchObject({ status: 404 });
   const events = await f.admin.query("select * from ministry_payment_events");
   expect(events.rows.every(row => Object.keys(row).sort().join(",") === "account_id,event_id,outcome,provider")).toBe(true);

@@ -17,6 +17,7 @@ const object = z.object({
   currency: currency.optional(),
   payment_intent: reference.nullish(),
   charge: reference.nullish(),
+  latest_charge: reference.nullish(),
   status: z.string().max(40).optional(),
   metadata: z.object({ harvest_intent_id: z.uuid().optional() }).optional(),
   charges_enabled: z.boolean().optional(),
@@ -79,12 +80,12 @@ function normalized(raw: unknown) {
       case "payment_intent.succeeded":
         kind = "charge";
         payment = value.id;
+        objectId = value.latest_charge ?? value.id;
         money = value.amount_received ?? null;
         break;
       case "charge.succeeded":
-        kind = "charge";
-        payment = value.payment_intent ?? value.id;
-        objectId = payment;
+        // The intent event supplies the checkout reference for intent-backed charges.
+        if (!value.payment_intent) { kind = "charge"; payment = value.id; }
         break;
       case "application_fee.created":
         kind = "application_fee";

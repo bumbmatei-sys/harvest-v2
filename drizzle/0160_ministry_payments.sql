@@ -294,7 +294,9 @@ BEGIN
       ELSIF p_kind IN ('charge','application_fee','refund','dispute_opened','dispute_won','dispute_lost','payout')
         AND p_object ~ '^[A-Za-z0-9_:-]{1,120}$' AND p_amount BETWEEN 0 AND 1000000000000 AND p_currency ~ '^[A-Z]{3}$'
         AND (p_kind = 'payout' OR p_payment ~ '^[A-Za-z0-9_:-]{1,120}$')
-        AND (p_kind <> 'charge' OR (p_amount > 0 AND (p_intent IS NULL OR
+        AND (p_kind <> 'charge' OR (p_amount > 0 AND NOT EXISTS (SELECT FROM public.ministry_payment_ledger
+          WHERE tenant_id = merchant.tenant_id AND account_id = p_account AND kind = 'charge' AND payment_ref = p_payment)
+          AND (p_intent IS NULL OR
           (intent.id IS NOT NULL AND intent.amount_minor = p_amount AND intent.currency = p_currency AND
             (intent.cadence = 'monthly' OR NOT EXISTS (SELECT FROM public.ministry_payment_ledger
               WHERE tenant_id = merchant.tenant_id AND intent_id = intent.id AND kind = 'charge')))))) THEN

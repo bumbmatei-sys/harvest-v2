@@ -7,7 +7,7 @@ Working migration `0160_ministry_payments`. Standard connected accounts are the 
 | `GET /api/workspaces/{tenantId}/payments` | Owners and admins see account readiness and conservative payment settings. |
 | `POST /api/workspaces/{tenantId}/payments` | Owners and admins can request an onboarding link with a request key, sync status, disconnect, or set a synthetic price for an existing course or product. |
 | `POST /api/public/ministries/{tenantId}/payments/checkout` | Signed-in fixture checkout. Send a request key and a one-time or monthly donation amount, or a course or product ID for server pricing. |
-| `GET /api/workspaces/{tenantId}/payments/ledger` | Owners and admins read a ministry's append-only provider facts. Refund, fee and dispute records can arrive before the related charge and share its provider payment reference. |
+| `GET /api/workspaces/{tenantId}/payments/ledger` | Owners and admins read a ministry's append-only provider facts. Refund, fee and dispute records can arrive before the related charge and reconcile by payment or charge reference when the charge arrives. |
 | `GET /api/account/donation-receipts` | The donor's own receipts with amount, currency, date, ministry legal name and the missionary tax notice flag. |
 | `POST /api/account/donation-receipts/{receiptId}/manage` | Request-key-protected synthetic management link for the donor's monthly gift. |
 | `POST /api/payments/stripe/connect-webhook` | Dedicated Connect identity and signing secret. The live route returns 404. Synthetic verification exercises signature age, tampering, event replay and idempotent append. The event inbox stores only IDs and fixed outcomes. |

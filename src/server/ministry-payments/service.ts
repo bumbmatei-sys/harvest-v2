@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../../db/client";
-import { auditLogs, catalogItems, ministryDonationReceipts, ministryPaymentAccounts, ministryPaymentLedger,
+import { auditLogs, catalogItems, ministryDonationReceipts, ministryPaymentAccounts,
   ministryPaymentOnboarding, ministryPaymentPrices } from "../../db/schema";
 import { idempotencyKeyInput } from "../../lib/fundraising";
 import { message } from "../../i18n/messages";
@@ -127,9 +127,23 @@ export async function startMinistryCheckout(db: Database, actor: string, tenant:
 
 export function ministryFinanceLedger(db: Database, actor: string, tenant: string) {
   return finance(db, actor, tenant, async (tx, id) => {
-    const rows = await tx.select().from(ministryPaymentLedger).where(eq(ministryPaymentLedger.tenantId, id))
-      .orderBy(desc(ministryPaymentLedger.occurredAt), desc(ministryPaymentLedger.id)).limit(100);
-    return { items: rows.map(({ amountMinor, ...row }) => ({ ...row, amountMinor: amountMinor.toString() })) };
+    const { rows } = await tx.execute<{
+      id: string; accountId: string; kind: string; amountMinor: string; currency: string; occurredAt: Date;
+      paymentRef: string | null; objectRef: string; relatedChargeId: string | null;
+    }>(sql`
+      SELECT e.id, e.account_id AS "accountId", e.kind, e.amount_minor::text AS "amountMinor", e.currency,
+        e.occurred_at AS "occurredAt", e.payment_ref AS "paymentRef", e.object_ref AS "objectRef",
+        COALESCE(CASE WHEN e.kind = 'charge' THEN e.id END, c.id) AS "relatedChargeId"
+      FROM public.ministry_payment_ledger e
+      LEFT JOIN LATERAL (
+        SELECT charge.id FROM public.ministry_payment_ledger charge
+        WHERE e.kind <> 'charge' AND charge.kind = 'charge' AND charge.tenant_id = e.tenant_id
+          AND charge.account_id = e.account_id AND charge.currency = e.currency
+          AND (charge.payment_ref = e.payment_ref OR charge.object_ref = e.payment_ref)
+        ORDER BY charge.occurred_at, charge.id LIMIT 1
+      ) c ON true
+      WHERE e.tenant_id = ${id}::uuid ORDER BY e.occurred_at DESC, e.id DESC LIMIT 100`);
+    return { items: rows };
   });
 }
 
