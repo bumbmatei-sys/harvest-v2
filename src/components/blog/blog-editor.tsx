@@ -126,7 +126,6 @@ export function BlogEditor({ tenantId, initial, origin }: { tenantId: string; in
   const url = `${origin}${blogPath(settings.handle, shownSlug || t("pending"))}`;
   const previewBody = bodyDirty ? null : body;
   const preview = <div className="space-y-4" data-blog-preview>
-    <p className="text-xs font-medium text-muted-foreground">{t("previewCard")}</p>
     <BlogArticleCard headingLevel={3} card={{ href: "#", title, excerpt: derivedExcerpt(fields.excerpt, previewBody ?? body), date: format.dateTime(new Date(post.publishedAt ?? post.publishAt ?? post.updatedAt), { dateStyle: "medium" }),
       dateTime: post.publishedAt ?? post.updatedAt, minutes: t("public.minutes", { count: Math.max(1, readingMinutes(previewBody ?? body)) }), coverUrl: cover.url }} />
     <p className="text-xs font-medium text-muted-foreground">{t("searchPreview")}</p>
