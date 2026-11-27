@@ -235,10 +235,9 @@ export async function getPublicBio(db: Database, handle: string, env: Record<str
       case "giving": return giving.length ? [{ type: "giving", id: block.id, title: block.title, methods: giving }] : [];
     }
   };
-  const details = definition.details.filter((item) => !item.hidden).map(({ id, kind, value }) => ({ id, kind, value }));
-  // A hidden tab, and a tab with nothing to show, never reach the visitor (the details list sits on the first tab).
-  const tabs = shownTabs(definition, definition.blocks).map((t) => ({ ...t, blocks: t.blocks.flatMap(project) })).filter((t, index) => t.blocks.length > 0 || (index === 0 && details.length > 0));
-  return { ministryName: row.result.ministryName, name: definition.name, subtitle: definition.subtitle, bio: definition.bio, details, tabs, layout: definition.layout, showCover: definition.cover,
+  // A hidden tab, and a tab with nothing to show, never reach the visitor.
+  const tabs = shownTabs(definition, definition.blocks).map((t) => ({ ...t, blocks: t.blocks.flatMap(project) })).filter((t) => t.blocks.length > 0);
+  return { ministryName: row.result.ministryName, name: definition.name, bio: definition.bio, tabs, layout: definition.layout, showCover: definition.cover,
     photoAlign: definition.photoAlign, iconStyle: definition.iconStyle, hasPhoto: row.result.hasPhoto, hasCover: definition.cover && row.result.hasCover,
     scheme: definition.scheme, buttons: definition.buttons, brandTheme: isBrandTheme(row.result.brandTheme) ? row.result.brandTheme : null, socials: definition.socials };
 }

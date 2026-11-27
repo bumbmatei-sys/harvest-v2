@@ -30,8 +30,8 @@ import { WizardLayout } from "@/components/wizard-layout";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { BioTabsEditor } from "@/components/link-in-bio/bio-tabs-editor";
 import { BioProfileStep } from "@/components/link-in-bio/bio-profile-step";
-import { bioDetailKinds, bioIcons, bioLimits, bioSchemes, bioButtonStyles, fieldIssues, handleProblem, isLegacyTabId, newBlockId, moveItem, publishIssues, shownTabs,
-  type BioBlock, type BioDefinition, type BioDetailKind, type BioTabId, type BioView, type BioViewBlock, type HandleProblem } from "@/lib/link-in-bio";
+import { bioIcons, bioLimits, bioSchemes, fieldIssues, handleProblem, isLegacyTabId, oneLine, newBlockId, moveItem, publishIssues, shownTabs,
+  type BioBlock, type BioDefinition, type BioTabId, type BioView, type BioViewBlock, type HandleProblem } from "@/lib/link-in-bio";
 import { cn } from "@/lib/utils";
 import type { BioChoices, BioOwnerView } from "@/server/link-in-bio";
 
@@ -53,9 +53,8 @@ export function draftView(definition: BioDefinition, choices: BioChoices, minist
       case "giving": return choices.giving?.length ? [{ type: "giving", id: block.id, title: block.title || "…", methods: choices.giving }] : [];
     }
   };
-  const details = definition.details.filter((d) => !d.hidden && d.value.trim()).map(({ id, kind, value }) => ({ id, kind, value }));
-  const tabs = shownTabs(definition, definition.blocks).map((t) => ({ ...t, blocks: t.blocks.flatMap(project) })).filter((t, index) => t.blocks.length > 0 || (index === 0 && details.length > 0));
-  return { ministryName, name: definition.name || "…", subtitle: definition.subtitle, bio: definition.bio, details, tabs, layout: definition.layout, showCover: definition.cover, photoAlign: definition.photoAlign,
+  const tabs = shownTabs(definition, definition.blocks).map((t) => ({ ...t, blocks: t.blocks.flatMap(project) })).filter((t) => t.blocks.length > 0);
+  return { ministryName, name: definition.name || "…", bio: oneLine(definition.bio), tabs, layout: definition.layout, showCover: definition.cover, photoAlign: definition.photoAlign,
     iconStyle: definition.iconStyle, hasPhoto, hasCover: definition.cover && hasCover, scheme: definition.scheme, buttons: definition.buttons,
     brandTheme: brandTheme as BioView["brandTheme"], socials: definition.socials.filter((s) => /^https:\/\//.test(s.url)) };
 }
@@ -109,7 +108,6 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
   // New blocks land on the first tab; Message me, giving and sign-up blocks on Partnership while it exists (as before the rework), else the second tab.
   const firstTab = definition.tabs[0]?.id ?? "home", secondTab = definition.tabs.find((x) => x.id === "partnership")?.id ?? definition.tabs[1]?.id ?? firstTab;
   const setDefinition = (patch: Partial<BioDefinition>) => { setNotice(""); setFields((previous) => ({ ...previous, definition: { ...previous.definition, ...patch } })); };
-  const setDetails = (change: (list: BioDefinition["details"]) => BioDefinition["details"]) => setDefinition({ details: change(definition.details) });
   const setBlocks = (change: (blocks: BioBlock[]) => BioBlock[]) => setDefinition({ blocks: change(definition.blocks) });
   const patchBlock = (id: string, patch: Record<string, unknown>) => setBlocks((blocks) => blocks.map((b) => b.id === id ? { ...b, ...patch } as BioBlock : b));
   const path = `${base}/l/${fields.handle}`;
@@ -206,18 +204,6 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
     <WizardLayout steps={stepList} current={step} onStepChange={(id) => setStep(id as Step)} stepsLabel={t("stepsLabel")} stepper={false} focusOnStepChange={hosted}>
       {step === "profile" && <BioProfileStep definition={definition} setDefinition={setDefinition} endpoint={endpoint} version={data.version} onBusyChange={setCoverBusy} touched={touched} issues={issues}
         cover={{ fileId: data.coverFileId, url: banner.url, failed: banner.failed, onChange: bannerChanged }} photo={{ fileId: data.photoFileId, url: photo.url, failed: photo.failed, onChange: photoChanged }} />}
-      {step === "profile" && <FormSection title={<span className="text-base font-semibold">{t("details.heading")}</span>}>
-        <ul className="space-y-3" data-bio-details-editor>{definition.details.map((detail, index) => { const kindLabel = t(`details.kinds.${detail.kind}`), bad = touched ? issues[`detail:${detail.id}`] : undefined; return <li key={detail.id} className="grid items-end gap-3 sm:grid-cols-[12rem_minmax(0,1fr)_auto]" data-bio-detail={detail.id}>
-          <Field><FieldLabel htmlFor={`dk-${detail.id}`}>{t("details.kind")}</FieldLabel>
-            <NativeSelect id={`dk-${detail.id}`} className="min-h-11 w-full" value={detail.kind} onChange={(e) => setDetails((list) => list.map((x) => x.id === detail.id ? { ...x, kind: e.target.value as BioDetailKind } : x))}>{bioDetailKinds.map((k) => <option key={k} value={k}>{t(`details.kinds.${k}`)}</option>)}</NativeSelect></Field>
-          <Field data-invalid={bad ? true : undefined}><FieldLabel htmlFor={`dv-${detail.id}`}>{t("details.value")}</FieldLabel>
-            <Input id={`dv-${detail.id}`} className="min-h-11" maxLength={bioLimits.detailValue} value={detail.value} aria-invalid={bad ? true : undefined} onChange={(e) => setDetails((list) => list.map((x) => x.id === detail.id ? { ...x, value: e.target.value } : x))} />
-            {bad && <FieldError>{t(bad === "url" ? "details.urlProblem" : "details.requiredProblem")}</FieldError>}</Field>
-          <span className="flex"><Button type="button" variant="ghost" size="icon" className="size-11" aria-pressed={detail.hidden} aria-label={t(detail.hidden ? "details.show" : "details.hide", { label: kindLabel })} onClick={() => setDetails((list) => list.map((x) => x.id === detail.id ? { ...x, hidden: !x.hidden } : x))}>{detail.hidden ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}</Button>
-            <Button type="button" variant="ghost" size="icon" className="size-11" aria-label={t("details.remove", { label: kindLabel })} disabled={index < 0} onClick={() => setDetails((list) => list.filter((x) => x.id !== detail.id))}><Trash2 aria-hidden="true" /></Button></span>
-        </li>; })}</ul>
-        <div><Button type="button" variant="outline" className="min-h-11" disabled={definition.details.length >= bioLimits.details} onClick={() => setDetails((list) => [...list, { id: newBlockId(list.map((x) => x.id)), kind: bioDetailKinds.find((k) => !list.some((x) => x.kind === k)) ?? "location", value: "", hidden: false }])}><Plus aria-hidden="true" />{t("details.add")}</Button></div>
-      </FormSection>}
 
       {step === "content" && <div className="space-y-6">
         <FormSection title={<span className="text-base font-semibold">{t("tabsEditor.heading")}</span>}>
@@ -288,9 +274,6 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
         <Field><FieldLabel htmlFor="bio-scheme">{t("design.scheme")}</FieldLabel>
           <NativeSelect id="bio-scheme" className="min-h-11 w-full" value={definition.scheme} onChange={(e) => setDefinition({ scheme: e.target.value as BioDefinition["scheme"] })}>
             {bioSchemes.map((s) => <option key={s} value={s}>{t(`design.schemes.${s}`)}</option>)}</NativeSelect></Field>
-        <Field><FieldLabel htmlFor="bio-buttons">{t("design.buttons")}</FieldLabel>
-          <NativeSelect id="bio-buttons" className="min-h-11 w-full" value={definition.buttons} onChange={(e) => setDefinition({ buttons: e.target.value as BioDefinition["buttons"] })}>
-            {bioButtonStyles.map((s) => <option key={s} value={s}>{t(`design.buttonStyles.${s}`)}</option>)}</NativeSelect></Field>
         <p className="text-sm text-muted-foreground">{t("design.brandNote")}</p>
       </FormSection>}
 

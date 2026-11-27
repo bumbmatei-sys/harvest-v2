@@ -8091,10 +8091,9 @@
     "linkCopied": "Link copied.",
     "profile": {
       "name": "Name",
-      "bio": "Short bio",
+      "bio": "Short bio (one line)",
       "bioCount": "{count} of {max}",
       "photoNote": "Photo",
-      "subtitle": "One-line subtitle",
       "cover": "Cover image",
       "coverShow": "Show a cover",
       "photoRow": "Profile photo",
@@ -8200,11 +8199,6 @@
         "light": "Light",
         "dark": "Dark"
       },
-      "buttons": "Main button",
-      "buttonStyles": {
-        "filled": "Filled",
-        "outline": "Outline"
-      },
       "brandNote": "Uses your ministry's brand colours."
     },
     "cover": {
@@ -8290,7 +8284,6 @@
       "messageReload": "The form expired. Reload the page to send again.",
       "notice": "Your details go to {ministry}. You can ask them to delete them.",
       "pageNotFound": "This page is not available.",
-      "ministry": "{ministry}",
       "newsletterPlaceholder": "The sign-up form appears here.",
       "networks": {
         "instagram": "Instagram",
@@ -8304,7 +8297,6 @@
         "podcast": "Podcast",
         "website": "Website"
       },
-      "details": "Details",
       "tabs": "Page sections"
     },
     "mode": {
@@ -8335,24 +8327,6 @@
     "tabs": {
       "home": "Home",
       "partnership": "Partnership"
-    },
-    "details": {
-      "heading": "Details",
-      "add": "Add detail",
-      "kind": "Detail",
-      "value": "Text",
-      "hide": "Hide {label}",
-      "show": "Show {label}",
-      "remove": "Remove {label}",
-      "kinds": {
-        "location": "Location",
-        "ministry": "Ministry or church",
-        "role": "Role",
-        "website": "Website",
-        "languages": "Languages"
-      },
-      "urlProblem": "Use a full https address.",
-      "requiredProblem": "Add the text."
     },
     "banner": {
       "label": "Cover image",

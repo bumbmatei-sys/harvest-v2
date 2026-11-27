@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { FormSection } from "@/components/form-section";
 import { EventCoverPicker, type CoverChange } from "@/components/events/event-cover-picker";
 import { NetworkMark } from "@/components/link-in-bio/bio-icons";
@@ -27,8 +26,8 @@ function ProfileRow({ title, htmlFor, children }: { title: string; htmlFor?: str
 type Picture = { fileId: string | null; url: string | null; failed: () => void; onChange: (change: CoverChange) => void };
 
 /**
- * The Profile step of the link in bio editor: cover on or off with a small square upload, the required profile photo and its position, name, subtitle and
- * short bio, then the social and website icons in one style for the whole page. Uploads take effect at once (their own requests); text is saved with the draft.
+ * The Profile step of the link in bio editor: cover on or off with a small square upload, the required profile photo and its position, name and the
+ * one-line short bio, then the social and website icons in one style for the whole page. Uploads take effect at once (their own requests); text is saved with the draft.
  */
 export function BioProfileStep({ definition, setDefinition, endpoint, version, cover, photo, onBusyChange, touched, issues }: {
   definition: BioDefinition; setDefinition: (patch: Partial<BioDefinition>) => void; endpoint: string; version: number; cover: Picture; photo: Picture;
@@ -58,12 +57,9 @@ export function BioProfileStep({ definition, setDefinition, endpoint, version, c
             <Input id="bio-name" className="min-h-11" maxLength={bioLimits.name} value={definition.name} aria-invalid={nameMissing || undefined} onChange={(e) => setDefinition({ name: e.target.value })} />
             {nameMissing && <FieldError>{t("publishing.checkName")}</FieldError>}</Field>
         </ProfileRow>
-        <ProfileRow title={t("profile.subtitle")} htmlFor="bio-subtitle">
-          <Input id="bio-subtitle" className="min-h-11" maxLength={bioLimits.subtitle} value={definition.subtitle} onChange={(e) => setDefinition({ subtitle: e.target.value })} />
-        </ProfileRow>
         <ProfileRow title={t("profile.bio")} htmlFor="bio-bio">
-          <Textarea id="bio-bio" rows={4} maxLength={bioLimits.bio} value={definition.bio} onChange={(e) => setDefinition({ bio: e.target.value })} />
-          <p className="text-xs text-muted-foreground" aria-live="polite">{t("profile.bioCount", { count: definition.bio.length, max: bioLimits.bio })}</p>
+          <Input id="bio-bio" className="min-h-11" maxLength={bioLimits.bioLine} value={definition.bio} onChange={(e) => setDefinition({ bio: e.target.value.replace(/[\r\n]+/g, " ") })} />
+          <p className="text-xs text-muted-foreground" aria-live="polite">{t("profile.bioCount", { count: definition.bio.length, max: bioLimits.bioLine })}</p>
         </ProfileRow>
       </div>
     </FormSection>

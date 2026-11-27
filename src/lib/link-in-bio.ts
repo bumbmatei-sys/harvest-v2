@@ -5,7 +5,9 @@ import type { GivingPublicMethod } from "./ways-to-give";
 // projection the public page and the owner's live preview share. Nothing here reads or stores anything.
 
 export const bioLimits = { blocks: 20, socials: 8, name: 100, bio: 500, label: 80, url: 2048, eventTitle: 100, eventWhen: 60, messageTitle: 60,
-  subtitle: 80, details: 8, detailValue: 100, senderName: 100, senderEmail: 254, messageBody: 2000, tabs: 6, tabLabel: 24 } as const;
+  subtitle: 80, details: 8, detailValue: 100, senderName: 100, senderEmail: 254, messageBody: 2000, tabs: 6, tabLabel: 24, bioLine: 160 } as const;
+/** The header's short bio is one line (founder decision 27 Nov): the first line of the text, trimmed and cut to `bioLine`. */
+export const oneLine = (value: string) => value.split(/\r?\n/).map((line) => line.trim()).find(Boolean)?.slice(0, bioLimits.bioLine) ?? "";
 
 /** Link icons (an allow-list, drawn by the screen). */
 export const bioIcons = ["globe", "mail", "phone", "heart", "book", "calendar", "video", "music", "map", "gift"] as const;
@@ -111,7 +113,10 @@ export const bioDefinitionSchema = z.object({
     .refine((list) => new Set(list.map((block) => block.id)).size === list.length)
     .refine((list) => list.filter((block) => block.type === "message").length <= 1)
     .refine((list) => list.filter((block) => block.type === "giving").length <= 1),
-}).strict();
+}).strict()
+  // Founder decision 27 Nov: the header shows the name, the photo, a one-line short bio and the icons. A subtitle becomes the one-line bio when there is no
+  // bio, and the details list is dropped (that information belongs in blocks). Older pages are normalised here on every read and saved that way.
+  .transform((definition) => ({ ...definition, bio: oneLine(definition.bio || definition.subtitle), subtitle: "", details: [] as typeof definition.details }));
 export type BioDefinition = z.infer<typeof bioDefinitionSchema>;
 
 export const emptyBioDefinition = (name = ""): BioDefinition => ({ kind: "bio-v1", name: name.slice(0, bioLimits.name), subtitle: "", bio: "", details: [], tabs: bioTabIds.map((id) => ({ id, label: "", hidden: false })),
@@ -169,7 +174,6 @@ export function fieldIssues(definition: BioDefinition): Record<string, "url" | "
     else if (block.type === "event" && (!block.title.trim() || !block.when.trim())) out[block.id] = "required";
     else if ((block.type === "message" || block.type === "giving") && !block.title.trim()) out[block.id] = "required";
   }
-  for (const detail of definition.details) if (!detail.value.trim() || (detail.kind === "website" && !safeHttpsUrl(detail.value))) out[`detail:${detail.id}`] = detail.kind === "website" ? "url" : "required";
   for (const social of definition.socials) if (!safeHttpsUrl(social.url)) out[`social:${social.network}`] = "url";
   return out;
 }
@@ -183,7 +187,8 @@ export type BioViewBlock =
   | { type: "message"; id: string; title: string }
   | { type: "giving"; id: string; title: string; methods: GivingPublicMethod[] };
 export type BioView = {
-  ministryName: string; name: string; subtitle: string; bio: string; details: { id: string; kind: BioDetailKind; value: string }[];
+  /** `bio` is the one-line short bio under the name. */
+  ministryName: string; name: string; bio: string;
   /** Tabs in order. `label` is empty for an original tab that keeps its default name, and for the single-page layout. */
   tabs: { id: BioTabId; label: string; blocks: BioViewBlock[] }[]; layout: BioLayout; showCover: boolean; photoAlign: BioPhotoAlign; iconStyle: BioIconStyle;
   hasPhoto: boolean; hasCover: boolean; scheme: typeof bioSchemes[number]; buttons: typeof bioButtonStyles[number];
