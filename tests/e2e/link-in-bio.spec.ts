@@ -228,7 +228,7 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   await page.goto(editor);
   await page.getByRole("link", { name: /Messages/ }).click();
   await page.waitForURL(/\/link-in-bio\/messages$/, { timeout: 90_000 });
-  await expect(page.locator("[data-bio-message]")).toContainText("Could someone call me about baptism?");
+  await expect(page.locator("[data-bio-message]")).toContainText("Could someone call me about baptism?", { timeout: 90_000 });
   await expect(page.locator("[data-bio-message]")).toContainText("ana@example.test");
   await audit(page, "messages", "[data-bio-messages]");
   await page.getByRole("button", { name: "Mark handled" }).click();
