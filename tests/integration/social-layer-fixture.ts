@@ -1,5 +1,10 @@
 import { vi } from "vitest";
 import { createTestKeyProvider, useKeyProvider } from "../../src/server/connect-key-provider";
+import type { Database } from "../../src/db/client";
+import { isExternalBlogPlatform } from "../../src/lib/external-blog";
+import { connectExternalBlog } from "../../src/server/external-blog";
+import { linkConnection } from "../../src/server/social/service";
+import type { SocialAccount } from "../../src/server/social/types";
 import { users } from "../../src/db/schema";
 import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { FakeProvider } from "../../src/server/social/fake-provider";
@@ -16,6 +21,23 @@ export function newFake() {
     { accountRef: "acc-ig-1", platform: "instagram", displayName: "grace_church" }, { accountRef: "acc-fb-2", platform: "facebook", displayName: "grace" }, { accountRef: "acc-yt-3", platform: "youtube", displayName: "grace_tv" }] });
 }
 export const depsFor = (provider: FakeProvider, now = () => new Date()): SocialDeps => ({ enabled: true, provider: () => provider, now });
+export async function linkFixtureAccount(db: Database, user: string, tenant: string, account: SocialAccount, fake: FakeProvider) {
+  const deps = depsFor(fake);
+  if (!isExternalBlogPlatform(account.platform)) {
+    return (await linkConnection(db, user, tenant, { provider: "fake", accountRef: account.accountRef, credential: CANARY }, deps)).connection.id;
+  }
+  const connectDeps = { ...deps, blogConnect: { providerId: "fake" as const, credential: { secret: CANARY } } };
+  const origin = "https://harvest.example.invalid";
+  const signIn = await connectExternalBlog(db, user, tenant, {
+    action: "start", platform: account.platform, ...(account.platform === "shopify" ? { shop: "test-store.myshopify.com" } : {}),
+  }, connectDeps, origin);
+  if (!signIn.attempt || !signIn.url) throw new Error("Expected fake sign-in");
+  fake.blogConnectProfiles.set(new URL(signIn.url).pathname.slice(1), account);
+  const linked = await connectExternalBlog(db, user, tenant, { action: "finish", attempt: signIn.attempt }, connectDeps, origin);
+  if (!linked.connectionId) throw new Error("Expected linked fixture account");
+  return linked.connectionId;
+}
+
 export async function seedPeople(f: Fixture, prefix: string) {
   const ids = ["owner", "admin", "member", "viewer", "outsider"].map((r) => `${prefix}-${r}`);
   await f.db.insert(users).values(ids.map((id) => ({ id, name: id, email: `${id}@example.test`, emailVerified: true })));
