@@ -123,7 +123,7 @@ CREATE FUNCTION public.ministry_payment_staff(p_tenant uuid) RETURNS boolean
 LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$
   SELECT p_tenant = nullif(current_setting('app.tenant_id', true), '')::uuid AND EXISTS (
     SELECT FROM public.workspace_members m WHERE m.tenant_id = p_tenant
-      AND m.user_id = nullif(current_setting('app.user_id', true), '') AND m.role_id IN ('owner','admin'))
+      AND m.user_id = nullif(current_setting('app.user_id', true), '') AND public.access_role(m.tenant_id,m.user_id,'owner_admin',m.role_id) IN ('owner','admin'))
 $$;
 REVOKE ALL ON FUNCTION public.ministry_payment_staff(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.ministry_payment_staff(uuid) TO harvest_app;
