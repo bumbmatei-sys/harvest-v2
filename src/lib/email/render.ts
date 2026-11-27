@@ -7,7 +7,11 @@ export type RenderContext = { preheader?: string | null; firstName?: string; min
   /** Public address of each uploaded image (file id to URL), supplied by the server only for ready, public images. */
   images?: ReadonlyMap<string, string>;
   /** Editor preview only: lets uploaded images use this app's own (possibly http) origin. Never set on a send path. */
-  preview?: boolean };
+  preview?: boolean;
+  /** Send path only, when the ministry counts link clicks: maps a content link to its redirect address. Never applied to the unsubscribe or image addresses. */
+  track?: (url: string) => string;
+  /** Adds the footer line saying the ministry counts link clicks. */
+  clicksCounted?: boolean };
 type Part = { html: string; text: string };
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -37,6 +41,8 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
   const esc = (value: string) => escapeHtml(merge(value));
   const multiline = (value: string) => esc(value).replace(/\r?\n/g, "<br>");
   const radius = radiusPx[brand.buttonRadius] ?? 6;
+  /** A validated content link as it goes into the message: the redirect address when clicks are counted, otherwise unchanged. */
+  const out = (url: string) => context.track ? context.track(url) : url;
 
   const pad = (inner: string) => `<tr><td class="em-pad" style="padding:0 40px">${inner}</td></tr>`;
   const fullRow = (inner: string, style = "") => `<tr><td style="${style}">${inner}</td></tr>`;
@@ -49,8 +55,9 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
 
   /** Outlook-safe button: a VML round rectangle for Outlook, a padded anchor everywhere else. */
   function button(label: string, href: string, onPrimary = false, align: "left" | "center" = "left"): Part {
-    const url = httpsUrl(href), labelText = merge(label).trim();
-    if (!url || !labelText) return { html: "", text: "" };
+    const valid = httpsUrl(href), labelText = merge(label).trim();
+    if (!valid || !labelText) return { html: "", text: "" };
+    const url = out(valid);
     const solid = brand.buttonStyle === "solid" || onPrimary;
     const background = onPrimary ? K.white : primary, fg = onPrimary ? primary : onColor(primary);
     const border = onPrimary ? K.white : primary;
@@ -92,8 +99,8 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
         else if (mark.type === "link") {
           const url = httpsUrl(mark.attrs.href);
           if (!url) continue;
-          html = `<a href="${escapeHtml(url)}" style="color:${primary};text-decoration:underline">${html}</a>`;
-          if (value !== url) text += ` (${url})`;
+          html = `<a href="${escapeHtml(out(url))}" style="color:${primary};text-decoration:underline">${html}</a>`;
+          if (value !== url) text += ` (${out(url)})`;
         }
       }
       return { html, text };
@@ -170,7 +177,7 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
           text: [merge(block.heading), merge(block.text), btn.text].filter(Boolean).join("\n") };
       }
       case "image": {
-        const url = source(block.fileId, block.imageUrl), link = httpsUrl(block.linkUrl);
+        const url = source(block.fileId, block.imageUrl), valid = httpsUrl(block.linkUrl), link = valid ? out(valid) : null;
         if (!url) return { html: "", text: "" };
         const tag = imageTag(url, altOf(block.alt, block.decorative), 520);
         return { html: pad(`<div style="margin:20px 0">${link ? `<a href="${escapeHtml(link)}" target="_blank">${tag}</a>` : tag}</div>`),
@@ -178,7 +185,7 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
       }
       case "video": {
         // Email cannot play video: a thumbnail with a play button that links to the video. The button is drawn with table cells (no image), over the thumbnail as a cell background (VML for Outlook).
-        const thumb = source(block.fileId, block.thumbnailUrl), link = httpsUrl(block.videoUrl);
+        const thumb = source(block.fileId, block.thumbnailUrl), validVideo = httpsUrl(block.videoUrl), link = validVideo ? out(validVideo) : null;
         const label = merge(block.alt).trim() || message("NewsletterEmail.watchVideo");
         const play = `<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" width="64" height="64" style="width:64px;height:64px;border-radius:32px;background:${K.playBackdrop};color:${K.white};font-family:Arial,sans-serif;font-size:28px;line-height:64px;text-align:center">&#x25B6;</td></tr></table>`;
         let picture = "";
@@ -194,7 +201,7 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
           text: [merge(block.caption), link ? `${message("NewsletterEmail.watchVideo")}: ${link}` : ""].filter(Boolean).join("\n") };
       }
       case "social": {
-        const links = block.links.flatMap(link => { const url = httpsUrl(link.url); return url && link.label.trim() ? [{ label: merge(link.label), url }] : []; });
+        const links = block.links.flatMap(link => { const url = httpsUrl(link.url); return url && link.label.trim() ? [{ label: merge(link.label), url: out(url) }] : []; });
         if (!links.length) return { html: "", text: "" };
         return { html: pad(`<p style="margin:16px 0;text-align:center;font-family:${font};font-size:14px">${links.map(l => `<a href="${escapeHtml(l.url)}" style="color:${primary};text-decoration:underline;margin:0 10px">${escapeHtml(l.label)}</a>`).join("")}</p>`),
           text: links.map(l => `${l.label}: ${l.url}`).join("\n") };
@@ -212,8 +219,10 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
   const ministry = merge("{{ministryName}}");
   const address = brand.address.trim() || message("NewsletterEmail.addressMissing");
   const unsubscribeLabel = message("NewsletterEmail.unsubscribe");
-  const footerHtml = `<tr><td class="em-pad" style="padding:28px 40px 36px;text-align:center"><p style="margin:0 0 6px;font-family:${font};font-size:13px;line-height:20px;color:${muted}">${escapeHtml(ministry)}</p><p style="margin:0 0 6px;font-family:${font};font-size:13px;line-height:20px;color:${muted}">${escapeHtml(address).replace(/\r?\n/g, "<br>")}</p><p style="margin:0;font-family:${font};font-size:13px;line-height:20px"><a href="${escapeHtml(unsubscribe)}" style="color:${muted};text-decoration:underline">${escapeHtml(unsubscribeLabel)}</a></p></td></tr>`;
-  const footerText = `${ministry}\n${address}\n${unsubscribeLabel}: ${unsubscribe}`;
+  const counted = context.clicksCounted ? message("NewsletterEmail.clicksCounted") : "";
+  const countedHtml = counted ? `<p style="margin:0 0 6px;font-family:${font};font-size:13px;line-height:20px;color:${muted}">${escapeHtml(counted)}</p>` : "";
+  const footerHtml = `<tr><td class="em-pad" style="padding:28px 40px 36px;text-align:center"><p style="margin:0 0 6px;font-family:${font};font-size:13px;line-height:20px;color:${muted}">${escapeHtml(ministry)}</p><p style="margin:0 0 6px;font-family:${font};font-size:13px;line-height:20px;color:${muted}">${escapeHtml(address).replace(/\r?\n/g, "<br>")}</p>${countedHtml}<p style="margin:0;font-family:${font};font-size:13px;line-height:20px"><a href="${escapeHtml(unsubscribe)}" style="color:${muted};text-decoration:underline">${escapeHtml(unsubscribeLabel)}</a></p></td></tr>`;
+  const footerText = `${ministry}\n${address}${counted ? `\n${counted}` : ""}\n${unsubscribeLabel}: ${unsubscribe}`;
   const preheader = context.preheader?.trim() ?? "";
   const hidden = preheader ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${canvas}">${escapeHtml(preheader)}</div>` : "";
   const css = `@media only screen and (max-width:620px){.em-wrap{width:100%!important}.em-pad{padding-left:20px!important;padding-right:20px!important}.em-stack{display:block!important;width:100%!important;padding:0 0 12px!important}.em-hero{padding-top:36px!important}}`

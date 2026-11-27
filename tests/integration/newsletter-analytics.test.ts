@@ -45,7 +45,7 @@ it("reports totals, a daily series and per-campaign figures for the period, in U
   expect(week.days).toHaveLength(7);
   expect(week.days.find((day) => day.day === daysAgo(3))?.counts).toMatchObject({ sent: 20, delivered: 18, bounced: 2, unsubscribed: 5 });
   expect(week.days.find((day) => day.day === daysAgo(1))?.counts?.sent).toBe(0);
-  expect(week.campaigns).toEqual([{ id: first, name: "Advent letter", state: "sent", counts: { sent: 30, delivered: 28, bounced: 2, complained: 0, unsubscribed: 5 } }]);
+  expect(week.campaigns).toEqual([{ id: first, name: "Advent letter", state: "sent", counts: { sent: 30, delivered: 28, bounced: 2, complained: 0, unsubscribed: 5 }, clicks: 0 }]);
   const quarter = await overview(admin, tenant, 90);
   expect(quarter.totals).toMatchObject({ sent: 60, delivered: 58 });
   expect(quarter.campaigns.map((row) => row.name).sort()).toEqual(["Advent letter", "Old letter"]);

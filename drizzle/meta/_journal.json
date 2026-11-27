@@ -862,6 +862,13 @@
       "when": 1795737148391,
       "tag": "0125_ads_rules_flag_only",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1795740896157,
+      "tag": "0126_newsletter_click_tracking",
+      "breakpoints": true
     }
   ]
 }

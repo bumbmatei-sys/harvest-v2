@@ -4,12 +4,12 @@ Public > Newsletter > Analytics (`/workspaces/[tenantId]/newsletter/analytics`, 
 
 ## What the server can report (inspected)
 
-The merged newsletter server (#165) keeps one delivery record per selected recipient for 90 days and, after that, anonymous per-day counts. Queryable per campaign and per UTC day: recipients selected, skipped (by reason), queued, attempted, failed, unconfirmed, needing review, accepted by the provider ("sent"), delivered, bounced, complained, unsubscribed. **Opens, clicks and link clicks are not collected anywhere** (no tracking pixel, no link rewriting, no column), so the screen does not show them and says so in one footer line. See "Server gaps".
+The merged newsletter server (#165) keeps one delivery record per selected recipient for 90 days and, after that, anonymous per-day counts. Queryable per campaign and per UTC day: recipients selected, skipped (by reason), queued, attempted, failed, unconfirmed, needing review, accepted by the provider ("sent"), delivered, bounced, complained, unsubscribed. **Opens are not collected** (no tracking pixel). **Link clicks** are counted only when the ministry owner turns counting on (migration 0126, [click-tracking acceptance](newsletter-click-tracking.md)): totals per campaign, UTC day and link, groups under 5 withheld, labelled "may include link scanners". The footer says which applies. See "Server gaps".
 
 ## Done
 
-- Overview: period tabs (7, 30, 90 days, UTC, through `?period=`), six tiles (campaigns, sent, delivered, bounced, complaints, unsubscribed; rates are shares of sent), a daily chart (sent, delivered, bounced, unsubscribed), a sortable campaigns table (sort by name or any figure) whose rows open that campaign's analytics, and an "Audience now" card (subscribed, unsubscribed, bounced or suppressed) from the Audience status data, which is derived from the consent ledger. There is no growth trend: the ledger has no per-day history of those counts.
-- Campaign analytics (`/newsletter/analytics/[campaignId]`, reached from a table row or the Analytics item in the Campaigns list row menu; the sidebar stays on Analytics): tiles with rates, the series since send (at least a week, from the first day with records, up to 90 days), and the delivery status breakdown. Drafts and unsent campaigns show "Not sent yet". Top links clicked is not possible (no click data).
+- Overview: period tabs (7, 30, 90 days, UTC, through `?period=`), seven tiles (campaigns, sent, delivered, bounced, complaints, unsubscribed, link clicks; rates are shares of sent), a daily chart (sent, delivered, bounced, unsubscribed), a sortable campaigns table (sort by name or any figure) whose rows open that campaign's analytics, and an "Audience now" card (subscribed, unsubscribed, bounced or suppressed) from the Audience status data, which is derived from the consent ledger. There is no growth trend: the ledger has no per-day history of those counts.
+- Campaign analytics (`/newsletter/analytics/[campaignId]`, reached from a table row or the Analytics item in the Campaigns list row menu; the sidebar stays on Analytics): tiles with rates, the series since send (at least a week, from the first day with records, up to 90 days), and the delivery status breakdown. Drafts and unsent campaigns show "Not sent yet". Top links (5 or more clicks) appear once counting is on.
 - Empty state: "No sends yet" because sending is off; tiles read zero.
 - Privacy: aggregate only, no recipient is ever listed or returned. Groups under 5 are withheld by the server's existing rule and shown as "Fewer than 5" (tiles, table cells, chart gaps, audience counts of 1 to 4). A period total is withheld when any day in it is a small group. Do not contact wins in the derived audience status and in send-time eligibility already. UTC throughout. Windows end at 90 days; nothing older is implied.
 - Permissions: owners and admins only. The server capability `newsletter:analytics` (RLS on deliveries, SECURITY DEFINER functions) is owner and admin, so members and viewers see the no-access note and no sidebar link; other ministries get 404. (The brief allowed member read; the existing server model does not, and changing it needs a migration.)
@@ -21,7 +21,8 @@ No migration. `analyticsIn` was extracted from `newsletterAnalytics` (same behav
 
 ## Server gaps and decisions needed
 
-- Opens, clicks and top links: need a tracking design (pixel, link rewriting, retention, consent and Apple Mail preload handling). Not built; a privacy decision first.
+- Opens: not collected, by founder decision (26 Nov 2026). No pixel.
+- Link clicks and top links: built in 0126 (off by default, owner turns on, totals only, 90-day click rows then anonymous counts). Clicks may include link scanners and are not unique readers. Automation emails are not rewritten. See [newsletter-click-tracking.md](newsletter-click-tracking.md).
 - Members cannot read analytics (owner and admin capability in the database).
 - No history of audience counts, so no growth trend.
 - Per-campaign series uses the day a recipient was selected, not the day an outcome arrived.

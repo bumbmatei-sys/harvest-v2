@@ -61,9 +61,9 @@ test("analytics: empty state, aggregate figures, period, sort, small groups and 
   await page.goto(base);
   await expect(page.getByRole("heading", { name: "Analytics", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "No sends yet" })).toBeVisible();
-  await expect(page.getByTestId("report-stat")).toHaveCount(6);
+  await expect(page.getByTestId("report-stat")).toHaveCount(7);
   await expect(page.getByTestId("report-chart-daily")).toHaveCount(0);
-  await expect(page.getByTestId("analytics-footer")).toContainText("Opens and clicks are not collected");
+  await expect(page.getByTestId("analytics-footer")).toContainText("Link clicks are counted only when the owner turns it on");
   await page.screenshot({ path: `${evidence}/empty-desktop-light.png`, fullPage: true });
 
   // Nav: Analytics is the first Newsletter entry and is current; the Operations Campaigns entry (/campaigns) is not highlighted.
@@ -120,7 +120,7 @@ test("analytics: empty state, aggregate figures, period, sort, small groups and 
   await expect(page.getByRole("heading", { name: /Christmas Eve service/ })).toBeVisible();
   await expect(page.locator('[data-testid="report-stat"][data-metric="sent"]').getByTestId("report-value")).toHaveText("75");
   await expect(page.getByTestId("report-card-status")).toBeVisible();
-  await expect(page.getByTestId("analytics-footer")).toContainText("Opens, clicks and link clicks are not collected");
+  await expect(page.getByTestId("analytics-footer")).toContainText("Link clicks are counted only when the owner turns it on");
   if (process.env.HARVEST_SHELL_MODES !== "disabled") await expect(page.locator("[data-sidebar=\"sidebar\"]").first().locator(`a[href=\"/workspaces/${tenant}/newsletter/analytics\"]`)).toHaveAttribute("aria-current", "page");
   await shootOnce(page, "campaign");
   await page.goBack();

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../../db/client";
-import { auditLogs, files, workspaces } from "../../db/schema";
+import { auditLogs, files, newsletterSettings, workspaces } from "../../db/schema";
 import { message } from "../../i18n/messages";
 import { publicFilePath } from "../../lib/files";
 import { newsletterImageMimes } from "../../lib/email/image-limits";
@@ -61,7 +61,13 @@ export async function documentImages(tx: Transaction, tenant: string, doc: Pick<
   return map;
 }
 
-export async function campaignPreview(tx: Transaction, tenant: string, content: NewsletterContent, preheader?: string | null) {
+/** The ministry counts link clicks now (the review preview then shows the footer line that sent emails will carry). */
+export async function countsClicks(tx: Transaction, tenant: string) {
+  const [row] = await tx.select({ on: newsletterSettings.clickTracking }).from(newsletterSettings).where(eq(newsletterSettings.tenantId, tenant));
+  return row?.on ?? false;
+}
+
+export async function campaignPreview(tx: Transaction, tenant: string, content: NewsletterContent, preheader?: string | null, clicksCounted = false) {
   const [ministry] = await tx.select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.tenantId, tenant));
   let images = new Map<string, string>();
   if (isEmailDocument(content)) images = await documentImages(tx, tenant, content);
@@ -72,5 +78,5 @@ export async function campaignPreview(tx: Transaction, tenant: string, content: 
     if (!file) throw unavailable();
     images.set(block.fileId, new URL(publicFilePath(tenant, block.fileId), newsletterOrigin()).href);
   }
-  return renderNewsletter(content, { preheader, ministryName: ministry?.name, unsubscribe: previewUnsubscribe, images });
+  return renderNewsletter(content, { preheader, ministryName: ministry?.name, unsubscribe: previewUnsubscribe, images, clicksCounted });
 }
