@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { expect, it, vi } from "vitest";
 import { testDatabase, migrationCount } from "../database";
@@ -11,6 +12,8 @@ import { publishIntakeForm, readIntakeManifest, submitIntake } from "../../src/s
 import { consumeInvitation, dispatchInvitation, prepareInvitation } from "../../src/server/connect-invitations";
 import { applySubjectRights, listSubjectResponses } from "../../src/server/connect-subject-rights";
 import { assignFollowUpCase, listFollowUpCases, openEligibleFollowUpCases, transitionFollowUpCase } from "../../src/server/follow-up-cases";
+import { invitationRecipientHash, receiptHash } from "../../src/server/connect-intake-crypto";
+import { withUser } from "../../src/server/tenancy";
 import { recordConsent } from "../../src/server/contacts";
 
 vi.mock("server-only", () => ({}));
@@ -19,7 +22,7 @@ function synthetic() {
   vi.stubEnv("HARVEST_CONNECT_INTAKE", "synthetic"); vi.stubEnv("HARVEST_CONNECT_TEST_KEY", "a".repeat(64));
 }
 // Real intake -> test-only invitation callback -> verified claim -> association, no shortcut to the consent projection.
-async function seed(db: Database) {
+async function seed(db: Database, legacy = false) {
   const owner = `hc14-${randomUUID()}`, guest = `guest-${randomUUID()}`, email = `${guest}@example.test`;
   await db.insert(schema.users).values([{ id: owner, name: "Synthetic owner", email: `${owner}@example.test`, emailVerified: true }, { id: guest, name: "Synthetic guest", email, emailVerified: true }]);
   const tenant = (await createLegacyWorkspace(db, owner, "Synthetic HC14")).tenantId;
@@ -32,7 +35,21 @@ async function seed(db: Database) {
   await submitIntake(db, "qr", link.publicCode, { submissionId: randomUUID(), receiptToken: manifest.receiptToken, stamp: manifest.stamp, capability: manifest.capability, purposes: ["account_communications", "outreach_follow_up"], email });
   let token = ""; await dispatchInvitation(db, async (mail) => { token = mail.token; });
   const flow = await prepareInvitation(db, { token });
-  await consumeInvitation(db, flow, { id: guest, email, emailVerified: true }, { action: "confirm" });
+  if (legacy) {
+    // This fixture seeds migration 0050, before the audited claim capability exists.
+    await withUser(db, guest, async tx => {
+      await tx.execute(sql`select set_config('app.connect_intake_mode','synthetic',true)`);
+      const hash = receiptHash(flow);
+      const { rows: [row] } = await tx.execute<{ info: { recipientBinding: string } }>(sql`select public.connect_invitation_flow(${hash}) info`);
+      const proof = invitationRecipientHash(email, row.info.recipientBinding);
+      const { rows: [claim] } = await tx.execute<{ outcome: string }>(sql`
+        select public.connect_invitation_consume_verified(${hash}, ${guest}, ${proof}, ${email}, null, false) outcome
+      `);
+      expect(claim.outcome).toBe("claimed");
+    });
+  } else {
+    await consumeInvitation(db, flow, { id: guest, email, emailVerified: true }, { action: "confirm" });
+  }
   await openEligibleFollowUpCases(db, owner, tenant);
   const c = (await listFollowUpCases(db, owner, tenant)).items[0];
   await transitionFollowUpCase(db, owner, tenant, c.id, { to: "awaiting_assignment", version: 1 });
@@ -57,7 +74,7 @@ it("upgrades populated 0050 with a restricted owner, reconciles withdrawn cases 
   synthetic(); let old: Awaited<ReturnType<typeof seed>>; let readPolicy: unknown;
   const f = await testDatabase({ migrationOwner: true, beforeHc14Migration: async (admin) => {
     expect((await admin.query("select max(created_at)::text as last from drizzle.__drizzle_migrations")).rows[0].last).toBe("1795200000000");
-    old = await seed(drizzle(admin, { schema }));
+    old = await seed(drizzle(admin, { schema }), true);
     await recordConsent(drizzle(admin, { schema }), old.owner, old.tenant, old.contactId, { purpose: "outreach_follow_up", channel: "sms", status: "withdrawn", noticeVersion: "notice-v1", source: "Synthetic", evidence: "Synthetic" });
     expect((await admin.query("select state from followup_cases where id=$1", [old.caseId])).rows[0].state).toBe("assigned");
     readPolicy = (await admin.query("select qual,roles,cmd from pg_policies where tablename='followup_cases' and policyname='followup_cases_read'")).rows;

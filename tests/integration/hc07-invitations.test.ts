@@ -1,3 +1,4 @@
+import { rotateStagedContacts } from "../../src/server/contact-envelope-rotation";
 import { randomUUID } from "node:crypto";
 import { beforeAll,afterAll,expect,it,vi } from "vitest";
 vi.mock("server-only",()=>({}));
@@ -175,4 +176,40 @@ it("cannot renew an old-source receipt after issuance metadata is cleaned and th
  await f.admin.query("update connect_invitations set expires_at=now()-interval '1 hour',issued_at=ARRAY[now()-interval '25 hours'] where id=$1",[original.id]);await purgeInvitations(f.db);expect(await row(s.input.receiptToken)).toBeUndefined();
  await transitionConnectLink(f.db,"hc07-owner",tenant,campaign,s.link.id,{action:"rotate",expectedCode:s.link.publicCode});
  expect(await requestInvitation(f.db,{receiptToken:s.input.receiptToken})).toEqual({acknowledged:true});expect(await row(s.input.receiptToken)).toBeUndefined();
+});
+
+it("rewraps an HC-05 staging receipt and durably audits its authorized open", async () => {
+ const first = "36".repeat(32), second = "97".repeat(32);
+ const keyed = await source();
+ keyed.input.email = "encrypted@example.invalid";
+ vi.stubEnv("CONTACT_KEK_V1", first);
+ try {
+  await submitIntake(f.db, "qr", keyed.link.publicCode, keyed.input);
+  const { response_id } = await row(keyed.input.receiptToken);
+  const envelope = async () => (await f.admin.query("select sealed_data from connect_intake_receipts where response_id=$1", [response_id])).rows[0].sealed_data;
+  const before = await envelope();
+  expect(before).toMatchObject({ version: 3, keyVersion: "v1" });
+  expect(JSON.stringify(before)).not.toContain(keyed.input.email);
+  await expect(f.pool.query("select sealed_data from connect_intake_receipts")).rejects.toMatchObject({ code: "42501" });
+  await expect(f.workerPool.query("select sealed_data from connect_intake_receipts")).rejects.toMatchObject({ code: "42501" });
+  await expect(f.pool.query("select public.connect_contact_rotation_remaining('v2')")).rejects.toMatchObject({ code: "42501" });
+  const result = await rotateStagedContacts(f.workerPool, { CONTACT_KEK_V1: first, CONTACT_KEK_V2: second }, "run");
+  expect(result).toMatchObject({ failed: 0, remaining: 0 });
+  expect(result.changed).toBeGreaterThan(0);
+  const after = await envelope();
+  expect(after).toMatchObject({ version: 3, keyVersion: "v2", ciphertext: before.ciphertext, iv: before.iv });
+  expect(after.wrappedKey).not.toBe(before.wrappedKey);
+  vi.stubEnv("CONTACT_KEK_V1", undefined);
+  vi.stubEnv("CONTACT_KEK_V2", second);
+  expect(await rotateStagedContacts(f.workerPool, { CONTACT_KEK_V2: second }, "run")).toEqual({ changed: 0, conflicted: 0, failed: 0, remaining: 0 });
+  await f.admin.query("update connect_invitations set issued_at=ARRAY[now()-interval '61 seconds'] where response_id=$1", [response_id]);
+  expect(await requestInvitation(f.db, { receiptToken: keyed.input.receiptToken })).toEqual({ acknowledged: true });
+  expect((await row(keyed.input.receiptToken)).generation).toBe(2);
+  const { rows } = await f.admin.query("select purpose, key_version from connect_contact_decrypt_audit where key_version='v2'");
+  expect(rows).toContainEqual({ purpose: "invitation_request", key_version: "v2" });
+  await expect(f.pool.query("select * from connect_contact_decrypt_audit")).rejects.toMatchObject({ code: "42501" });
+ } finally {
+  vi.stubEnv("CONTACT_KEK_V1", undefined);
+  vi.stubEnv("CONTACT_KEK_V2", undefined);
+ }
 });

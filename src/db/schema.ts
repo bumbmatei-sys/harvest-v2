@@ -1177,6 +1177,15 @@ export const connectIntakeReceipts = pgTable("connect_intake_receipts", {
   uniqueIndex("connect_intake_receipt_hash_idx").on(t.receiptHash),
   check("connect_intake_receipt_hash", sql`${t.receiptHash} ~ '^[a-f0-9]{64}$' and ${t.fingerprint} ~ '^[a-f0-9]{64}$'`),
   check("connect_intake_sealed", sql`jsonb_typeof(${t.sealedData}) = 'object' and octet_length(${t.sealedData}::text) <= 4096`)]);
+export const connectContactDecryptAudit = pgTable("connect_contact_decrypt_audit", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  purpose: text("purpose").notNull(),
+  keyVersion: text("key_version").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`clock_timestamp()`),
+}, t => [
+  check("connect_contact_decrypt_audit_purpose_check", sql`${t.purpose} in ('invitation_request', 'invitation_claim', 'invitation_dispatch', 'legacy_rotation')`),
+  check("connect_contact_decrypt_audit_key_version_check", sql`${t.keyVersion} in ('legacy', 'v1', 'v2')`),
+]);
 // Opaque, short-lived SOURCE/receipt quotas; no IP address or contact value is stored.
 export const connectIntakeLimits = pgTable("connect_intake_limits", {
   key: text("key").primaryKey(), count: integer("count").notNull(),
