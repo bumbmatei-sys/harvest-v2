@@ -47,7 +47,7 @@ The migrator applies every pending migration in journal order, in one transactio
 
 Other migrations touch community names only in passing (for example the audit action list in 0060, 0076, 0094 and 0102). `0114_role_statement_timeout` sets statement limits for `harvest_app` and `harvest_worker`, which the community workers use.
 
-0127 is reserved for open PR #300 (newsletter, `0127_newsletter_audience_growth`). 0049, 0090 and 0121 are unused numbers. Never renumber a merged migration.
+0127 (newsletter audience growth, #300) has merged (newsletter, `0127_newsletter_audience_growth`). 0049, 0090 and 0121 are unused numbers. Never renumber a merged migration.
 
 ## 2. Journal order (re-dating rule)
 
@@ -58,6 +58,7 @@ The migrator decides what is pending by timestamp: it runs a migration only when
 | 0127 | merged (#300) | 1795746812980 |
 | 0128 | #302 (re-chained after 0127) | 1795752720179 |
 | 0129 | #303 | must be re-dated above 1795752720179 when re-chained after 0128 |
+| 0130 | #306 (course structure) | must be re-dated above both 0128 and the re-dated 0129 |
 
 ## 3. Pre-checks (per environment)
 
