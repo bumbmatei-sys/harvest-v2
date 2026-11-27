@@ -1,57 +1,308 @@
+/** Derived from Shadcn UI Kit item tables12 (premium), registry retrieved 2026-11-27, approved 2026-11-27 (Giving screens). Kit code; local changes: docs/ui-sources.md. */
 "use client";
+
+import * as React from "react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { HandCoins, Plus, Search } from "lucide-react";
+import {
+  Eye,
+  HandCoins,
+  ListFilter,
+  MoreHorizontal,
+  Plus,
+  Search,
+} from "lucide-react";
+
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import { Progress } from "@/components/ui/progress";
 import { DataTable, type DataTableColumn, type DataTableRow } from "@/components/data-table";
-import { EmptyState } from "@/components/empty-state";
-import { StatusBadge } from "@/components/status-badge";
 import { FundraisingFormDialog } from "@/components/fundraising/giving-dialogs";
-import { formatCents, fundraisingTone, progressPercent, type FundraisingRow } from "@/lib/fundraising";
+import { formatCents, fundraisingStatuses, progressPercent, type FundraisingRow, type FundraisingStatus } from "@/lib/fundraising";
+
+type Status = FundraisingStatus;
+
+const statusDot: Record<Status, string> = {
+  draft: "bg-muted-foreground",
+  published: "bg-success",
+  closed: "bg-warning",
+  archived: "bg-muted-foreground",
+};
+
+function StatusBadge({
+  status,
+  label,
+  className,
+}: {
+  status: Status;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <Badge variant="outline" className={className}>
+      <span className={cn("size-1.5 rounded-full", statusDot[status])} />
+      {label}
+    </Badge>
+  );
+}
 
 /**
- * The ministry's fundraising campaigns on the shared DataTable: status, goal and, for owners and admins, raised (gifts confirmed by the ministry) and
- * progress. Creating opens the shared form dialog; a new campaign opens its page.
+ * The ministry's fundraising campaigns: status counts, search, a status filter and the table (Harvest's DataTable, which turns rows into cards on phones).
+ * Goal for everyone; raised (gifts confirmed by the ministry) and progress for owners and admins only. Creating opens the shared form dialog; a new
+ * campaign opens its page.
  */
-export function FundraisingList({ tenantId, rows, canManage, campaigns }: { tenantId: string; rows: FundraisingRow[]; canManage: boolean; campaigns: { id: string; name: string }[] }) {
+export function FundraisingList({ tenantId, rows: initialRows, canManage, campaigns }: { tenantId: string; rows: FundraisingRow[]; canManage: boolean; campaigns: { id: string; name: string }[] }) {
   const t = useTranslations("Fundraising"), locale = useLocale(), router = useRouter();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = React.useState("");
+  const [statusFilter, setStatusFilter] = React.useState<Status[]>([]);
   const root = `/workspaces/${tenantId}/giving/fundraising`, endpoint = `/api/workspaces/${tenantId}/fundraising`;
-  const shown = useMemo(() => {
+  const label = (status: Status) => t(`statuses.${status}`);
+
+  const toggleStatus = (status: Status) =>
+    setStatusFilter((prev) =>
+      prev.includes(status)
+        ? prev.filter((s) => s !== status)
+        : [...prev, status],
+    );
+
+  const rows = React.useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return needle ? rows.filter((row) => `${row.title} ${row.campaignName ?? ""}`.toLowerCase().includes(needle)) : rows;
-  }, [rows, query]);
-  const showRaised = rows.some((row) => row.totals);
+    return initialRows.filter((row) =>
+      (!statusFilter.length || statusFilter.includes(row.status)) &&
+      (!needle || [row.title, row.campaignName ?? ""].some((field) =>
+        field.toLowerCase().includes(needle),
+      )),
+    );
+  }, [initialRows, query, statusFilter]);
+  const showRaised = initialRows.some((row) => row.totals);
+  const hasFilters = query !== "" || statusFilter.length > 0;
+
   const columns: DataTableColumn[] = [
-    { id: "title", header: t("columns.title"), card: "title" },
-    { id: "status", header: t("columns.status") },
+    { id: "customer", header: t("columns.title"), card: "title" },
     { id: "goal", header: t("columns.goal"), align: "end", showFrom: "@md" },
-    ...(showRaised ? [{ id: "raised", header: t("columns.raised"), align: "end" } as const, { id: "progress", header: t("columns.progress"), align: "end", showFrom: "@lg" } as const] : []),
+    ...(showRaised ? [{ id: "collected", header: t("columns.raised"), showFrom: "@lg" } as const] : []),
+    { id: "status", header: t("columns.status") },
     { id: "actions", header: t("columns.actions"), srOnlyHeader: true, align: "end", card: "actions" },
   ];
-  const tableRows: DataTableRow[] = shown.map((row) => ({
-    id: row.id, label: row.title,
-    cells: {
-      title: <span className="min-w-0"><Link href={`${root}/${row.id}`} className="block truncate font-medium underline-offset-4 hover:underline">{row.title}</Link>
-        {row.campaignName && <span className="block truncate text-xs text-muted-foreground">{row.campaignName}</span>}</span>,
-      status: <StatusBadge tone={fundraisingTone(row.status)} label={t(`statuses.${row.status}`)} dot />,
-      goal: <span className="tabular-nums">{formatCents(row.goalCents, row.currency, locale)}</span>,
-      raised: row.totals ? <span className="tabular-nums">{formatCents(row.totals.raisedCents, row.currency, locale)}</span> : null,
-      progress: row.totals ? <span className="tabular-nums">{t("stats.ofGoal", { percent: progressPercent(row.totals.raisedCents, row.goalCents) })}</span> : null,
-      actions: <Button asChild variant="outline" size="sm"><Link href={`${root}/${row.id}`}>{t("view")}<span className="sr-only"> {row.title}</span></Link></Button>,
-    },
+
+  const tableRows: DataTableRow[] = rows.map((row) => {
+    const totals = row.totals;
+    return {
+      id: row.id,
+      label: row.title,
+      cells: {
+        customer: (
+          <div className="flex min-w-0 flex-col">
+            <Link href={`${root}/${row.id}`} className="truncate font-medium underline-offset-4 hover:underline">{row.title}</Link>
+            {row.campaignName && <span className="text-muted-foreground truncate text-xs">
+              {row.campaignName}
+            </span>}
+          </div>
+        ),
+        goal: (
+          <div className="text-right tabular-nums">
+            {formatCents(row.goalCents, row.currency, locale)}
+          </div>
+        ),
+        collected: totals ? (
+          <div className="flex w-36 flex-col gap-1.5">
+            <span className="text-muted-foreground text-xs tabular-nums">
+              {t("stats.raisedOfGoal", { raised: formatCents(totals.raisedCents, row.currency, locale), percent: progressPercent(totals.raisedCents, row.goalCents) })}
+            </span>
+            <Progress
+              value={Math.min(progressPercent(totals.raisedCents, row.goalCents), 100)}
+              className="h-1.5"
+              aria-label={t("stats.ofGoal", { percent: progressPercent(totals.raisedCents, row.goalCents) })}
+            />
+          </div>
+        ) : <span className="text-muted-foreground">{t("notSet")}</span>,
+        status: <StatusBadge status={row.status} label={label(row.status)} />,
+        actions: (
+          <div className="flex justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t("actionsFor", { title: row.title })}
+                >
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem asChild className="max-lg:min-h-11">
+                  <Link href={`${root}/${row.id}`}>
+                    <Eye />
+                    {t("view")}
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ),
+      },
+    };
+  });
+
+  const summary = (["published", "draft", "closed"] as const).map((status) => ({
+    label: t(`summary.${status}`),
+    value: initialRows.filter((row) => row.status === status).length,
   }));
+
   const create = canManage ? <FundraisingFormDialog endpoint={endpoint} campaigns={campaigns} onSaved={(row) => router.push(`${root}/${row.id}`)}
-    trigger={<Button type="button" className="min-h-11 lg:min-h-9"><Plus aria-hidden="true" />{t("new")}</Button>} /> : null;
-  if (!rows.length) return <EmptyState icon={HandCoins} title={t("empty")} description={canManage ? t("emptyDescription") : undefined} action={create ?? undefined} solid />;
-  return <DataTable label={t("listLabel")} columns={columns} rows={tableRows}
-    toolbar={{
-      search: <div className="relative"><Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-        <Input type="search" value={query} onChange={(event) => setQuery(event.target.value)} aria-label={t("search")} placeholder={t("search")} className="min-h-11 ps-9 lg:min-h-9" /></div>,
-      actions: create,
-    }}
-    empty={<EmptyState icon={Search} title={t("noMatches")} size="compact" />} />;
+    trigger={<Button className="max-lg:min-h-11">
+      <Plus />
+      {t("new")}
+    </Button>} /> : null;
+
+  return (
+    <Card className="w-full">
+      <CardHeader className="max-sm:flex max-sm:flex-col">
+        <CardTitle><h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1></CardTitle>
+        <CardDescription>
+          {t("recordOnly")}
+        </CardDescription>
+        {create && <CardAction className="flex items-center gap-2">
+          {create}
+        </CardAction>}
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4 px-0">
+        <dl className="grid grid-cols-3 gap-4 px-4">
+          {summary.map((item) => (
+            <div key={item.label} className="flex min-w-0 flex-col gap-1">
+              <dt className="text-muted-foreground truncate text-xs">
+                {item.label}
+              </dt>
+              <dd className="truncate font-medium tabular-nums sm:text-lg">
+                {item.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+
+        <div className="flex flex-wrap items-center gap-2 px-4">
+          <InputGroup className="w-full max-lg:min-h-11 sm:w-64">
+            <InputGroupAddon>
+              <Search />
+            </InputGroupAddon>
+            <InputGroupInput
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t("search")}
+              aria-label={t("search")}
+            />
+          </InputGroup>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="max-lg:min-h-11">
+                <ListFilter />
+                {t("columns.status")}
+                {statusFilter.length > 0 && (
+                  <span className="text-muted-foreground tabular-nums">
+                    {statusFilter.length}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuLabel>{t("filterByStatus")}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {fundraisingStatuses.map((status) => (
+                <DropdownMenuCheckboxItem
+                  key={status}
+                  className="max-lg:min-h-11"
+                  checked={statusFilter.includes(status)}
+                  onCheckedChange={() => toggleStatus(status)}
+                  onSelect={(event) => event.preventDefault()}
+                >
+                  {label(status)}
+                  <span className="text-muted-foreground ml-auto text-xs tabular-nums">
+                    {
+                      initialRows.filter(
+                        (row) => row.status === status,
+                      ).length
+                    }
+                  </span>
+                </DropdownMenuCheckboxItem>
+              ))}
+              {statusFilter.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="max-lg:min-h-11" onSelect={() => setStatusFilter([])}>
+                    {t("clearFilter")}
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <DataTable label={t("listLabel")} columns={columns} rows={tableRows} bordered={false}
+          className="[&_td:first-child]:ps-4 [&_td:last-child]:pe-4 [&_th:first-child]:ps-4 [&_th:last-child]:pe-4 [&_thead_tr]:bg-muted/50 [&_thead_tr]:hover:bg-muted/50 [&_th]:text-muted-foreground [&_thead_tr]:border-t"
+          empty={
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  {hasFilters ? <Search /> : <HandCoins />}
+                </EmptyMedia>
+                <EmptyTitle>{hasFilters ? t("noMatches") : t("empty")}</EmptyTitle>
+                <EmptyDescription>
+                  {hasFilters
+                    ? t("noMatchesDescription")
+                    : canManage ? t("emptyDescription") : null}
+                </EmptyDescription>
+              </EmptyHeader>
+              {hasFilters && (
+                <EmptyContent>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="max-lg:min-h-11"
+                    onClick={() => {
+                      setQuery("");
+                      setStatusFilter([]);
+                    }}
+                  >
+                    {t("resetFilters")}
+                  </Button>
+                </EmptyContent>
+              )}
+            </Empty>
+          } />
+      </CardContent>
+    </Card>
+  );
 }

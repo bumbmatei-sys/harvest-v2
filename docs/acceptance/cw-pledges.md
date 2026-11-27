@@ -41,7 +41,7 @@ Record keeping only. No provider, payment flow, webhook, public page, outbound m
 | P2 | Members and viewers see nothing; Giving collaborators manage campaign settings but get no totals, pledges, gifts or supporter rows (code and database agree) | [x] | `cw-pledges.test.ts` (privacy) |
 | P3 | Another ministry: unknown ids (404), no rows | [x] | `cw-pledges.test.ts` |
 | A1 | Audits: create, update (field names and version), open/close/archive, pledge record/accept/cancel, gift confirm, gift correct, every donor-data read (`giving.donors.read`); metadata holds ids only, no names, contact details or amounts | [x] | `cw-pledges.test.ts` |
-| U1 | Screens reuse shared DataTable, Card, Tabs, Dialog + Field, NativeSelect, StatusBadge, EmptyState, ConfirmDialog, Progress; no new kit item | [x] | source review |
+| U1 | Screens rebuilt from the founder-approved kit items (27 Nov, real kit code): list tables12, tiles stat-card7, records tables22, dialogs form-layout8, campaign card stat-card17; on the shared DataTable, Dialog + Field, ConfirmDialog, Progress; lifecycle actions Harvest-owned | [x] | `ui-provenance.test.ts`; `docs/ui-sources.md` Giving screens |
 | U2 | Copy concise and provider-neutral; never "verified" or "payment received"; 44px tap targets below 1024px | [x] | `copy-rules`, `source-guards`; not browser-run |
 
 ## Not included (later slices)
@@ -51,8 +51,21 @@ Record keeping only. No provider, payment flow, webhook, public page, outbound m
 - External giving links, CRM timeline projection (amount-null reference), giving exports, public suppressed progress, giving drafts.
 - A CRM contact picker in the screens (the server accepts a same-ministry contact id); ministry-wide (non-campaign) giving records; pledge editing.
 - Free-text supporter fields (name, contact detail) on a pledge or gift that has no CRM contact are outside CRM erasure for now: CRM erasure only reaches rows linked to the erased contact. A giving-specific erasure path waits for the LEGAL retention decision; no real data until it is settled.
-- Browser, responsive and light/dark evidence (no browser run in this session).
 
-## Evidence
+## Giving screens rebuilt from the UI kit (27 Nov 2026)
+
+The fundraising list, detail tiles, Gifts and Pledges card, record/edit dialogs, outreach campaign card, give page settings, Ways to give manager and method
+dialog, the public Ways to give block, its Report dialog and the public give page start from the real kit code of the eleven approved items (table and identical-line
+share per file in `docs/ui-sources.md`, "Giving screens"). Business logic, permissions, routes, retry keys, owner-only totals, pledges never counted as raised,
+small-group suppression and the ConfirmDialog lifecycle actions are unchanged.
+
+| # | Requirement | Status | Evidence |
+| --- | --- | --- | --- |
+| K1 | Every kit-derived file carries the provenance header and a `kitProvenance` row | [x] | `ui-provenance.test.ts` |
+| K2 | No new dependency; tanstack, react-hook-form, zod 3, valibot, formisch and vaul replaced by DataTable, FormData and existing validation | [x] | `package.json` unchanged |
+| K3 | Copy in the catalogue, theme tokens only, 44px targets below lg, no vendor names in copy | [x] | `npm run lint` (source guards) |
+| K4 | Public give page: progress, Ways to give, Report, amount hidden when switched off, axe clean, no horizontal scroll at 1280 and 360 | [x] | `tests/e2e/give-page.spec.ts` |
+| K5 | Screenshots at 390 and 1440, light and dark (device scale 2): list, detail, record-gift dialog, Ways to give manager, public give page | [x] | `docs/screenshots/giving-kit/` |
+
 
 See the PR body for the commands and counts run on the final head.

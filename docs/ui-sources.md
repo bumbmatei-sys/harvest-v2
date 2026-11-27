@@ -607,6 +607,27 @@ Founder request (26 Nov): show the real brand logo for every "Ways to give" meth
 
 Record: `givingLogoProvenance` in `src/lib/ui-provenance.ts`. No kit items are used; Harvest's existing `Item`, `ItemMedia`, `SearchableSelect`, `Button` and `CopyButton` are reused.
 
+### Giving screens (Operations > Giving, public give page, 27 Nov 2026)
+
+The founder approved eleven kit items for the Giving screens on **27 Nov 2026** (`src/lib/ui-provenance.ts`, `kitApprovals`, "Giving screens") and set the rule for this redo: start from the real kit code. Each item's `files[].content` was fetched from `https://shadcnuikit.com/r/<name>.json` on 27 Nov 2026 into a scratch directory outside the repository (no registry file is committed), put into the Harvest component, and changed only for: catalogue copy (next-intl), theme tokens, 44px phone targets, real props and data, no vendor names or remote images, and full width where the shell needs it. Where the kit used a library Harvest does not have, the kit's markup and classes stay and are wired to Harvest's own parts: `@tanstack/react-table` to the shared `DataTable` (the kit's table classes are passed through; rows become cards on phones), `react-hook-form`, `zod 3`, `valibot` and `@formisch/react` to `FormData` and the existing validation (`parseCents`, `givingFieldIssues`, `giveSlugProblem`), `vaul` drawers dropped. No dependency was added. The registry entries state no tier; each is recorded as premium so it stays on the review list. Every file below starts with the "Derived from Shadcn UI Kit item" header.
+
+| Kit item | Harvest file | Identical lines (`scripts/ui-identical.sh` against the item's `index.tsx`) | Why the rest differs |
+| --- | --- | --- | --- |
+| `tables12` | `src/components/fundraising/fundraising-list.tsx` | 177 of 293 (60%) | DataTable replaces the tanstack header/body loops; no selection, bulk menu, CSV, print, drawer or invoice dialog. |
+| `stat-card7` | `src/components/fundraising/fundraising-progress.tsx` | 36 of 74 (48%) | Three tiles from real totals; Open pledges has no bar (pledges never count as raised); owner-only totals. |
+| `tables22` | `src/components/fundraising/fundraising-records.tsx` | 136 of 324 (41%) | Two record sets (gifts, pledges) behind the kit's toggle; Harvest's correct, accept and cancel actions with their dialogs; no sorting, receipts or delete. |
+| `form-layout8` | `src/components/fundraising/giving-dialogs.tsx` | 119 of 444 (26%) | Four dialogs and their submit logic (retry keys, account-number guard) against one 663-line demo whose react-hook-form `Controller` wrappers are not used; no section descriptions (copy rules). |
+| `stat-card17` | `src/components/fundraising/campaign-fundraising-card.tsx` | 61 of 138 (44%) | Set-up button and owner-only figures; no limit popover or alert marker. |
+| `stat-card17` | `src/components/fundraising/give-progress.tsx` | 33 of 67 (49%) | Small-group suppression shows the goal only; no footer (no public figures besides raised and goal). |
+| `form-layout14` | `src/components/fundraising/give-page-section.tsx` | 141 of 277 (50%) | Cover row is `EventCoverPicker` (scanned upload); link row, preview dialog; no avatar, handle check, markdown toolbar or booking email. |
+| `list-block29` | `src/components/giving/ways-to-give-manager.tsx` | 80 of 190 (42%) | Real methods with order, show switch and remove; no stock bars; preview card beside the list. |
+| `dashboard-modal22` | `src/components/giving/ways-to-give-method-dialog.tsx` | 50 of 148 (33%) | Fields follow the chosen type (`givingKindRules`); the tile shows the type's mark instead of an upload zone. |
+| `payment-methods1` | `src/components/giving/ways-to-give.tsx` | 25 of 90 (27%) | The kit's card number, expiry and CVC fields are not used (no payment is taken here); copyable details and the Give link instead. |
+| `dashboard-modal14` | `src/components/giving/ways-to-give-report.tsx` | 48 of 105 (45%) | Harvest's five report reasons, optional note, honeypot, sent and rate-limit states. |
+| `product-details1` | `src/components/fundraising/give-page-view.tsx` | 13 of 62 (20%) | The kit file is mostly sample product copy, rating and cart; the right column holds the progress card and Ways to give. |
+
+Harvest-owned, no kit item: the fundraiser header and its lifecycle actions (open, close, archive, each through `ConfirmDialog`) in `fundraising-detail.tsx`; small-group suppression and owner-only totals (server); no checkout or donation item (payment providers undecided). Copy says "ministry"; no vendor names in the interface beyond the ministry's own method types.
+
 ## Community forum redesign (27 Nov 2026)
 
 Founder instruction, 27 Nov 2026, on the community post page: "in the admin dashboard repo there is a social media page. Take the design from there. Do not recreate anything from scratch, take it from there." Source: the founder's premium kit repository `bumbmatei-sys/admin-dashboard` at commit `1631106`, `app/dashboard/(auth)/apps/social-media/` (no secrets copied or stored). Approval basis: that instruction (copying allowed with measured provenance under the standing kit rule). Recorded in `src/lib/ui-provenance.ts`: copied files in `adminDashboardProvenance`, modelled-on files in `adminDashboardReferences`. Shares measured with `scripts/ui-identical.sh` (non-blank, trimmed lines, longest common subsequence).
