@@ -8,7 +8,7 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { LikeButton } from "@/components/forum/like-button";
 import { memberInitials } from "@/lib/community-members";
 
-export type PostCardData = { id: string; title: string; excerpt: string; authorName: string | null; createdAt: Date; likes: number; comments: number; liked: boolean; likesOff: boolean;
+export type PostCardData = { id: string; title: string; excerpt: string; authorId: string | null; authorName: string | null; createdAt: Date; likes: number; comments: number; liked: boolean; likesOff: boolean;
   coverFileId: string | null; hasVideo: boolean; held: boolean; pinned: boolean };
 
 /**
@@ -16,7 +16,7 @@ export type PostCardData = { id: string; title: string; excerpt: string; authorN
  * request, hosts-only categories, held posts and who may see the post are decided by the server before this renders.
  */
 export function PostCard({ slug, post, category }: { slug: string; post: PostCardData; category?: { name: string; emoji: string | null } }) {
-  const t = useTranslations("CommunityForum"), format = useFormatter(), author = post.authorName?.trim() || t("unnamed"), href = `/communities/${slug}/posts/${post.id}`;
+  const t = useTranslations("CommunityForum"), format = useFormatter(), author = post.authorId ? post.authorName?.trim() || t("unnamed") : t("formerMember"), href = `/communities/${slug}/posts/${post.id}`;
   return <article aria-label={post.title}><Card className="gap-0 overflow-hidden py-0 shadow-none">
     <CardHeader className="flex flex-row flex-wrap items-center gap-3 py-3">
       <Avatar><AvatarFallback aria-hidden="true">{memberInitials(post.authorName ?? "")}</AvatarFallback></Avatar>

@@ -144,12 +144,13 @@ export type AutomationClicks = { counting: boolean; total: number | null; days: 
 
 /**
  * Link clicks on one automation's emails over the last 90 UTC days, the same rules as campaigns: totals per step, per day and per link only, every group
- * under 5 withheld (null) by the definer, owners and admins only (`newsletter:analytics`). Nothing about who clicked exists in the result.
+ * under 5 withheld (null) by the definer per step, UTC day and link, owners and admins only (a delegated grant is not enough). Nothing about who clicked exists in the result.
  */
 export async function automationClicks(db: Database, actor: string, workspace: string, automation: string, now = new Date()): Promise<AutomationClicks> {
   requireAutomationsEnabled();
   const range = periodRange(90, now);
-  return withNewsletter(db, actor, workspace, "newsletter:analytics", async (tx, tenant) => {
+  return withNewsletter(db, actor, workspace, "newsletter:analytics", async (tx, tenant, _role, access) => {
+    if (access !== "owner" && access !== "admin") throw unavailable();
     const [row] = await tx.select({ id: automations.id }).from(automations).where(and(eq(automations.tenantId, tenant), eq(automations.id, uuidId(automation))));
     if (!row) throw unavailable();
     const { rows: [{ report }] } = await tx.execute<{ report: AutomationClickReport }>(sql`
