@@ -166,7 +166,7 @@ This is a checklist, not an approval. It approves no HC-02 gate, no production m
 | 14.2 | No inferred religious label from joining; membership, marketing and pastoral consents separate | `docs/decisions/hc-02-activation-gates.md`; community tables hold no consent purpose | PASS |
 | 14.3 | Small-group suppression in community stats | `community-stats.test.ts`, `community-retention.test.ts` | PASS |
 | 14.4 | Real personal or pastoral data, special-category basis (EEA Article 9) | the five HC-02 gates are UNAPPROVED | GATE (G1) |
-| 14.5 | Minors (edge case 19): adults only at launch; any minors programme | founder decision 27 Nov: adults only (18+) at launch, with age confirmation; adult confirmation enforced (4.1); a minors programme is a later decision | PASS |
+| 14.5 | Minors (edge case 19): adults only at launch; any minors programme | adults only (18+) at launch, with age confirmation, per `docs/decisions/founder-decisions-2026-11.md` (26–27 Nov); adult confirmation enforced (4.1); a minors programme is a later decision | PASS |
 | 14.6 | Prayer-request data in Community Live (sensitive category) | `community-live.test.ts`; retention and encryption under HC-DEC3–5 | GATE (G7) |
 
 ## 15. Public endpoints
@@ -228,7 +228,7 @@ No backfill, so the 0091 NO FORCE pattern is not needed. No UI change and no new
 | F5 | No load test or LCP measurement (17.3) | Measure on a Preview deployment with synthetic data before launch. |
 | F6 | Video captions and transcript hooks (18.6) | Part of the Live and Classroom media work. |
 | F7 | Two-workspace adversarial coverage of search, notifications, AI and media as one suite (PRD §18 F) | Per-area tests exist; a single adversarial suite is still to write. |
-| F8 (decided 27 Nov) | Write-limit thresholds (10, 30, 20 per 10 minutes) | Founder kept the numbers and exempted hosts and moderators; the exemption is in a follow-up PR (migration 0134). |
+| F8 (decided 27 Nov) | Write-limit thresholds (10, 30, 20 per 10 minutes) | Numbers kept and hosts and moderators exempted, per `docs/decisions/founder-decisions-2026-11.md` (26–27 Nov); the exemption is in a follow-up PR. |
 | F9 | The limit message says "posting" for reports as well | Wording review with the next copy pass. |
 | F10 | No concurrent two-moderator decision test (5.7) | Two transactions deciding the same application; exactly one wins, the other gets 409. |
 
@@ -238,8 +238,8 @@ No backfill, so the 0091 NO FORCE pattern is not needed. No UI change and no new
 |---|---|---|
 | G1 | The five HC-02 privacy and security activation gates, including the Article 9 basis for faith and pastoral data | Founder, privacy review |
 | G2 | Retention periods and the deletion or anonymisation policy for public contributions (edge case 18) | Founder, privacy review |
-| G3 (decided 27 Nov) | Minors: adults only (18+) at launch, with age confirmation; a minors programme later | Founder |
-| G4 | Production email sender and real delivery. Founder decision 27 Nov: bounce and complaint handling is required before any real community email | Founder |
+| G3 (decided, see `docs/decisions/founder-decisions-2026-11.md` (26–27 Nov)) | Minors: adults only (18+) at launch, with age confirmation; a minors programme later | Founder |
+| G4 | Production email sender and real delivery. Bounce and complaint handling is required before any real community email, per `docs/decisions/founder-decisions-2026-11.md` (26–27 Nov) | Founder |
 | G5 | Payment provider for paid communities and product sales (UNDECIDED; Dodo stays SaaS billing only) | Founder |
 | G6 | Production enablement of Discover and the platform review process | Founder |
 | G7 | Prayer-request data handling in Community Live (HC-DEC3 to 5) | Founder, privacy review |
@@ -266,8 +266,8 @@ Updated 27 Nov 2026 once #302 and #304 were on main and after the founder's deci
 | 11.6 | GAP open (F1) | PASS | #304 |
 | 15.6 | GAP open (F1) | PASS (unsubscribe not throttled by design) | #304 |
 | 18.3 | GAP open (F2) | PASS | #304 |
-| 14.5 | GATE (G3) | PASS: adults only at launch | Founder, 27 Nov |
-| F8 | open | Decided: numbers kept, hosts and moderators exempt (pending PR) | Founder, 27 Nov |
-| G4 | open | Still a gate; bounce and complaint handling is now a required part of it | Founder, 27 Nov |
+| 14.5 | GATE (G3) | PASS: adults only at launch | `docs/decisions/founder-decisions-2026-11.md` (26–27 Nov) |
+| F8 | open | Decided: numbers kept, hosts and moderators exempt (follow-up PR) | `docs/decisions/founder-decisions-2026-11.md` (26–27 Nov) |
+| G4 | open | Still a gate; bounce and complaint handling is now a required part of it | `docs/decisions/founder-decisions-2026-11.md` (26–27 Nov) |
 
 Still open: F4 (invitations and cross-community applications), F5 (load and LCP), F2 for 18.5 (screen-wide 44px sweep), F6 (captions), F7 (single adversarial suite), F9 (limit wording), F10 (concurrent moderator decisions). Still gates: G1, G2, G4, G5, G6, G7.

@@ -185,3 +185,20 @@ Approved for the CRM reports slice (`docs/acceptance/crm-reports.md`); they sett
 - **Platform list:** approved as built (26 Nov). GoFundMe and Donorbox are removed by the PR that adds a payment provider for donations, with founder sign-off.
 - **Logos (26 Nov, after the screenshots):** every method shows its real brand logo except bank transfer, which keeps its generic icon. Logos come only from a verified source (Simple Icons, CC0); a brand without a verified mark keeps a generic icon until its official mark and terms are checked. GoFundMe's and Donorbox's entries go with those kinds.
 
+
+## Founder decisions, 26–27 Nov (decision forms in the coordinating session)
+Source: the founder's answers to decision forms in the coordinating Claude session (26 Nov evening and 27 Nov morning, Berlin). Nothing here approves a merge, deployment, production migration or HC-02 gate.
+- **Newsletter click tracking (26 Nov):** link clicks only, no open tracking or pixel; totals per email and per day, groups under 5 hidden, owners and admins only, nobody sees who clicked; off by default, the ministry owner turns it on; click records kept 90 days, then anonymous daily totals; no IP or device data. Built in #299.
+- **/give page (26 Nov):** the raised amount shows only once 5 known supporters have given; give pages are hidden from search engines until launch. Built in #296.
+- **Newsletter (27 Nov):** the "links are counted" line becomes part of the recorded consent wording (a new consent version) when click counting is on; automation emails count clicks under the same rules as campaigns; newsletter analytics stay owners and admins only.
+- **Auto-DM (27 Nov):** the per-person limit is a rolling 24 hours, not a calendar day.
+- **Courses (27 Nov):** the screens of #306 and #307 (levels as cards, sections as groups, lesson video, Mark complete, progress, My notes) are approved.
+- **Communities (27 Nov):**
+  - Write limits stay at 10 posts, 30 replies and 20 reports per person per community per 10 minutes; hosts and moderators are exempt.
+  - Public page limits stay at 60 a minute per visitor.
+  - Harvest staff get a takedown tool for communities and single posts, like the giving takedown: a report button, staff admins hide and restore, in-app badge, reversible.
+  - Communities are on by default in staging; production stays off.
+  - Adults only (18+) at launch, with age confirmation at sign-up; a minors programme is a later decision.
+  - Bounce and complaint handling is required before any real community email.
+- **Your data (27 Nov):** self-serve download of your own data and account deletion are built before launch.
+- **Link in bio and blog (27 Nov):** the 16 kit items in the approval request are approved (12 link in bio, 4 blog); one small MIT carousel library is allowed for gallery and phone tab swipe; location shows the address with "Open in maps" (no embedded map); "Live now" is a manual link with a LIVE badge.
