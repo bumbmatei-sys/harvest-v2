@@ -1,6 +1,6 @@
 /** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): components/ui/custom/tiptap/toolbars/editor-toolbar.tsx and components/ui/custom/tiptap/toolbars/color-and-highlight.tsx; code written for Harvest, no kit code copied. Harvest notes: docs/ui-sources.md. */
 "use client";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useEditorState, type Editor } from "@tiptap/react";
 import { useTranslations } from "next-intl";
 import { Toolbar as ToolbarPrimitive } from "radix-ui";
@@ -33,7 +33,9 @@ const Sep = () => <ToolbarPrimitive.Separator className="mx-1 h-6 w-px shrink-0 
  * The fixed formatting toolbar. Radix Toolbar gives one tab stop and arrow-key movement; every button is a shared Toggle, Button or DropdownMenu and names its action
  * (tooltip and accessible name). It scrolls sideways on a narrow screen; targets are 44px below 1024px.
  */
-export function EditorToolbar({ editor }: { editor: Editor }) {
+/** `extras`: actions another editor adds at the end of the bar (the blog's in-body picture), with the same look, tooltip and 44px targets. */
+export type ToolbarExtra = { label: string; icon: typeof Bold; onSelect: () => void };
+export function EditorToolbar({ editor, extras = [] }: { editor: Editor; extras?: readonly ToolbarExtra[] }) {
   const t = useTranslations("Docs.toolbar"), c = useTranslations("Docs");
   const s = useEditorState({ editor, selector: ({ editor: e }) => ({
     undo: e.can().undo(), redo: e.can().redo(), bold: e.isActive("bold"), italic: e.isActive("italic"), underline: e.isActive("underline"), strike: e.isActive("strike"), code: e.isActive("code"),
@@ -115,6 +117,7 @@ export function EditorToolbar({ editor }: { editor: Editor }) {
         </DropdownMenuContent></DropdownMenu>
       {button(t("columns"), Columns2, () => run().insertContent({ type: "columns", content: [{ type: "column", content: [{ type: "paragraph" }] }, { type: "column", content: [{ type: "paragraph" }] }] }).run())}
       {button(t("clearFormatting"), RemoveFormatting, () => run().unsetAllMarks().clearNodes().run())}
+      {extras.length > 0 && <><Sep />{extras.map((extra) => <Fragment key={extra.label}>{button(extra.label, extra.icon, extra.onSelect)}</Fragment>)}</>}
     </ToolbarPrimitive.Root>
   </TooltipProvider>;
 }
