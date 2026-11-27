@@ -946,6 +946,13 @@
       "when": 1795792371617,
       "tag": "0137_newsletter_click_fixed_buckets",
       "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1795796244452,
+      "tag": "0138_blog_scope_clear",
+      "breakpoints": true
     }
   ]
 }
