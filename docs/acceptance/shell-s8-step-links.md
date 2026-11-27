@@ -28,3 +28,10 @@ Roadmap: Phase 0, "S8: ?step= link to a specific step". Spec context: `docs/supe
 
 - The step opens right after hydration (the editors own their step state), so the first paint can show the default step for one frame.
 - The leave guard's fallback for browsers without the Navigation API remembers the address from when the editor opened; if it restores the editor after Back, the address can show the older `?step=` until the next step change. Browsers with the Navigation API (Chromium) are not affected.
+
+## Test evidence (27 Nov 2026, local, webpack dev server, one worker, CI timeouts)
+
+- Unit: `tests/unit/step-param.test.ts` 8 passed; full unit suite 1857 passed in 164 files; `tsc` and `npm run lint` (with the source guards) clean.
+- Browser: `tests/e2e/editor-step-link.spec.ts` 2 passed (community editor, campaign wizard).
+- Expectations shifted by the address now following the step, updated without weakening them: `tests/e2e/shell-slice3a.spec.ts` (the step click now expects `?step=joining`; a reload keeps Joining, then the plain address starts again from Basics), 5 passed, 1 flaky (passed on retry), 1 skipped (flag-off parity test); `tests/e2e/shell-slice3b.spec.ts` (the "no navigation" check allows `?step=`), not confirmed locally: the run was cut short by the shared machine running out of disk (see the PR).
+- Unchanged and passing: `community-editor.spec.ts` 1 passed, `editor-step-done.spec.ts` 1 passed, `campaign-wizard.spec.ts` 6 passed and 2 flaky; its other 3 tests failed only while the dev server was restarting under memory pressure (connection refused, aborted loads, 500s), and their rerun was stopped by the disk.

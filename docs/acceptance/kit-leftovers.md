@@ -6,9 +6,9 @@ Roadmap: Phase 0, "Kit leftovers: toast placement, free-tier check, member count
 
 | # | Requirement | Status | Evidence |
 | --- | --- | --- | --- |
-| T1 | One toast outlet for the whole app (the root layout's `Toaster`), one position per width: bottom right from 601px, full width at the top on phones (600px and below, Sonner's own phone breakpoint). | BUILT | `src/components/ui/sonner.tsx`; `tests/e2e/ministry-audience.spec.ts`, `tests/e2e/ui-showcase.spec.ts` |
+| T1 | One toast outlet for the whole app (the root layout's `Toaster`), one position per width: bottom right from 601px, full width at the top on phones (600px and below, Sonner's own phone breakpoint). | BUILT | `src/components/ui/sonner.tsx`; `tests/e2e/ministry-audience.spec.ts` |
 | T2 | Offsets add the safe-area insets (24px from the edge on desktop, 16px on phones, plus `env(safe-area-inset-*)`). | BUILT | `sonner.tsx` (`offset`, `mobileOffset`) |
-| T3 | No second floating notice position: the doc editor's import error, which was a fixed alert at the bottom left, now uses the shared toast (`notify.error`, id `doc-import`). | BUILT | `src/components/docs/doc-editor.tsx`; `tests/e2e/docs.spec.ts` |
+| T3 | No second floating notice position: the doc editor's import error, which was a fixed alert at the bottom left, now uses the shared toast (`notify.error`, id `doc-import`). | BUILT | `src/components/docs/doc-editor.tsx` (no browser spec covers the import failure; `docs.spec.ts` was not run to completion) |
 
 Why the top on phones: the bottom of a phone screen holds the community bottom navigation, sticky save bars, the chat composer and the on-screen keyboard.
 
@@ -39,3 +39,10 @@ All 29 kit items recorded in `src/lib/ui-provenance.ts` were checked on 26 Nov 2
 | --- | --- | --- | --- |
 | M1 | The count is everyone with access: every accepted membership row of the ministry, collaborators and guests included (pending invitations are not access). Counted inside the per-ministry tenant transaction with an explicit tenant filter; a person only gets counts for ministries they belong to. | BUILT (count from Kit PR 2, #89) | `tests/integration/workspace-member-count.test.ts` (new case with a collaborator and a guest) |
 | M2 | Role names: Collaborator and Guest instead of raw ids; a collaborator's role token (`collaborator;crm=manage`) shows as Collaborator and `campaign_guest` as Guest. | BUILT | `switcherRoleKey` in `src/lib/ministry-switcher.ts`; `tests/unit/ministry-switcher.test.ts`; `tests/e2e/kit-pr2-shell.spec.ts` (new test) |
+
+## Test evidence (27 Nov 2026, local, webpack dev server, one worker, CI timeouts)
+
+- Unit: `tests/unit/ministry-switcher.test.ts` (role keys), `tests/unit/ui-primitives.test.ts` (the sheet sides pad exactly the edges they touch; the old "bottom only" expectation is replaced by the edge-to-edge rule), `tests/unit/ui-provenance.test.ts` 16 passed.
+- Integration: `tests/integration/workspace-member-count.test.ts` 2 passed.
+- Browser: `tests/e2e/kit-pr2-shell.spec.ts` 5 of 5 passed across two runs (tests 1 to 3 in the first, 4 and 5 rerun on a fresh server after a dev-server restart); the new test also checks "Role: collaborator" and "Role: guest" on Your ministries, where a collaborator previously got a missing-message error. `tests/e2e/ministry-audience.spec.ts` 1 passed (toast in the Notifications region).
+- Not run to completion: `docs.spec.ts` and `community-chat.spec.ts` (the shared machine ran out of disk), and the founder phone screenshots.
