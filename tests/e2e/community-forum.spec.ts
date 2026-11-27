@@ -325,12 +325,21 @@ test("forum redesign: feed, post and composer at 1280 and 360, light and dark", 
             r.getByRole("button", { name: "Write a reply" }), r.getByRole("button", { name: "Reply", exact: true })]) expect((await target.boundingBox())!.height).toBeGreaterThanOrEqual(44);
         }
         if (label === "phone" && name === "feed") {
-          for (const target of [r.getByRole("button", { name: "What's on your mind?", exact: true }), r.getByRole("button", { name: "Attach", exact: true }),
+          for (const target of [r.getByRole("button", { name: "What's on your mind?", exact: true }), r.getByRole("button", { name: "Attach", exact: true }), r.getByRole("button", { name: "Photo", exact: true }),
             r.getByRole("link", { name: "All posts", exact: true }), r.getByRole("link", { name: "Best this week", exact: true })]) expect((await target.boundingBox())!.height).toBeGreaterThanOrEqual(44);
         }
         await r.screenshot({ path: `${shots}/${name}-${label}-${scheme}.png`, fullPage: true });
       }
     }
+    // A window opened from the post menu returns focus to the menu button when it closes.
+    await r.setViewportSize({ width: 1280, height: 900 });
+    await r.goto(`/communities/${slug}/posts/${post.id}`);
+    const menu = r.getByRole("button", { name: "More actions for Thursday study notes" });
+    await menu.click();
+    await r.getByRole("menuitem", { name: "Report", exact: true }).click();
+    await expect(r.getByRole("dialog", { name: "Report post" })).toBeVisible();
+    await r.keyboard.press("Escape");
+    await expect(menu).toBeFocused();
     // The reply box focuses from the comment action, and Enter sends.
     await r.setViewportSize({ width: 1280, height: 900 });
     await r.goto(`/communities/${slug}/posts/${post.id}`);
@@ -345,6 +354,9 @@ test("forum redesign: feed, post and composer at 1280 and 360, light and dark", 
     // The feed card shortcuts open the composer on the matching tab.
     await r.getByRole("button", { name: "Attach", exact: true }).click();
     await expect(r.getByRole("dialog", { name: "New post" }).getByRole("tab", { name: "Files", exact: true })).toHaveAttribute("aria-selected", "true");
+    // The Event shortcut waits for a real event picker.
+    await r.keyboard.press("Escape");
+    await expect(r.getByRole("button", { name: "Event", exact: true })).toHaveCount(0);
   } finally { await author.context.close(); await reader.context.close(); }
   expect(errors).toEqual([]);
 });

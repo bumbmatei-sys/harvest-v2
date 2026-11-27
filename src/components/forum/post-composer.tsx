@@ -1,9 +1,9 @@
-/** Derived from bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/social-media/components/create-post-dialog.tsx. Harvest changes: the kit Create Post button becomes a card at the top of the feed (avatar, a rounded "What's on your mind?" prompt, a photo button and Photo, Attach and Event shortcuts that open the window on the matching tab); the viewer's name with the forum category in place of the audience select; title and the forum's rich text editor in place of the plain text box; the Photo, Video and Status tabs become Cover (upload), Video (a link) and Files (attachments), with Harvest's upload rules; the replies and likes switches; posting and editing call the existing forum routes; catalogue strings. Notes: docs/ui-sources.md. */
+/** Derived from bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/social-media/components/create-post-dialog.tsx. Harvest changes: the kit Create Post button becomes a card at the top of the feed (avatar, a rounded "What's on your mind?" prompt, a photo button and Photo and Attach shortcuts that open the window on the matching tab; an Event shortcut follows with a real event picker); the viewer's name with the forum category in place of the audience select; title and the forum's rich text editor in place of the plain text box; the Photo, Video and Status tabs become Cover (upload), Video (a link) and Files (attachments), with Harvest's upload rules; the replies and likes switches; posting and editing call the existing forum routes; catalogue strings. Notes: docs/ui-sources.md. */
 "use client";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { CalendarDays, FileText, ImageIcon, Paperclip, Video, X } from "lucide-react";
+import { FileText, ImageIcon, Paperclip, Video, X } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -40,7 +40,7 @@ export type ComposerFile = { id: string; name: string };
 export type ComposerInitial = { id: string; categoryId: string; title: string; body: RichDoc; videoUrl: string | null; cover: ComposerFile | null; attachments: ComposerFile[];
   commentsOff: boolean; likesOff: boolean };
 
-/** The kit's "Create Post" window for the forum. New posts open from the card at the top of the feed ("What's on your mind?", Photo, Attach, Event); edits open from a post's menu (defaultOpen and onClose, no card). */
+/** The kit's "Create Post" window for the forum. New posts open from the card at the top of the feed ("What's on your mind?", Photo, Attach); edits open from a post's menu (defaultOpen and onClose, no card). */
 export function PostComposer({ slug, categories, defaultCategory, initial, canModerate, author, defaultOpen = false, onClose }: { slug: string; categories: ComposerCategory[];
   defaultCategory?: string; initial?: ComposerInitial; canModerate: boolean; /** The viewer's name for the header. */ author: string; defaultOpen?: boolean; onClose?: () => void }) {
   const t = useTranslations("CommunityForum"), request = useCrmRequest(), router = useRouter();
@@ -59,7 +59,7 @@ export function PostComposer({ slug, categories, defaultCategory, initial, canMo
     if (isOpen) { setForm(fresh()); setNewPostType("image"); }
     else onClose?.();
   };
-  /** The feed card's shortcuts open the same window on the matching tab (attachment and event pickers come later; both open the composer for now). */
+  /** The feed card's shortcuts open the same window on the matching tab (the attachment picker comes later; Attach opens the Files tab for now). */
   const openAt = (tab: string) => { handleOpenChange(true); setNewPostType(tab); };
 
   async function upload(file: File | undefined, kind: "cover" | "attachment") {
@@ -100,8 +100,8 @@ export function PostComposer({ slug, categories, defaultCategory, initial, canMo
               <ImageIcon aria-hidden="true" />
             </Button>
           </div>
-          <div role="group" aria-label={t("shortcuts")} className="grid grid-cols-3 border-t p-1">
-            {([["image", ImageIcon, "shortcutPhoto"], ["files", Paperclip, "shortcutAttach"], ["image", CalendarDays, "shortcutEvent"]] as const).map(([tab, Icon, label]) =>
+          <div role="group" aria-label={t("shortcuts")} className="grid grid-cols-2 border-t p-1">
+            {([["image", ImageIcon, "shortcutPhoto"], ["files", Paperclip, "shortcutAttach"]] as const).map(([tab, Icon, label]) =>
               <Button key={label} variant="ghost" className="text-muted-foreground hover:text-foreground min-h-11 rounded-md lg:min-h-9" onClick={() => openAt(tab)}>
                 <Icon className="text-primary" aria-hidden="true" />
                 {t(label)}

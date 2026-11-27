@@ -2,7 +2,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Flag, Heart, Link2, MessageCircle, MoreHorizontal, Pencil, Pin, Trash2 } from "lucide-react";
 
@@ -91,7 +91,9 @@ export function PostMenu({ slug, post, isAuthor, canModerate, edit, detail = fal
   isAuthor: boolean; canModerate: boolean; /** Author edit, offered on the post page only. */ edit?: { categories: ComposerCategory[]; initial: ComposerInitial; author: string };
   /** On the post page: deleting or removing the post returns to the forum. */ detail?: boolean }) {
   const t = useTranslations("CommunityForum"), tr = useTranslations("Report"), { busy, run, router } = useAction();
-  const [dialog, setDialog] = useState<"edit" | "report" | null>(null);
+  const [dialog, setDialog] = useState<"edit" | "report" | null>(null), trigger = useRef<HTMLButtonElement>(null);
+  // The report and edit windows open from the menu with no trigger of their own: return focus to the menu button when they close.
+  const closeDialog = () => { setDialog(null); requestAnimationFrame(() => trigger.current?.focus()); };
   const href = `/communities/${slug}/posts/${post.id}`, after = detail ? () => router.push(`/communities/${slug}/forum`) : undefined;
   const act = async (call: (request: Request) => ReturnType<Request>, done?: () => void) => {
     const failed = { message: "" };
@@ -105,7 +107,7 @@ export function PostMenu({ slug, post, isAuthor, canModerate, edit, detail = fal
   return <>
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-responsive" disabled={busy} aria-label={t("moreActions", { name: post.title })}>
+        <Button ref={trigger} variant="ghost" size="icon-responsive" disabled={busy} aria-label={t("moreActions", { name: post.title })}>
           <MoreHorizontal aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
@@ -140,9 +142,9 @@ export function PostMenu({ slug, post, isAuthor, canModerate, edit, detail = fal
         </DropdownMenuItem>}
       </DropdownMenuContent>
     </DropdownMenu>
-    {dialog === "report" && <ReportDialog slug={slug} targetType="post" targetId={post.id} name={post.title} defaultOpen onClose={() => setDialog(null)} />}
+    {dialog === "report" && <ReportDialog slug={slug} targetType="post" targetId={post.id} name={post.title} defaultOpen onClose={closeDialog} />}
     {dialog === "edit" && edit && <PostComposer slug={slug} categories={edit.categories} canModerate={canModerate} initial={edit.initial} author={edit.author}
-      defaultOpen onClose={() => setDialog(null)} />}
+      defaultOpen onClose={closeDialog} />}
   </>;
 }
 
