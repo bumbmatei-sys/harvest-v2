@@ -3378,7 +3378,8 @@
     "shortcuts": "Add to your post",
     "shortcutPhoto": "Photo",
     "shortcutAttach": "Attach",
-    "dot": "·"
+    "dot": "·",
+    "inCategory": "in"
   },
   "RichText": {
     "toolbar": "Formatting",
@@ -3441,7 +3442,22 @@
     "moveUp": "Move {name} up",
     "moveDown": "Move {name} down",
     "featureNamed": "Feature {name}",
-    "unfeatureNamed": "Stop featuring {name}"
+    "unfeatureNamed": "Stop featuring {name}",
+    "enrolledSummary": "Enrolled in {enrolled} of {count, plural, one {# course} other {# courses}}",
+    "sortCourses": "Sort courses",
+    "sortBy": "Sort by",
+    "sorts": {
+      "shelf": "Featured first",
+      "name": "Name"
+    },
+    "filterCourses": "Filter courses",
+    "filters": {
+      "all": "All",
+      "enrolled": "Enrolled",
+      "available": "Not enrolled"
+    },
+    "noMatches": "No courses here",
+    "free": "Free"
   },
   "ForumCategories": {
     "list": "Forum categories",
@@ -3453,7 +3469,13 @@
     "delete": "Delete {name}",
     "newName": "New category name",
     "newPlaceholder": "New category",
-    "add": "Add category"
+    "add": "Add category",
+    "summary": "{count, plural, one {# category} other {# categories}}, {hosts} for hosts only",
+    "posts": "{count, plural, one {# post} other {# posts}}",
+    "hostsOnlyFor": "Hosts only: {name}",
+    "actionsFor": "Actions for {name}",
+    "edit": "Edit",
+    "done": "Done"
   },
   "EditHistory": {
     "open": "Edit history",
@@ -3864,7 +3886,11 @@
       "daily": "Daily summary",
       "dailyHint": "Important email and one summary a day",
       "weekly": "Weekly summary",
-      "weeklyHint": "Important email and one summary a week"
+      "weeklyHint": "Important email and one summary a week",
+      "change": "Change email frequency",
+      "changeShort": "Change",
+      "dialogTitle": "Email frequency",
+      "dialogDescription": "How often this community may email you."
     },
     "prefs": {
       "replies": "Replies",
@@ -3893,7 +3919,10 @@
       "chatMention": "{name} mentioned you in chat",
       "chatReply": "{name} replied in a chat thread",
       "dm": "You have private messages"
-    }
+    },
+    "inApp": "In the app",
+    "activeSummary": "{active} of {count} are on",
+    "cancel": "Cancel"
   },
   "WelcomeCard": {
     "title": "Welcome",

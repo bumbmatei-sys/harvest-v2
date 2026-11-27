@@ -1,4 +1,3 @@
-/** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/social-media/components/post-item.tsx; code written for Harvest, no kit code copied. The post page is the feed card expanded: full post, the replies below and the reply box in the card footer. */
 import { communityPostLink } from "@/lib/site-address";
 import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
@@ -13,7 +12,8 @@ import { RichTextView } from "@/components/rich-text/rich-text-view";
 import { VideoEmbedView } from "@/components/forum/video-embed";
 import { LikeButton } from "@/components/forum/like-button";
 import { CommentActions, PostMenu, ReplyForm } from "@/components/forum/forum-actions";
-import { PostCard, PostComment, PostComments, forumAuthorName } from "@/components/forum/post-card";
+import { forumAuthorName } from "@/components/forum/post-card";
+import { PostComment, PostComments, PostThread } from "@/components/forum/post-thread";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ReportDialog } from "@/components/communities/report-dialog";
@@ -44,7 +44,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   return <div data-surface="sunken" className="min-w-0 p-4 lg:p-6"><div className="mx-auto w-full min-w-0 space-y-3 lg:max-w-2xl">
     <Link href={`/communities/${context.slug}/forum`} prefetch={false} className="inline-flex min-h-11 items-center gap-2 text-sm text-foreground/80 hover:text-foreground">
       <ArrowLeft className="size-4" aria-hidden="true" />{t("backToForum")}</Link>
-    <PostCard slug={context.slug} category={category} footer={footer}
+    <PostThread slug={context.slug} category={category} footer={footer}
       post={{ ...post, excerpt: "", comments: comments.length, hasVideo: Boolean(post.video) }}
       detail={{ body, likeDisabled: post.held || Boolean(muted), replyTarget: canReply ? "reply-body" : undefined }}
       meta={post.editedAt && <>
@@ -57,7 +57,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           commentsOff: post.commentsOff, likesOff: post.likesOff } } : undefined} />}>
       <PostComments count={comments.length}>
         {comments.map((c) => { const name = forumAuthorName(t, c.authorId, c.authorName); return <PostComment key={c.id} authorId={c.authorId} authorName={c.authorName} body={c.body} createdAt={c.createdAt}
-          like={<LikeButton className="text-muted-foreground h-auto min-h-11 px-2 text-xs lg:min-h-8" slug={context.slug} targetType="comment" targetId={c.id} likes={c.likes} liked={c.liked} disabled={post.likesOff || c.held || Boolean(muted)} label={name} />}
+          like={<LikeButton className="text-muted-foreground h-auto min-h-11 px-2 text-sm lg:min-h-8" slug={context.slug} targetType="comment" targetId={c.id} likes={c.likes} liked={c.liked} disabled={post.likesOff || c.held || Boolean(muted)} label={name} />}
           badges={c.held && <Badge variant="outline">{t("awaitingReview")}</Badge>}
           actions={<>
             <CommentActions slug={context.slug} commentId={c.id} isAuthor={c.authorId === me} canModerate={context.canModerate} name={name} />
@@ -65,6 +65,6 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
             {c.authorId !== me && !c.held && <ReportDialog slug={context.slug} targetType="comment" targetId={c.id} name={name} compact />}
           </>} />; })}
       </PostComments>
-    </PostCard>
+    </PostThread>
   </div></div>;
 }

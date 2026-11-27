@@ -42,6 +42,14 @@ const openSettings = async (page: Page, slug: string) => {
   await expect(sheet).toBeVisible();
   return sheet;
 };
+// Community screens (27 Nov): the sheet's Email row opens the email frequency window, which saves on its own.
+const openEmail = async (page: Page, slug: string) => {
+  const sheet = await openSettings(page, slug);
+  await sheet.getByRole("button", { name: "Change email frequency" }).click();
+  const choice = page.getByRole("dialog", { name: "Email frequency" });
+  await expect(choice).toBeVisible();
+  return choice;
+};
 
 test("a member chooses an email frequency, and the unsubscribe page changes nothing until they confirm", async ({ page, browser }) => {
   test.setTimeout(480000);
@@ -70,15 +78,16 @@ test("a member chooses an email frequency, and the unsubscribe page changes noth
     await expect(m).toHaveURL(new RegExp(`/communities/${slug}/forum$`), { timeout: 90000 });
 
     // Frequency: important is the default; daily is saved, confirmed by a toast, and still chosen after a reload.
-    let sheet = await openSettings(m, slug);
+    let sheet = await openEmail(m, slug);
     await expect(sheet.getByRole("radio", { name: "Important only" })).toBeChecked();
     await sheet.getByRole("radio", { name: "Daily summary" }).click();
     await sheet.getByRole("button", { name: "Save", exact: true }).click();
     await expect(m.getByText("Notification settings saved.")).toBeVisible();
     await expect(sheet).toBeHidden();
-    sheet = await openSettings(m, slug);
+    await expect(m.getByRole("dialog", { name: "Notification settings" }).getByText("Daily summary", { exact: true })).toBeVisible();
+    sheet = await openEmail(m, slug);
     await expect(sheet.getByRole("radio", { name: "Daily summary" })).toBeChecked();
-    await shoot(m, "settings-email", async () => { await openSettings(m, slug); });
+    await shoot(m, "settings-email", async () => { await openEmail(m, slug); });
 
     // A real token for this membership, signed with the test server's throwaway secret.
     const secret = (await readFile(`${process.env.HARVEST_E2E_MAILBOX}.auth-secret`, "utf8")).trim();
@@ -95,7 +104,7 @@ test("a member chooses an email frequency, and the unsubscribe page changes noth
     await expect.poll(() => new URL(v.url()).hash).toBe("");
     await v.waitForTimeout(500);
     expect(posts.filter((url) => url.includes("/api/communities/unsubscribe"))).toEqual([]);
-    sheet = await openSettings(m, slug);
+    sheet = await openEmail(m, slug);
     await expect(sheet.getByRole("radio", { name: "Daily summary" })).toBeChecked();
 
     // Confirming switches this community's email off.
@@ -103,8 +112,8 @@ test("a member chooses an email frequency, and the unsubscribe page changes noth
     await v.getByRole("button", { name: "Stop emails" }).click();
     expect(await (await answer).json()).toEqual({ ok: true });
     await expect(v.getByRole("heading", { name: "Your request was received" })).toBeVisible();
-    const neutral = await v.locator("main").innerText();
-    sheet = await openSettings(m, slug);
+    const neutral = await v.getByRole("dialog").innerText();
+    sheet = await openEmail(m, slug);
     await expect(sheet.getByRole("radio", { name: "Off" })).toBeChecked();
 
     // A forged or missing token shows exactly the same result.
@@ -112,7 +121,7 @@ test("a member chooses an email frequency, and the unsubscribe page changes noth
       await v.goto("about:blank"); await v.goto(link);
       await v.getByRole("button", { name: "Stop emails" }).click();
       await expect(v.getByRole("heading", { name: "Your request was received" })).toBeVisible();
-      expect(await v.locator("main").innerText()).toBe(neutral);
+      expect(await v.getByRole("dialog").innerText()).toBe(neutral);
     }
     await shoot(v, "unsubscribe-confirm");
     await shoot(v, "unsubscribe-done", async () => {

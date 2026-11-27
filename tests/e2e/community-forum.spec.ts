@@ -89,12 +89,18 @@ test("forum: categories, a full post, likes and replies, edits, pinning and remo
   await page.getByLabel("New category name", { exact: true }).fill("Announcements");
   await page.getByRole("button", { name: "Add category", exact: true }).click();
   await expect(categories.getByRole("listitem")).toHaveCount(2);
+  // Community screens (27 Nov): each category row has a menu (Edit, Move up, Move down, Delete); Edit opens the emoji and name fields.
+  await page.getByRole("button", { name: "Actions for Announcements", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
   await page.getByLabel("Emoji for Announcements", { exact: true }).fill("📣");
-  await page.getByLabel("Emoji for Announcements", { exact: true }).blur();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(categories.getByRole("listitem").nth(1)).toContainText("📣");
   await categories.getByRole("listitem").nth(1).getByRole("switch").click();
   await expect(categories.getByRole("listitem").nth(1).getByRole("switch")).toBeChecked();
-  await page.getByRole("button", { name: "Move Announcements up", exact: true }).click();
-  await expect(page.getByLabel("Category 1 name", { exact: true })).toHaveValue("Announcements");
+  await expect(categories.getByRole("listitem").nth(1).getByText("Hosts only", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Actions for Announcements", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Move Announcements up", exact: true }).click();
+  await expect(categories.getByRole("listitem").first()).toContainText("Announcements");
   await shoot(page, "editor-channels", async () => { await steps.getByRole("button", { name: /Channels/ }).click(); await expect(categories.getByRole("listitem")).toHaveCount(2); });
 
   const author = await person(browser, errors), reader = await person(browser, errors);
