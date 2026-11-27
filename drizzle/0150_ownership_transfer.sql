@@ -113,6 +113,7 @@ DECLARE actor text := nullif(current_setting('app.user_id', true), '');
   event_id uuid;
   result jsonb;
 BEGIN
+  -- blog_scope_clear() blanks app.tenant_id. The caller uses its own transaction for this function.
   PERFORM public.blog_scope_clear();
   PERFORM public.account_self_reset();
   IF actor IS NULL OR p_tenant IS NULL OR p_action IS NULL

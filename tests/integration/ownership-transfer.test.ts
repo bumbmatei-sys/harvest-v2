@@ -3,6 +3,16 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
+vi.mock("../../src/db/client", async importOriginal => ({
+  ...await importOriginal<typeof import("../../src/db/client")>(),
+  getDb: () => f.db,
+}));
+vi.mock("../../src/server/http", async importOriginal => ({
+  ...await importOriginal<typeof import("../../src/server/http")>(),
+  verifiedUser: async () => owner,
+  verifyOrigin: () => {},
+}));
+import { POST } from "../../src/app/api/workspaces/[tenantId]/ownership-transfer/route";
 import { testDatabase } from "../database";
 import * as schema from "../../src/db/schema";
 import { createWorkspace } from "../../src/server/workspaces";
@@ -38,6 +48,26 @@ it("requires an owner and an admin in the same ministry", async () => {
   await expect(ownershipTransfer(f.db, admin, other, { action: "accept", offerId: id! })).rejects.toMatchObject({ status: 404 });
   await expect(ownershipTransfer(f.db, member, tenant, { action: "accept", offerId: id! })).rejects.toMatchObject({ status: 404 });
   expect(await ownershipTransfer(f.db, owner, tenant, { action: "cancel", offerId: id! })).toEqual({ outcome: "cancelled" });
+});
+
+it("limits offers and cancellations together before the next notification", async () => {
+  const { tenantId: workspace } = await createWorkspace(f.db, owner, "Limited Ministry", "church");
+  await f.admin.query("insert into workspace_members(tenant_id,user_id,role_id) values ($1,$2,'admin')", [workspace, admin]);
+  const post = (input: unknown) => POST(new Request("https://app.example.invalid", { method: "POST", body: JSON.stringify(input) }),
+    { params: Promise.resolve({ tenantId: workspace }) });
+  for (let i = 0; i < 3; i++) {
+    const result = await post({ action: "offer", recipientUserId: admin });
+    expect(result.status).toBe(201);
+    const { id } = await result.json();
+    expect((await post({ action: "cancel", offerId: id })).status).toBe(200);
+  }
+  const notices = await listOwnershipNotifications(f.db, admin, workspace);
+  const blocked = await post({ action: "offer", recipientUserId: admin });
+  expect(blocked.status).toBe(429);
+  expect(Number(blocked.headers.get("Retry-After"))).toBeGreaterThan(0);
+  expect(await listOwnershipNotifications(f.db, admin, workspace)).toEqual(notices);
+  // Leave the shared owner fixture unchanged for the account deletion checks.
+  await f.admin.query("delete from workspace_members where tenant_id=$1 and user_id=$2", [workspace, owner]);
 });
 
 it("handles decline and expiry without changing the roles", async () => {

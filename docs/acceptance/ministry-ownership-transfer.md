@@ -15,3 +15,5 @@ A ministry can have multiple owners under the existing model. This operation pro
 Transfer history stores IDs, dates and outcomes. The audit ledger contains IDs and an outcome. In-app notifications use the existing ministry notification store, with a transfer target and recipient-only reads. No mail is sent.
 
 Acceptance covers separate ministries, ineligible participants, duplicate offers, expiry, cancellation, decline, role changes, concurrent acceptance, audit, notifications and deletion before and after acceptance. Hosted Neon, real DNS, and the real email provider remain unverified. HC-02 activation gates remain **UNAPPROVED**.
+
+Offer and cancel requests share a six-per-minute budget per signed-in account across ministries. Further requests return 429 with Retry-After. Acceptance and decline are outside that budget.
