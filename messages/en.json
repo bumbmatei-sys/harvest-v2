@@ -8091,7 +8091,19 @@
       "bioCount": "{count} of {max}",
       "photoNote": "Photo",
       "subtitle": "One-line subtitle",
-      "cover": "Cover image"
+      "cover": "Cover image",
+      "coverShow": "Show a cover",
+      "photoRow": "Profile photo",
+      "photoAlign": "Photo position",
+      "aligns": {
+        "center": "Centre",
+        "left": "Left"
+      },
+      "iconStyle": "Icon style",
+      "iconStyles": {
+        "outline": "Outline",
+        "color": "Colour"
+      }
     },
     "links": {
       "heading": "Links",
@@ -8124,7 +8136,7 @@
       "removeSocial": "Remove {network} icon",
       "maxLinks": "Up to {max} blocks.",
       "maxBlocks": "Up to {max} items.",
-      "tab": "Section"
+      "tab": "Tab"
     },
     "icons": {
       "globe": "Website",
@@ -8189,11 +8201,7 @@
         "filled": "Filled",
         "outline": "Outline"
       },
-      "brandNote": "Uses your ministry's brand colours.",
-      "tabsHeading": "Sections",
-      "tabShow": "Show {tab}",
-      "tabMoveUp": "Move {tab} up",
-      "tabMoveDown": "Move {tab} down"
+      "brandNote": "Uses your ministry's brand colours."
     },
     "cover": {
       "label": "Photo",
@@ -8317,7 +8325,8 @@
         "reserved": "That address is reserved.",
         "taken": "That address is already taken."
       },
-      "prefix": "/l/"
+      "prefix": "/l/",
+      "checkPhoto": "Add a profile photo"
     },
     "tabs": {
       "home": "Home",
@@ -8379,6 +8388,26 @@
         "stale": "This page changed since you opened it. Reload, then try again."
       },
       "bannerLabel": "Cover image"
+    },
+    "tabsEditor": {
+      "heading": "Tabs",
+      "layout": "Page layout",
+      "layouts": {
+        "tabs": "Tabs",
+        "single": "Single page"
+      },
+      "name": "Name of tab {position}",
+      "nameProblem": "Add a name.",
+      "drag": "Drag {tab} to reorder",
+      "moveUp": "Move {tab} up",
+      "moveDown": "Move {tab} down",
+      "show": "Show {tab}",
+      "hide": "Hide {tab}",
+      "remove": "Remove {tab}",
+      "add": "Add tab",
+      "max": "Up to {max} tabs.",
+      "untitled": "Tab {position}",
+      "noTab": "Choose a tab"
     }
   },
   "NewsletterAutomations": {
@@ -9437,7 +9466,7 @@
         "checkNamed": "Check now: {name}",
         "checking": "Checking…",
         "checkedAt": "Checked {time}",
-          "networkCurrency": "{network} · {currency}",
+        "networkCurrency": "{network} · {currency}",
         "never": "Not checked yet",
         "summary": {
           "ok": "Healthy",
