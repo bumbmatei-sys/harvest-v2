@@ -534,17 +534,19 @@ Founder decision 25 Nov 2026 (header, tabs and blocks); the founder approved all
 | `profile-block2` | free | Public page header | 1 | `src/components/link-in-bio/bio-header.tsx` | 3 of 48 (6%) |
 | `form-layout14` | premium | Editor: Profile step | 1 | `src/components/link-in-bio/bio-profile-step.tsx` | 5 of 84 (5%) |
 | `dashboard-dropdown10` | premium | Editor: Tabs | 1 | `src/components/link-in-bio/bio-tabs-editor.tsx` | 11 of 76 (14%) |
-| `list-block26` | premium | Editor: Blocks list | 2 | not yet built | |
-| `blog-card3` | premium | Blog and latest newsletter blocks | 2 | not yet built | |
-| `list-block13` | premium | PDFs and ebooks | 2 | not yet built | |
-| `contact9` | premium | Contact | 2 | not yet built | |
-| `contact10` | premium | Location ("Open in maps", no map) | 2 | not yet built | |
-| `testimonial11` | premium | Testimonials | 2 | not yet built | |
+| `list-block26` | premium | Editor: Blocks list | 2 | `src/components/link-in-bio/blocks/bio-block-row.tsx` | 5 of 44 (11%) |
+| `blog-card3` | premium | Blog and latest newsletter blocks | later | not built: no native blog on main yet and no public newsletter archive | |
+| `list-block13` | premium | PDFs and ebooks | 2 | `src/components/link-in-bio/blocks/bio-file-list.tsx` | 2 of 26 (7%) |
+| `contact9` | premium | Contact | 2 | `src/components/link-in-bio/blocks/bio-contact.tsx` | 2 of 21 (9%) |
+| `contact10` | premium | Location ("Open in maps", no map) | 2 | `src/components/link-in-bio/blocks/bio-location.tsx` | 1 of 16 (6%) |
+| `testimonial11` | premium | Testimonials | 2 | `src/components/link-in-bio/blocks/bio-testimonials.tsx` | 1 of 17 (5%) |
 | `customer-reviews9` | premium | Photo gallery (grid and viewer only) | 3 | not yet built | |
 | `product-cards5` | premium | Countdown (the bar only) | 3 | not yet built | |
 | `dashboard-modal2` | premium | Share and QR | 3 | not yet built | |
 
 **PR 1 (header, cover, icons, tabs).** `BioHeader` takes `profile-block2`'s structure: a cover band (switchable, brand gradient without an image), a round photo overlapping it with a ring in the page colour, the name and one line under it (the one-line short bio), and the line-style tab bar that scrolls sideways. Not used: edit-cover button, online badge, verified mark, meta row with join date, Follow, Message and More actions (founder decision 27 Nov: no main button in the header), tab counts, remote avatar. Photo position (left or centre) and the single icon style (outline or colour, through `PlatformLogo`) are Harvest additions from the founder's spec. `BioProfileStep` takes `form-layout14`'s label-left rows and its cover and photo uploads; uploads stay on the shared `EventCoverPicker`, which gains a `square` variant (small square thumbnail with buttons beside it) and an `invalid` state. The bio is one line (founder decision 27 Nov). Not used: handle check, website, markdown toolbar, role toggle, booking email, the kit's save footer (the editor keeps `StickySaveBar`). `BioTabsEditor` takes `dashboard-dropdown10`'s reorderable rows with drag handles for mouse and keyboard (`@dnd-kit/sortable`, already approved) and show or hide per row; the rows gain a rename field, move buttons and remove, and a Tabs / Single page choice above them. Not used: popover container, locked column, Reset and Show all, table preview.
+
+**PR 2 (new block types).** `BioBlockRow` is the editor's block row moved into its own file and laid out after `list-block26` (drag handle, type, clicks, move, show or hide, delete; fields below); not used: add-task field, hover-only delete, Completed section. `BioFileList` takes `list-block13`'s icon tile, title, one-line description and View button for PDFs and ebooks; the rows are the ministry's download products and View opens the product's own page (its sign-in and delivery are unchanged); not used: status badges, issuer, dates, a direct PDF button. `BioContact` takes `contact9`'s three cards with a round icon for email, phone and WhatsApp; not used: heading with italic accent, Start chat button. `BioLocation` takes `contact10`'s location row with a directions link ("Open in maps", an OpenStreetMap search, no embedded map); not used: Let's Talk and Contact rows, social links. `BioTestimonials` takes `testimonial11`'s two-column quote cards with name and role; initials replace avatars and there is no header badge. Products and courses reuse the shared `ListingCard` (product card set approved 25 Nov); video reuses the course lessons' `LessonVideoPlayer` facade and `parseVideoLink` (merged in #306); Live now is a link row with a red LIVE badge; forms open the hosted form's own address.
 
 **Carousel library.** `embla-carousel-react` 8.6.0 (MIT, pinned; see `docs/third-party-licenses.md`), chosen because the shadcn carousel is built on it, it is small (no styles, about 20 KB gzipped with its two dependencies) and actively maintained. PR 1 uses it in the shared `src/components/swipe-tabs.tsx` (`SwipeTabs`: Radix tabs whose panels sit side by side; only a touch starts a swipe, panels out of view are `inert`, instant under reduced motion). The photo gallery uses it in a later PR.
 

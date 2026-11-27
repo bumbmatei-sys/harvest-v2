@@ -22,6 +22,18 @@ Migration `0139_bio_tabs_layout` (no columns; `bio_block_shown` learns the singl
 - Unchanged: the address, privacy, rate limits, Report button, consent line and published-only reads. Pages saved before the rework read with the new defaults (tabs layout, cover on, centre, outline).
 - Evidence: unit and integration (`tests/unit/link-in-bio.test.ts`, `tests/integration/link-in-bio.test.ts` "rework" describe, `tests/integration/ways-to-give.test.ts`), e2e `tests/e2e/link-in-bio.spec.ts` (tabs by keyboard and buttons, single page, colour icons, cover switch, photo position, axe at 360/768/1280 light and dark, 44px targets at 360, touch swipe). Runtime and visual evidence is author-executed.
 
+## Rework PR 2: new block types
+
+Migration `0140_bio_blocks` (no columns). `bio_public_page_scoped` resolves products and courses (published, not hidden, this ministry only; public fields only) and live hosted form addresses; `bio_record_click_scoped` counts the new blocks that lead somewhere (Live now only while on); `bio_scope_clear` adds the catalog resolver flags it now sets.
+
+- **Products and courses** (shared `ListingCard`) and **PDFs and ebooks** (`BioFileList`, kit `list-block13`): the owner picks the ministry's own items; a draft or hidden item never reaches a visitor, and a file row opens the download product's own page (sign-in and delivery unchanged).
+- **Forms**: a hosted form (a prayer request, for example) opened at `/f/<slug>`; newsletter sign-up and Message me stay as they were.
+- **Video**: YouTube or VK link parsed by the course lessons' `parseVideoLink` (from #306), stored as provider and id, played behind the existing click-to-load `LessonVideoPlayer`.
+- **Contact** (`BioContact`, kit `contact9`): email, phone, WhatsApp. **Location** (`BioLocation`, kit `contact10`): address and "Open in maps" (OpenStreetMap search), no embedded map. **Live now**: a manual link with a red LIVE badge, shown only while switched on. **Testimonials** (`BioTestimonials`, kit `testimonial11`).
+- Editor: the block row moved to `BioBlockRow` (kit `list-block26`); new fields in `BioBlockFields`. Blocks keep the owner's order on the public page (neighbouring links share one list).
+- **Not built:** the blog block (no native blog on main yet) and latest newsletter (no public newsletter archive exists); events stay the existing owner-written event card (no public event page exists). Join community is the existing community block.
+- Evidence: unit (`new block types` describe), integration (`rework PR 2` describe: catalog visibility, other-ministry and course-as-file refusals, unknown form refusal, clicks incl. Live on/off, flag clear and restore), e2e `tests/e2e/link-in-bio-blocks.spec.ts` (axe at 360 and 1280, light and dark, 44px targets).
+
 ## Evidence
 
 - Unit `tests/unit/link-in-bio.test.ts`; integration `tests/integration/link-in-bio.test.ts` (restricted migration owner); e2e `tests/e2e/link-in-bio.spec.ts` (editor and public page with axe at 360/768/1280, light and dark, overflow check); navigation counts in `tests/unit/navigation.test.ts` and `tests/e2e/campaigns.spec.ts`.
