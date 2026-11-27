@@ -12,7 +12,7 @@ import type { BrandTheme } from "../lib/theme-registry";
 import type { Audience } from "../lib/audience";
 import type { AccessArea, AccessGrants, AccessLevel } from "../lib/access-areas";
 import type { campaignStructures, campaignTypes } from "../lib/campaigns";
-import type { BudgetConfig, OutreachConfig } from "../lib/campaign-wizard";
+import { departmentKeys, type BudgetConfig, type OutreachConfig } from "../lib/campaign-wizard";
 import type { ConnectPurpose, formVersionStatuses, responseConsentActors, responseConsentStatuses, responseContactKinds, responseLinkStatuses, responseStatuses } from "../lib/connect-data";
 import { associationConsentPurposes } from "../lib/consent-purposes";
 import type { FollowUpCaseState } from "../lib/follow-up-cases";
@@ -654,23 +654,28 @@ export const crmNotes = pgTable("crm_notes", {
   check("crm_note_target", sql`num_nonnulls(${t.contactId}, ${t.companyId}, ${t.opportunityId}) = 1`),
   check("crm_note_body", sql`length(btrim(${t.body})) between 1 and 10000`),
   check("crm_note_version", sql`${t.version} >= 1`)]);
-export const crmNotificationKinds = ["task_assigned", "task_due", "task_overdue"] as const;
+export const crmNotificationKinds = ["task_assigned", "task_due", "task_overdue", "volunteer_assigned", "volunteer_changed", "volunteer_reminder"] as const;
 export const crmNotifications = pgTable("crm_notifications", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
   recipientUserId: text("recipient_user_id").notNull().references(() => users.id),
   actorUserId: text("actor_user_id").references(() => users.id),
   kind: text("kind").$type<typeof crmNotificationKinds[number]>().notNull(),
-  taskId: uuid("task_id").notNull(),
+  taskId: uuid("task_id"),
+  volunteerSlotId: uuid("volunteer_slot_id"),
   // The due time a due/overdue notice was generated for; with the task, recipient and kind it is the dedupe key.
   dueAt: timestamp("due_at", { withTimezone: true }),
   readAt: timestamp("read_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   foreignKey({ columns: [t.tenantId, t.taskId], foreignColumns: [crmTasks.tenantId, crmTasks.id] }),
+  foreignKey({ columns: [t.tenantId, t.volunteerSlotId], foreignColumns: [volunteerSlots.tenantId, volunteerSlots.id] }),
   index("crm_notifications_recipient_idx").on(t.tenantId, t.recipientUserId, t.readAt, t.createdAt),
   uniqueIndex("crm_notifications_due_unique").on(t.tenantId, t.taskId, t.recipientUserId, t.kind, t.dueAt).where(sql`${t.kind} in ('task_due', 'task_overdue')`),
-  check("crm_notification_kind", sql`${t.kind} in ('task_assigned', 'task_due', 'task_overdue')`),
-  check("crm_notification_due_at", sql`(${t.kind} = 'task_assigned') = (${t.dueAt} is null)`)]);
+  check("crm_notification_kind", sql`${t.kind} in ('task_assigned', 'task_due', 'task_overdue', 'volunteer_assigned', 'volunteer_changed', 'volunteer_reminder')`),
+  check("crm_notification_due_at", sql`(${t.kind} in ('task_assigned','volunteer_assigned','volunteer_changed')) = (${t.dueAt} is null)`),
+  check("crm_notification_volunteer_target", sql`num_nonnulls(${t.taskId}, ${t.volunteerSlotId}) = 1 and (${t.volunteerSlotId} is not null) = (${t.kind} in ('volunteer_assigned','volunteer_changed','volunteer_reminder'))`),
+  uniqueIndex("crm_notification_volunteer_reminder").on(t.tenantId, t.volunteerSlotId, t.recipientUserId, t.dueAt).where(sql`${t.kind} = 'volunteer_reminder'`),
+]);
 // Per-person on/off for each due/overdue kind in one ministry (default on; in-app only).
 export const crmNotificationPreferences = pgTable("crm_notification_preferences", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
@@ -4064,3 +4069,106 @@ export const blogPosts = pgTable("blog_posts", {
     and (${t.status} = 'draft' or ${t.firstPublishedAt} is not null or ${t.status} = 'scheduled')`),
   check("blog_posts_version", sql`${t.version} >= 1`),
 ]);
+
+export const volunteerRoles = pgTable("volunteer_roles", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  department: text("department", { enum: departmentKeys }),
+  archived: boolean("archived").notNull().default(false),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  check("volunteer_role_name", sql`length(btrim(${t.name})) between 1 and 120 and length(${t.description}) <= 2000`),
+  check("volunteer_role_department", sql`${t.department} in (${sql.raw(departmentKeys.map(key => `'${key}'`).join(", "))})`),
+]);
+
+export const volunteers = pgTable("volunteers", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  roleId: uuid("role_id").notNull(),
+  userId: text("user_id"),
+  contactId: uuid("contact_id"),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date"),
+  note: text("note"),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("volunteers_role_identity").on(t.tenantId, t.id, t.roleId),
+  foreignKey({ columns: [t.tenantId, t.roleId], foreignColumns: [volunteerRoles.tenantId, volunteerRoles.id] }),
+  foreignKey({ columns: [t.tenantId, t.userId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
+  check("volunteer_person", sql`num_nonnulls(${t.userId}, ${t.contactId}) = 1`),
+  check("volunteer_dates", sql`${t.endDate} >= ${t.startDate} and length(${t.note}) <= 2000`),
+]);
+
+export const volunteerSlots = pgTable("volunteer_slots", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  roleId: uuid("role_id").notNull(),
+  eventId: uuid("event_id"),
+  title: text("title").notNull(),
+  serviceDate: date("service_date").notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  needed: integer("needed").notNull(),
+  open: boolean("open").notNull().default(false),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("volunteer_slot_role").on(t.tenantId, t.id, t.roleId),
+  foreignKey({ columns: [t.tenantId, t.roleId], foreignColumns: [volunteerRoles.tenantId, volunteerRoles.id] }),
+  foreignKey({ columns: [t.tenantId, t.eventId], foreignColumns: [events.tenantId, events.id] }),
+  index("volunteer_slot_date").on(t.tenantId, t.serviceDate, t.id),
+  check("volunteer_slot_details", sql`length(btrim(${t.title})) between 1 and 120 and ${t.needed} between 1 and 500 and ${t.endsAt} > ${t.startsAt}`),
+]);
+
+export const volunteerAssignments = pgTable("volunteer_assignments", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  slotId: uuid("slot_id").notNull(),
+  roleId: uuid("role_id").notNull(),
+  userId: text("user_id"),
+  volunteerId: uuid("volunteer_id"),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("volunteer_assignment_slot_user").on(t.tenantId, t.slotId, t.userId),
+  unique("volunteer_assignment_slot_volunteer").on(t.tenantId, t.slotId, t.volunteerId),
+  foreignKey({ columns: [t.tenantId, t.slotId, t.roleId], foreignColumns: [volunteerSlots.tenantId, volunteerSlots.id, volunteerSlots.roleId] }),
+  foreignKey({ columns: [t.tenantId, t.volunteerId, t.roleId], foreignColumns: [volunteers.tenantId, volunteers.id, volunteers.roleId] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.userId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+  check("volunteer_assignment_person", sql`num_nonnulls(${t.userId}, ${t.volunteerId}) = 1`),
+]);
+
+export const volunteerAvailability = pgTable("volunteer_availability", {
+  tenantId: uuid("tenant_id").notNull(),
+  userId: text("user_id").notNull(),
+  unavailableDate: date("unavailable_date").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.userId, t.unavailableDate] }),
+  foreignKey({ columns: [t.tenantId, t.userId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+]);
+
+export const volunteerRequests = pgTable("volunteer_requests", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  slotId: uuid("slot_id").notNull(),
+  userId: text("user_id").notNull(),
+  replacementUserId: text("replacement_user_id"),
+  kind: text("kind", { enum: ["swap", "decline"] }).notNull(),
+  state: text("state", { enum: ["pending", "approved", "rejected", "cancelled"] }).notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("volunteer_request_pending").on(t.tenantId, t.slotId, t.userId).where(sql`${t.state} = 'pending'`),
+  foreignKey({ columns: [t.tenantId, t.slotId], foreignColumns: [volunteerSlots.tenantId, volunteerSlots.id] }),
+  foreignKey({ columns: [t.tenantId, t.userId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.replacementUserId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+  check("volunteer_request_state", sql`${t.state} in ('pending','approved','rejected','cancelled')`),
+  check("volunteer_request_kind", sql`((${t.kind} = 'swap' and ${t.replacementUserId} <> ${t.userId}) or ${t.kind} = 'decline') and (${t.kind} = 'swap') = (${t.replacementUserId} is not null)`),
+]);
+
+export const volunteerRosterGrants = pgTable("volunteer_roster_grants", {
+  backend: integer("backend").primaryKey(),
+  transaction: text("transaction").notNull(),
+  tenantId: uuid("tenant_id").notNull(),
+});
