@@ -13,6 +13,8 @@ const axeTags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 const body = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 const hydrated = (page: Page) => page.waitForFunction(() => { const field = document.querySelector("input,textarea,select,button[role=radio]"); return !!field && Object.keys(field).some((key) => key.startsWith("__reactProps")); });
 const videoHosts = /youtube-nocookie\.com|youtube\.com|ytimg\.com|vkvideo\.ru|vk\.com|userapi\.com/;
+/** True when the e2e server noted a dev chunk failure ("<epoch ms> <message>" lines) at or after `since`, that is, during this test. */
+const devFailureSince = (log: string, since: number) => log.split("\n").some((line) => Number(line.split(" ", 1)[0]) >= since);
 async function openStep(page: Page, name: string) {
   if (page.viewportSize()!.width < 1024) {
     await page.getByRole("button", { name: /Show all steps/ }).click();
@@ -28,6 +30,7 @@ async function check(page: Page, name: string, width: number, scheme: string) {
 
 test("owner names and builds levels and sections with a video lesson; the learner sees the structure and a click-to-load video", async ({ page, browser }) => {
   test.setTimeout(900_000);
+  const started = Date.now();
   await mkdir(shots, { recursive: true });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -153,6 +156,6 @@ test("owner names and builds levels and sections with a video lesson; the learne
   await learner.screenshot({ path: `${shots}/learner-playing-1280-light.png` });
   // A hydration mismatch is ignored only when the dev server also reported a chunk failure in this run ("__webpack_modules__[moduleId] is not a
   // function" or "destination stream errored", noted by scripts/e2e-server.ts): that cut stream, not this page, is then the cause. Anything else fails.
-  const devChunkFailure = (await readFile(`${process.env.HARVEST_E2E_MAILBOX}.dev-errors`, "utf8").catch(() => "")).trim() !== "";
+  const devChunkFailure = devFailureSince(await readFile(`${process.env.HARVEST_E2E_MAILBOX}.dev-errors`, "utf8").catch(() => ""), started);
   expect(errors.filter((message) => !(devChunkFailure && message.startsWith("Hydration failed because the server rendered HTML didn't match the client")))).toEqual([]);
 });
