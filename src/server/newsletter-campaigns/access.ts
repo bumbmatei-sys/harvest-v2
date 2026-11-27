@@ -24,7 +24,7 @@ export function id(value: string) {
 }
 
 export async function withNewsletter<T>(db: Database, actor: string, workspace: string, permission: Permission,
-  run: (tx: Transaction, tenantId: string) => Promise<T>) {
+  run: (tx: Transaction, tenantId: string, role: string, access: string) => Promise<T>) {
   requireNewsletterEnabled();
   try {
     return await withTenant(db, actor, id(workspace), permission, run);
