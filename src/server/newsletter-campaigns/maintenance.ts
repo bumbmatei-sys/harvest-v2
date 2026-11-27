@@ -45,3 +45,11 @@ export async function snapshotNewsletterAudience(pool: Pool, env: NodeJS.Process
   }
   return { taken };
 }
+
+/** Click rows older than 90 days become anonymous campaign/day/link counts; the same command and flag as the delivery purge. */
+export async function purgeNewsletterClicks(pool: Pool, env: NodeJS.ProcessEnv, limit = 1000) {
+  if (!newsletterWorkerEnabled(env, "HARVEST_NEWSLETTER_RETENTION_ENABLED")) return null;
+  await requireWorkerRole(pool);
+  const { rows: [result] } = await pool.query<{ purged: number }>("select public.newsletter_purge_clicks($1) as purged", [limit]);
+  return result;
+}

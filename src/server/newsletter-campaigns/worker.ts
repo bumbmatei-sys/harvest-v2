@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { Pool } from "pg";
 import { publicFilePath } from "../../lib/files";
 import { renderNewsletter } from "../../lib/newsletter-content";
+import { clickRewriter, clickUrl, linkCollector } from "../../lib/newsletter-click-token";
 import { newsletterKey, signNewsletterPreference } from "../newsletter-public";
 import { formatFromHeader } from "../../lib/email-address";
 import { requireWorkerRole } from "../worker-role";
@@ -14,7 +15,8 @@ type DeliveryHealth = { pending: number; unknown: number; failed: number; operat
   unresolvedByMinistry: { ministryId: string; unknown: number; operatorReview: number; oldestUnknownAgeSeconds: number }[] };
 type Claimed = { tenant: string; key: string; lease: string };
 type Authorized = { email: string; firstName: string; ministryName: string; from: string; fromName?: string | null; replyTo: string;
-  subject: string; preheader: string | null; content: unknown; images: string[] };
+  subject: string; preheader: string | null; content: unknown; images: string[];
+  campaignId: string; revision: number; clickTracking: boolean };
 
 export function newsletterWorkerEnabled(env: Record<string, string | undefined>, flag: string) {
   return !LIVE_NEWSLETTER_ENABLED && env.NODE_ENV !== "production" && env.VERCEL_ENV !== "production" &&
@@ -59,10 +61,21 @@ export async function runNewsletterWorker(pool: Pool, env: NodeJS.ProcessEnv, pr
       }
       if (!payload) continue;
       const images = new Map(payload.images.map(fileId => [fileId, new URL(publicFilePath(job.tenant, fileId), origin).href]));
+      const context = { preheader: payload.preheader, firstName: payload.firstName, ministryName: payload.ministryName, unsubscribe: unsubscribe.href, images };
       let message;
       try {
-        message = renderNewsletter(payload.content, { preheader: payload.preheader, firstName: payload.firstName, ministryName: payload.ministryName,
-          unsubscribe: unsubscribe.href, images });
+        // Click counting: a first pass collects the content links (never the unsubscribe link), the frozen revision's list is stored, then each
+        // link is rewritten to a signed redirect that carries only references. Off, or with nothing stored, the message keeps its links as written.
+        let track: ((url: string) => string) | undefined;
+        if (payload.clickTracking) {
+          const collector = linkCollector();
+          renderNewsletter(payload.content, { ...context, track: collector.track });
+          const { rows: [{ links }] } = await pool.query<{ links: string[] | null }>(
+            "select public.newsletter_click_links_store($1,$2,$3,$4::text[]) as links", [...ids, collector.seen]);
+          if (links) track = clickRewriter(links, link => clickUrl(origin, key, { tenant: job.tenant, campaign: payload!.campaignId,
+            revision: payload!.revision, delivery: job.key, link }));
+        }
+        message = renderNewsletter(payload.content, { ...context, track, clicksCounted: Boolean(track) });
       } catch {
         await pool.query("select public.newsletter_delivery_fail($1,$2,$3,false)", ids);
         continue;

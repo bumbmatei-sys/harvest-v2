@@ -1,5 +1,5 @@
 {
-  "id": "2e74b1ae-3a4a-4c93-b980-746d9a190d75",
+  "id": "4bfcbac8-d81f-4ab1-958f-10cd671b25a3",
   "prevId": "b179977e-aa04-450b-bba2-2b7b31f6c64e",
   "version": "7",
   "dialect": "postgresql",
@@ -28073,83 +28073,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.newsletter_audience_snapshots": {
-      "name": "newsletter_audience_snapshots",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "day": {
-          "name": "day",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "subscribed": {
-          "name": "subscribed",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "unsubscribed": {
-          "name": "unsubscribed",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "suppressed": {
-          "name": "suppressed",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "taken_at": {
-          "name": "taken_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "newsletter_audience_snapshots_tenant_id_workspaces_tenant_id_fk": {
-          "name": "newsletter_audience_snapshots_tenant_id_workspaces_tenant_id_fk",
-          "tableFrom": "newsletter_audience_snapshots",
-          "tableTo": "workspaces",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "tenant_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "newsletter_audience_snapshots_tenant_id_day_pk": {
-          "name": "newsletter_audience_snapshots_tenant_id_day_pk",
-          "columns": [
-            "tenant_id",
-            "day"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "newsletter_audience_snapshot_counts": {
-          "name": "newsletter_audience_snapshot_counts",
-          "value": "\"newsletter_audience_snapshots\".\"subscribed\" >= 0 and \"newsletter_audience_snapshots\".\"unsubscribed\" >= 0 and \"newsletter_audience_snapshots\".\"suppressed\" >= 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.newsletter_audiences": {
       "name": "newsletter_audiences",
       "schema": "",
@@ -29352,6 +29275,300 @@
           "value": "\"newsletter_campaigns\".\"state\" in ('draft','reviewed','scheduled','sending','sent','partial','failed','cancelled')"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.newsletter_click_counts": {
+      "name": "newsletter_click_counts",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "day": {
+          "name": "day",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link_index": {
+          "name": "link_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "count": {
+          "name": "count",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "newsletter_click_count_link_fk": {
+          "name": "newsletter_click_count_link_fk",
+          "tableFrom": "newsletter_click_counts",
+          "tableTo": "newsletter_click_links",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id",
+            "revision",
+            "link_index"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "campaign_id",
+            "revision",
+            "link_index"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "newsletter_click_counts_tenant_id_campaign_id_revision_day_link_index_pk": {
+          "name": "newsletter_click_counts_tenant_id_campaign_id_revision_day_link_index_pk",
+          "columns": [
+            "tenant_id",
+            "campaign_id",
+            "revision",
+            "day",
+            "link_index"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "newsletter_click_count_positive": {
+          "name": "newsletter_click_count_positive",
+          "value": "\"newsletter_click_counts\".\"count\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.newsletter_click_links": {
+      "name": "newsletter_click_links",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link_index": {
+          "name": "link_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "newsletter_click_link_revision_fk": {
+          "name": "newsletter_click_link_revision_fk",
+          "tableFrom": "newsletter_click_links",
+          "tableTo": "newsletter_campaign_revisions",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id",
+            "revision"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "campaign_id",
+            "revision"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "newsletter_click_links_tenant_id_campaign_id_revision_link_index_pk": {
+          "name": "newsletter_click_links_tenant_id_campaign_id_revision_link_index_pk",
+          "columns": [
+            "tenant_id",
+            "campaign_id",
+            "revision",
+            "link_index"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "newsletter_click_link_url": {
+          "name": "newsletter_click_link_url",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "campaign_id",
+            "revision",
+            "url"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "newsletter_click_link_shape": {
+          "name": "newsletter_click_link_shape",
+          "value": "\"newsletter_click_links\".\"link_index\" between 0 and 199 and \"newsletter_click_links\".\"url\" ~ '^https://' and char_length(\"newsletter_click_links\".\"url\") <= 2000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.newsletter_clicks": {
+      "name": "newsletter_clicks",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "delivery_id": {
+          "name": "delivery_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link_index": {
+          "name": "link_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "clicked_at": {
+          "name": "clicked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "newsletter_click_retention_idx": {
+          "name": "newsletter_click_retention_idx",
+          "columns": [
+            {
+              "expression": "clicked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "newsletter_click_campaign_idx": {
+          "name": "newsletter_click_campaign_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "campaign_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "clicked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "newsletter_click_link_fk": {
+          "name": "newsletter_click_link_fk",
+          "tableFrom": "newsletter_clicks",
+          "tableTo": "newsletter_click_links",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id",
+            "revision",
+            "link_index"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "campaign_id",
+            "revision",
+            "link_index"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "newsletter_clicks_tenant_id_delivery_id_link_index_pk": {
+          "name": "newsletter_clicks_tenant_id_delivery_id_link_index_pk",
+          "columns": [
+            "tenant_id",
+            "delivery_id",
+            "link_index"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.newsletter_connections": {
@@ -30767,6 +30984,78 @@
         "newsletter_segment_name": {
           "name": "newsletter_segment_name",
           "value": "length(trim(\"newsletter_segments\".\"name\")) between 1 and 100"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.newsletter_settings": {
+      "name": "newsletter_settings",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "click_tracking": {
+          "name": "click_tracking",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "click_tracking_since": {
+          "name": "click_tracking_since",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "newsletter_settings_tenant_id_workspaces_tenant_id_fk": {
+          "name": "newsletter_settings_tenant_id_workspaces_tenant_id_fk",
+          "tableFrom": "newsletter_settings",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "newsletter_settings_tenant_id_pk": {
+          "name": "newsletter_settings_tenant_id_pk",
+          "columns": [
+            "tenant_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "newsletter_settings_click_since": {
+          "name": "newsletter_settings_click_since",
+          "value": "\"newsletter_settings\".\"click_tracking\" = (\"newsletter_settings\".\"click_tracking_since\" is not null)"
         }
       },
       "isRLSEnabled": false

@@ -9,6 +9,7 @@
     "fallbackMinistry": "our ministry",
     "addressMissing": "Mailing address not set",
     "watchVideo": "Watch the video",
+    "clicksCounted": "This ministry counts link clicks in its emails, as totals only.",
     "confirmMailboxSubject": "Confirm your newsletter email address",
     "confirmMailboxText": "Enter this code in Harvest to confirm your newsletter email address: {code}",
     "testSubject": "[TEST] {subject}",
@@ -7470,7 +7471,15 @@
     "mailingLabel": "Address printed in every email",
     "save": "Save",
     "saved": "Saved",
-    "failed": "Could not save. Try again."
+    "failed": "Could not save. Try again.",
+    "clicks": {
+      "title": "Link clicks",
+      "label": "Count link clicks in emails",
+      "description": "Totals only, never who clicked. Emails and sign-up forms then say links are counted.",
+      "ownerOnly": "Only the owner can change this.",
+      "on": "Counting link clicks",
+      "off": "Not counting link clicks"
+    }
   },
   "NewsletterAnalytics": {
     "pageTitle": "Analytics",
@@ -7487,7 +7496,8 @@
       "bounced": "Bounced",
       "complained": "Complaints",
       "unsubscribed": "Unsubscribed",
-      "selected": "Recipients"
+      "selected": "Recipients",
+      "clicks": "Link clicks"
     },
     "empty": {
       "title": "No sends yet",
@@ -7519,7 +7529,7 @@
       "none": "No data yet. Counts are taken once a day.",
       "since": "No data yet before {date}."
     },
-    "footer": "Last {days} days, {start} to {end}, UTC. Figures are indicative: they come from mail provider reports and can arrive late. Opens and clicks are not collected. Groups under 5 are not shown.",
+    "footer": "Last {days} days, {start} to {end}, UTC. Figures are indicative: they come from mail provider reports and can arrive late. {clicks} Groups under 5 are not shown.",
     "back": "Analytics",
     "openCampaign": "Open campaign",
     "notSent": {
@@ -7545,9 +7555,21 @@
         "accepted": "Sent",
         "delivered": "Delivered"
       },
-      "footer": "{start} to {end}, UTC. Delivery records are kept for 90 days. Figures are indicative and come from mail provider reports. Opens, clicks and link clicks are not collected. Groups under 5 are not shown."
+      "footer": "{start} to {end}, UTC. Delivery and click records are kept for 90 days. Figures are indicative and come from mail provider reports. {clicks} Groups under 5 are not shown."
     },
-    "unavailable": "Analytics unavailable."
+    "unavailable": "Analytics unavailable.",
+    "clicksNote": "May include link scanners",
+    "clicksOff": "Not counted",
+    "clicksFooter": {
+      "on": "Link clicks are totals and may include link scanners; opens are not collected.",
+      "off": "Opens are not collected. Link clicks are counted only when the owner turns it on."
+    },
+    "topLinks": {
+      "title": "Top links",
+      "link": "Link",
+      "clicks": "Clicks",
+      "empty": "No link has 5 or more clicks yet."
+    }
   },
   "NewsletterForms": {
     "pageTitle": "Sign-up forms",
@@ -7628,7 +7650,8 @@
       "pageTitle": "Newsletter sign-up",
       "loading": "Loading",
       "busyTitle": "Too many requests. Try again in a minute.",
-      "unavailableTitle": "This sign-up form is not available."
+      "unavailableTitle": "This sign-up form is not available.",
+      "clicksCounted": "This ministry counts link clicks in its emails, as totals only."
     },
     "confirm": {
       "pageTitle": "Confirm sign-up",
@@ -10490,5 +10513,10 @@
         "stale": "This page changed somewhere else. Reload, then try again."
       }
     }
+  },
+  "NewsletterLink": {
+    "pageTitle": "Link not available",
+    "title": "This link is not available",
+    "body": "It may be incomplete or no longer in use."
   }
 }

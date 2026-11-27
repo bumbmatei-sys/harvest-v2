@@ -9,25 +9,38 @@ CREATE TABLE "newsletter_audience_snapshots" (
 	CONSTRAINT "newsletter_audience_snapshot_counts" CHECK ("newsletter_audience_snapshots"."subscribed" >= 0 and "newsletter_audience_snapshots"."unsubscribed" >= 0 and "newsletter_audience_snapshots"."suppressed" >= 0)
 );
 --> statement-breakpoint
+CREATE TABLE "newsletter_growth_scans" (
+	"token" uuid PRIMARY KEY NOT NULL,
+	"xact" text NOT NULL
+);
+--> statement-breakpoint
 ALTER TABLE "newsletter_audience_snapshots" ADD CONSTRAINT "newsletter_audience_snapshots_tenant_id_workspaces_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."workspaces"("tenant_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 -- Audience growth: one row of counts per ministry per UTC day (no person ids). Same grant model as the other newsletter evidence tables:
 -- no table privileges for the app or worker roles; the worker writes through newsletter_snapshot_audience and owners/admins read through
 -- newsletter_audience_growth (capability `newsletter:analytics`). Groups of 1 to 4 are withheld by the reader.
+ALTER TABLE public.newsletter_growth_scans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.newsletter_growth_scans FORCE ROW LEVEL SECURITY;
+REVOKE ALL ON public.newsletter_growth_scans FROM PUBLIC,harvest_app;
 ALTER TABLE public.newsletter_audience_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.newsletter_audience_snapshots FORCE ROW LEVEL SECURITY;
 REVOKE ALL ON public.newsletter_audience_snapshots FROM PUBLIC,harvest_app;
 DO $$ BEGIN
   IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname='harvest_worker') THEN
-    REVOKE ALL ON public.newsletter_audience_snapshots FROM harvest_worker;
+    REVOKE ALL ON public.newsletter_audience_snapshots,public.newsletter_growth_scans FROM harvest_worker;
   END IF;
   EXECUTE pg_catalog.format($p$CREATE POLICY newsletter_growth_owner ON public.newsletter_audience_snapshots TO %I
     USING ((session_user='harvest_worker' AND pg_catalog.current_setting('app.nl_send_worker',true)='on')
       OR tenant_id=nullif(pg_catalog.current_setting('app.nl_send_tenant',true),'')::uuid)
     WITH CHECK (session_user='harvest_worker' AND pg_catalog.current_setting('app.nl_send_worker',true)='on'
       AND tenant_id=nullif(pg_catalog.current_setting('app.nl_send_tenant',true),'')::uuid)$p$,current_user);
-  -- The snapshot enumerates ministries; only the worker login, inside the snapshot function, with its own flag.
+  -- The snapshot enumerates ministries. The flag alone is not enough: it must name a random token that only the snapshot function inserts,
+  -- in the same transaction, and deletes before it returns. A worker session that sets the flag by hand and calls another definer that reads
+  -- workspaces matches no token, so this policy opens nothing for it.
+  EXECUTE pg_catalog.format($p$CREATE POLICY newsletter_growth_owner ON public.newsletter_growth_scans TO %I
+    USING (session_user='harvest_worker') WITH CHECK (session_user='harvest_worker')$p$,current_user);
   EXECUTE pg_catalog.format($p$CREATE POLICY newsletter_growth_ministries ON public.workspaces FOR SELECT TO %I
-    USING (session_user='harvest_worker' AND pg_catalog.current_setting('app.nl_growth_scan',true)='on')$p$,current_user);
+    USING (session_user='harvest_worker' AND EXISTS (SELECT FROM public.newsletter_growth_scans g
+      WHERE g.token=nullif(pg_catalog.current_setting('app.nl_growth_scan',true),'')::uuid AND g.xact=pg_catalog.pg_current_xact_id()::text))$p$,current_user);
 END $$;
 --> statement-breakpoint
 -- The audience status of every person, the SQL twin of audienceStatusSql (src/server/newsletter-audience.ts): suppressed or bounced first,
@@ -70,7 +83,7 @@ REVOKE ALL ON FUNCTION public.newsletter_audience_counts(uuid) FROM PUBLIC,harve
 -- One snapshot per ministry per UTC day, idempotent: a ministry that already has today's row is skipped, and a concurrent run's insert wins.
 CREATE FUNCTION public.newsletter_snapshot_audience(p_limit integer) RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
-DECLARE today date:=(pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::date; ministry uuid; taken integer:=0; added integer;
+DECLARE today date:=(pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::date; ministry uuid; taken integer:=0; added integer; scan uuid:=pg_catalog.gen_random_uuid();
   prior_worker text:=pg_catalog.current_setting('app.nl_send_worker',true);
   prior_tenant text:=pg_catalog.current_setting('app.nl_send_tenant',true);
   prior_scan text:=pg_catalog.current_setting('app.nl_growth_scan',true);
@@ -78,7 +91,8 @@ BEGIN
   IF session_user<>'harvest_worker' THEN RAISE insufficient_privilege; END IF;
   IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 500 THEN RAISE invalid_parameter_value; END IF;
   PERFORM pg_catalog.set_config('app.nl_send_worker','on',true);
-  PERFORM pg_catalog.set_config('app.nl_growth_scan','on',true);
+  INSERT INTO public.newsletter_growth_scans(token,xact) VALUES (scan,pg_catalog.pg_current_xact_id()::text);
+  PERFORM pg_catalog.set_config('app.nl_growth_scan',scan::text,true);
   FOR ministry IN SELECT w.tenant_id FROM public.workspaces w WHERE NOT EXISTS (
       SELECT FROM public.newsletter_audience_snapshots s WHERE s.tenant_id=w.tenant_id AND s.day=today)
     ORDER BY w.tenant_id LIMIT p_limit
@@ -90,6 +104,7 @@ BEGIN
     GET DIAGNOSTICS added=ROW_COUNT;
     taken:=taken+added;
   END LOOP;
+  DELETE FROM public.newsletter_growth_scans WHERE token=scan;
   PERFORM pg_catalog.set_config('app.nl_send_tenant',coalesce(prior_tenant,''),true);
   PERFORM pg_catalog.set_config('app.nl_growth_scan',coalesce(prior_scan,''),true);
   PERFORM pg_catalog.set_config('app.nl_send_worker',coalesce(prior_worker,''),true);

@@ -5,13 +5,16 @@
  */
 export const analyticsPeriods = [7, 30, 90] as const;
 export type AnalyticsPeriod = typeof analyticsPeriods[number];
-export const analyticsSorts = ["name", "sent", "delivered", "bounced", "complained", "unsubscribed"] as const;
+export const analyticsSorts = ["name", "sent", "delivered", "bounced", "complained", "unsubscribed", "clicks"] as const;
 export type AnalyticsSort = typeof analyticsSorts[number];
 export const MIN_COHORT = 5;
 
 export type Counts = { sent: number; delivered: number; bounced: number; complained: number; unsubscribed: number };
 export type DayPoint = { day: string; counts: Counts | null };
-export type CampaignFigures = { id: string; name: string; state: string; counts: Counts | null };
+/** Link clicks per campaign (null: withheld). Clicks may include link scanners; they are never per person. */
+export type CampaignFigures = { id: string; name: string; state: string; counts: Counts | null; clicks?: number | null };
+/** Aggregate link clicks. `counting` is the ministry's current setting; figures recorded while it was on stay visible after it is turned off. */
+export type ClickFigures = { counting: boolean; total: number | null; days: { day: string; clicks: number | null }[]; links: { url: string; clicks: number }[] };
 export type AudienceFigures = { subscribed: number | null; unsubscribed: number | null; suppressed: number | null };
 export type AnalyticsOverview = {
   period: AnalyticsPeriod;
@@ -25,6 +28,7 @@ export type AnalyticsOverview = {
   audience: AudienceFigures;
   /** Daily audience counts from the snapshots, for the growth chart and net change. */
   growth: AudienceGrowth;
+  clicks: ClickFigures;
 };
 
 export const audienceKeys = ["subscribed", "unsubscribed", "suppressed"] as const;
@@ -84,7 +88,7 @@ export const hideSmall = (value: number): number | null => value > 0 && value < 
 export const percent = (part: number, whole: number): number | null => whole > 0 ? Math.round(part / whole * 1000) / 10 : null;
 
 export const sortCampaigns = (rows: readonly CampaignFigures[], sort: AnalyticsSort, descending: boolean): CampaignFigures[] => {
-  const key = (row: CampaignFigures) => sort === "name" ? row.name.toLowerCase() : row.counts ? row.counts[sort] : -1;
+  const key = (row: CampaignFigures) => sort === "name" ? row.name.toLowerCase() : sort === "clicks" ? row.clicks ?? -1 : row.counts ? row.counts[sort] : -1;
   return [...rows].sort((a, b) => {
     const left = key(a), right = key(b);
     const order = left < right ? -1 : left > right ? 1 : 0;
@@ -107,4 +111,5 @@ export type CampaignAnalytics = {
   outcomesArchived: boolean;
   /** Delivery status breakdown; null when the campaign has a small cohort. */
   status: StatusFigures | null;
+  clicks: ClickFigures | null;
 };

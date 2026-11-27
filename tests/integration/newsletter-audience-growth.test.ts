@@ -170,3 +170,23 @@ it("withholds a small campaign's outcome series and keeps it to owners and admin
   await expect(newsletterCampaignAnalytics(fixture.db, other, elsewhere, tiny, now)).rejects.toMatchObject({ status: 404 });
   await expect(fixture.pool.query("select public.newsletter_outcome_days($1,$2,current_date-7,current_date+1)", [tenant, randomUUID()])).rejects.toHaveProperty("code", "42501");
 });
+
+it("opens ministries only to the snapshot itself: a hand-set scan flag in a worker session matches no token", async () => {
+  expect((await client.query("select count(*)::int as n from newsletter_growth_scans")).rows[0].n).toBe(0); // every run deletes its token
+  await expect(fixture.workerPool.query("select * from newsletter_growth_scans")).rejects.toHaveProperty("code", "42501");
+  // A stand-in for any other worker definer that reads workspaces as the migration owner.
+  await client.query("create function public.test_growth_count_ministries() returns integer language sql security definer set search_path=pg_catalog,pg_temp as $$ select count(*)::int from public.workspaces $$");
+  try {
+    await client.query(`alter function public.test_growth_count_ministries() owner to ${fixture.migrationOwner}`);
+    await client.query("grant execute on function public.test_growth_count_ministries() to harvest_worker");
+    const worker = await fixture.workerPool.connect();
+    try {
+      await worker.query("begin");
+      await worker.query("select set_config('app.nl_growth_scan',$1,true), set_config('app.nl_send_worker','on',true)", [randomUUID()]);
+      expect((await worker.query("select public.test_growth_count_ministries() as n")).rows[0].n).toBe(0);
+      await worker.query("select set_config('app.nl_growth_scan','on',true)");
+      expect((await worker.query("select public.test_growth_count_ministries() as n")).rows[0].n).toBe(0);
+      await worker.query("rollback");
+    } finally { worker.release(); }
+  } finally { await client.query("drop function public.test_growth_count_ministries()"); }
+});

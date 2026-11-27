@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { CopyButton } from "@/components/copy-button";
@@ -33,7 +34,9 @@ const tone = defineStatusTones({ verified: "success", pending: "pending", unveri
 const purposes: Purpose[] = ["ownership", "dkim", "spf", "bounce", "dmarc"];
 
 /** Sender setup: sender addresses, sending-domain verification, mailing address and a readiness summary. Sending itself is off. */
-export function SenderSetup({ tenantId, initial }: { tenantId: string; initial: SenderSetupData }) {
+export type ClickSettingsData = { clickTracking: boolean; since: string | null; version: number; canEdit: boolean };
+
+export function SenderSetup({ tenantId, initial, clickSettings }: { tenantId: string; initial: SenderSetupData; clickSettings: ClickSettingsData }) {
   const t = useTranslations("NewsletterSender"), format = useFormatter(), request = useCrmRequest();
   const [data, setData] = useState(initial), [error, setError] = useState(""), [busy, setBusy] = useState("");
   const [adding, setAdding] = useState(false), [address, setAddress] = useState(""), [purpose, setPurpose] = useState<"sender" | "reply-to">("sender"), [formError, setFormError] = useState("");
@@ -43,6 +46,15 @@ export function SenderSetup({ tenantId, initial }: { tenantId: string; initial: 
   const [domain, setDomain] = useState(""), [domainError, setDomainError] = useState("");
   const [mailing, setMailing] = useState(initial.mailingAddress.address), [mailingState, setMailingState] = useState<"idle" | "saved" | "error">("idle");
   const base = `/api/workspaces/${tenantId}/newsletter`;
+  const [clicks, setClicks] = useState(clickSettings), [clicksState, setClicksState] = useState<"idle" | "saving" | "error">("idle");
+  async function saveClicks(on: boolean) {
+    setClicksState("saving");
+    const result = await request<ClickSettingsData>(`${base}/settings`, { method: "PUT", body: { clickTracking: on, version: clicks.version } });
+    if (result.ok) { setClicks(result.data); setClicksState("idle"); return; }
+    const fresh = await request<ClickSettingsData>(`${base}/settings`, { method: "GET" });
+    if (fresh.ok) setClicks(fresh.data);
+    setClicksState("error");
+  }
 
   const reload = useCallback(async () => {
     const result = await request<SenderSetupData>(`${base}/sender-setup`, { method: "GET" });
@@ -183,6 +195,20 @@ export function SenderSetup({ tenantId, initial }: { tenantId: string; initial: 
         <div className="flex flex-wrap items-center gap-3"><Button type="submit" className="min-h-11">{t("save")}</Button>
           <span role="status" aria-live="polite" className="text-sm text-muted-foreground">{mailingState === "saved" ? t("saved") : mailingState === "error" ? t("failed") : ""}</span></div>
       </form>
+    </section>
+
+    <section id="sender-clicks" aria-labelledby="sender-clicks-title" className="scroll-mt-20 space-y-3" data-click-tracking={clicks.clickTracking ? "on" : "off"}>
+      <h2 id="sender-clicks-title" className="text-lg font-semibold">{t("clicks.title")}</h2>
+      <div className="flex max-w-xl items-start gap-3">
+        <Switch id="sender-click-tracking" className="mt-1" checked={clicks.clickTracking} disabled={!clicks.canEdit || clicksState === "saving"}
+          aria-describedby="sender-click-tracking-description" onCheckedChange={(on) => void saveClicks(on)} />
+        <div className="min-w-0 space-y-1">
+          <Label htmlFor="sender-click-tracking" className="flex min-h-11 items-center text-sm font-medium sm:min-h-0">{t("clicks.label")}</Label>
+          <p id="sender-click-tracking-description" className="text-sm text-muted-foreground">{t("clicks.description")}</p>
+          {!clicks.canEdit && <p className="text-sm text-muted-foreground">{t("clicks.ownerOnly")}</p>}
+          <p role="status" aria-live="polite" className="text-sm text-muted-foreground">{clicksState === "error" ? t("failed") : ""}</p>
+        </div>
+      </div>
     </section>
 
     <Dialog open={adding} onOpenChange={setAdding}><DialogContent><DialogHeader><DialogTitle>{t("addAddress")}</DialogTitle><DialogDescription className="sr-only">{t("addAddress")}</DialogDescription></DialogHeader>

@@ -60,12 +60,17 @@ type Context = {
   ministryName?: string;
   unsubscribe: string;
   images?: ReadonlyMap<string, string>;
+  /** Send path only, when the ministry counts link clicks: maps a content link to its redirect address. The unsubscribe link is never passed to it. */
+  track?: (url: string) => string;
+  /** Adds the footer line saying the ministry counts link clicks. */
+  clicksCounted?: boolean;
 };
 
 export function renderNewsletter(definition: unknown, context: Context) {
   const parsed = newsletterContent.parse(definition);
   if (isEmailDocument(parsed)) return renderEmail(parsed, context);
   const content: LegacyNewsletterContent = parsed;
+  const out = (url: string) => context.track ? context.track(url) : url;
   const unsubscribe = newsletterHttps(context.unsubscribe);
   if (!unsubscribe || /[<>]/.test(unsubscribe)) throw new Error("NEWSLETTER_UNSUBSCRIBE_UNAVAILABLE");
   const merge = (value: string) => value.replace(/\{\{(firstName|ministryName)\}\}/g, (_, key: "firstName" | "ministryName") =>
@@ -81,8 +86,8 @@ export function renderNewsletter(definition: unknown, context: Context) {
         if (mark.type === "italic") html = '<em>' + html + '</em>';
         if (mark.type === "link") {
           const url = newsletterHttps(mark.attrs.href)!;
-          html = '<a href="' + escape(url) + '">' + html + '</a>';
-          if (value !== url) text += " (" + url + ")";
+          html = '<a href="' + escape(out(url)) + '">' + html + '</a>';
+          if (value !== url) text += " (" + out(url) + ")";
         }
       }
       return { html, text };
@@ -112,8 +117,8 @@ export function renderNewsletter(definition: unknown, context: Context) {
   const rendered = content.flatMap(block => {
     switch (block.type) {
       case "richText": return block.doc.content.map(renderBlock);
-      case "button": return [{ html: '<p><a style="display:inline-block;padding:10px 16px;border:1px solid currentColor;border-radius:4px" href="' + escape(block.href) + '">' + escape(merge(block.label)) + '</a></p>',
-        text: merge(block.label) + " (" + block.href + ")" }];
+      case "button": return [{ html: '<p><a style="display:inline-block;padding:10px 16px;border:1px solid currentColor;border-radius:4px" href="' + escape(out(block.href)) + '">' + escape(merge(block.label)) + '</a></p>',
+        text: merge(block.label) + " (" + out(block.href) + ")" }];
       case "image": {
         const src = newsletterHttps(context.images?.get(block.fileId) ?? "");
         if (!src) throw new Error("NEWSLETTER_IMAGE_UNAVAILABLE");
@@ -125,8 +130,9 @@ export function renderNewsletter(definition: unknown, context: Context) {
     }
   });
   const unsubscribeLabel = message("NewsletterEmail.unsubscribe");
-  rendered.push({ html: '<footer><p>' + escape(merge("{{ministryName}}")) + ' · <a href="' + escape(unsubscribe) + '">' + escape(unsubscribeLabel) + '</a></p></footer>',
-    text: merge("{{ministryName}}") + " · " + unsubscribeLabel + " (" + unsubscribe + ")" });
+  const counted = context.clicksCounted ? message("NewsletterEmail.clicksCounted") : "";
+  rendered.push({ html: '<footer>' + (counted ? '<p>' + escape(counted) + '</p>' : '') + '<p>' + escape(merge("{{ministryName}}")) + ' · <a href="' + escape(unsubscribe) + '">' + escape(unsubscribeLabel) + '</a></p></footer>',
+    text: (counted ? counted + "\n" : "") + merge("{{ministryName}}") + " · " + unsubscribeLabel + " (" + unsubscribe + ")" });
   const preheader = context.preheader?.trim();
   const hiddenPreheader = preheader ? '<div style="display:none;max-height:0;overflow:hidden">' + escape(preheader) + '</div>' : '';
   return {
