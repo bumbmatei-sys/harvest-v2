@@ -109,14 +109,15 @@ test("forum: categories, a full post, likes and replies, edits, pinning and remo
     await composer.getByLabel("Category", { exact: true }).click();
     await expect(a.getByRole("option", { name: /Announcements/ })).toHaveCount(0);
     await a.getByRole("option", { name: "General", exact: true }).click();
-    await attachFile(a, slug, composer.getByRole("button", { name: "Add cover", exact: true }),
+    // Forum composer (27 Nov): photos from the icon row; the video link and files from Attach.
+    await attachFile(a, slug, composer.getByRole("button", { name: "Photo", exact: true }),
       { name: "cover.png", mimeType: "image/png", buffer: png });
-    await expect(composer.getByText("cover.png", { exact: true })).toBeVisible();
-    // Forum redesign (27 Nov): the composer's extras are tabs, as in the kit's create-post dialog.
-    await composer.getByRole("tab", { name: "Video", exact: true }).click();
+    await expect(composer.getByRole("img", { name: "Photo 1 of 1" })).toBeVisible();
+    await composer.getByRole("button", { name: "Attach", exact: true }).click();
+    await composer.getByRole("button", { name: "Video link", exact: true }).click();
     await composer.getByLabel("Video link", { exact: true }).fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
-    await composer.getByRole("tab", { name: "Files", exact: true }).click();
-    await attachFile(a, slug, composer.getByRole("button", { name: "Add attachment", exact: true }),
+    await composer.getByRole("button", { name: "Attach", exact: true }).click();
+    await attachFile(a, slug, composer.getByRole("button", { name: "File", exact: true }),
       { name: "plan.pdf", mimeType: "application/pdf", buffer: pdf });
     await expect(composer.getByText("plan.pdf", { exact: true })).toBeVisible();
     const body = composer.getByRole("textbox", { name: "Post", exact: true });
@@ -127,7 +128,7 @@ test("forum: categories, a full post, likes and replies, edits, pinning and remo
     await a.keyboard.type("Chapters 1-4"); await a.keyboard.press("Enter"); await a.keyboard.type("Chapters 5-8");
     const [published] = await Promise.all([
       waitForCommunityResponse(a, "POST", `/api/communities/${slug}/posts`),
-      composer.getByRole("button", { name: "Publish", exact: true }).click(),
+      composer.getByRole("button", { name: "Post", exact: true }).click(),
     ]);
     const { id } = await published.json();
     expect(id).toMatch(/^[0-9a-f-]{36}$/);
@@ -351,10 +352,11 @@ test("forum redesign: feed, post and composer at 1280 and 360, light and dark", 
     // The feed card links to the post from the reply count.
     await r.goto(`/communities/${slug}/forum`);
     await expect(r.getByRole("link", { name: "2 replies on Thursday study notes" })).toBeVisible();
-    // The feed card shortcuts open the composer on the matching tab.
+    // The feed card's Attach shortcut opens the composer on the attach list; a member sees no linked-item kinds and no Event shortcut.
     await r.getByRole("button", { name: "Attach", exact: true }).click();
-    await expect(r.getByRole("dialog", { name: "New post" }).getByRole("tab", { name: "Files", exact: true })).toHaveAttribute("aria-selected", "true");
-    // The Event shortcut waits for a real event picker.
+    const attach = r.getByRole("dialog", { name: "New post" }).getByRole("region", { name: "Attach" });
+    await expect(attach.getByRole("button", { name: "Photo", exact: true })).toBeVisible();
+    await expect(attach.getByRole("button", { name: "Event", exact: true })).toHaveCount(0);
     await r.keyboard.press("Escape");
     await expect(r.getByRole("button", { name: "Event", exact: true })).toHaveCount(0);
   } finally { await author.context.close(); await reader.context.close(); }

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { ArrowLeft, FileText } from "lucide-react";
 import { getDb } from "@/db/client";
-import { getPost } from "@/server/community-forum";
+import { getPost, memberDirectory } from "@/server/community-forum";
 import { pageSession } from "@/server/page-session";
 import { communitiesEnabled } from "@/server/communities-mode";
 import { AccessError } from "@/server/permissions";
@@ -29,6 +29,8 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   const isAuthor = post.authorId === me, muted = context.mutedUntil, myName = session.user.name?.trim() || t("unnamed");
   const category = context.categories.find((c) => c.id === post.categoryId);
   const canReply = !post.held && !post.commentsOff && !muted;
+  const canEdit = isAuthor && !muted, details = post.postDetails;
+  const people = canEdit ? (await memberDirectory(getDb(), me, slug)).members.filter((m) => m.userId !== me).map((m) => ({ id: m.userId, name: m.name })) : [];
   const body = <>
     {post.video && <VideoEmbedView video={post.video} title={post.title} />}
     <RichTextView doc={post.body} />
@@ -51,9 +53,12 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         {context.canModerate && <EditHistory slug={context.slug} targetType="post" targetId={post.id} name={post.title} compact />}
       </>}
       menu={<PostMenu slug={context.slug} post={{ id: post.id, title: post.title, pinned: post.pinned, held: post.held }} isAuthor={isAuthor} canModerate={context.canModerate} detail
-        edit={isAuthor && !muted ? { categories: context.categories, author: myName, initial: { id: post.id, categoryId: post.categoryId, title: post.title, body: post.body, videoUrl: post.videoUrl,
+        edit={canEdit ? { categories: context.categories, author: myName, people, initial: { id: post.id, categoryId: post.categoryId, title: post.title, body: post.body, videoUrl: post.videoUrl,
           cover: post.coverFileId ? { id: post.coverFileId, name: t("currentCover") } : null, attachments: attachments.map((a) => ({ id: a.id, name: a.name })),
-          commentsOff: post.commentsOff, likesOff: post.likesOff } } : undefined} />}>
+          commentsOff: post.commentsOff, likesOff: post.likesOff, details: { photos: details.photos.map((p) => ({ id: p.id, name: p.name })), location: details.location, feeling: details.feeling,
+            mentions: details.mentions.map((m) => ({ id: m.userId, name: m.name })),
+            // A reference that is no longer available is dropped on save; the server would refuse it.
+            linkedItems: details.linkedItems.flatMap((item) => item.available ? [{ ...item, available: true as const }] : []) } } } : undefined} />}>
       <PostComments count={comments.length}>
         {comments.map((c) => { const name = forumAuthorName(t, c.authorId, c.authorName); return <PostComment key={c.id} authorId={c.authorId} authorName={c.authorName} body={c.body} createdAt={c.createdAt}
           like={<LikeButton className="text-muted-foreground h-auto min-h-11 px-2 text-xs lg:min-h-8" slug={context.slug} targetType="comment" targetId={c.id} likes={c.likes} liked={c.liked} disabled={post.likesOff || c.held || Boolean(muted)} label={name} />}

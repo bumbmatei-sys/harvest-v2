@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCrmRequest } from "@/components/crm/request";
-import { PostComposer, type ComposerCategory, type ComposerInitial } from "@/components/forum/post-composer";
+import { PostComposer, type ComposerCategory, type ComposerInitial, type ComposerPerson } from "@/components/forum/post-composer";
 import { ReportDialog } from "@/components/communities/report-dialog";
 import { memberInitials } from "@/lib/community-members";
 import { forumLimits } from "@/lib/forum";
@@ -88,7 +88,7 @@ export function PostEngagement({ slug, postId, title, likes, liked, likesOff, li
 
 /** The kit's "..." menu on a post: copy link for everyone, edit and delete for the author, pin and remove for hosts, report for other members. */
 export function PostMenu({ slug, post, isAuthor, canModerate, edit, detail = false }: { slug: string; post: { id: string; title: string; pinned: boolean; held: boolean };
-  isAuthor: boolean; canModerate: boolean; /** Author edit, offered on the post page only. */ edit?: { categories: ComposerCategory[]; initial: ComposerInitial; author: string };
+  isAuthor: boolean; canModerate: boolean; /** Author edit, offered on the post page only. */ edit?: { categories: ComposerCategory[]; initial: ComposerInitial; author: string; people?: ComposerPerson[] };
   /** On the post page: deleting or removing the post returns to the forum. */ detail?: boolean }) {
   const t = useTranslations("CommunityForum"), tr = useTranslations("Report"), { busy, run, router } = useAction();
   const [dialog, setDialog] = useState<"edit" | "report" | null>(null), trigger = useRef<HTMLButtonElement>(null);
@@ -144,7 +144,7 @@ export function PostMenu({ slug, post, isAuthor, canModerate, edit, detail = fal
     </DropdownMenu>
     {dialog === "report" && <ReportDialog slug={slug} targetType="post" targetId={post.id} name={post.title} defaultOpen onClose={closeDialog} />}
     {dialog === "edit" && edit && <PostComposer slug={slug} categories={edit.categories} canModerate={canModerate} initial={edit.initial} author={edit.author}
-      defaultOpen onClose={closeDialog} />}
+      people={edit.people} defaultOpen onClose={closeDialog} />}
   </>;
 }
 
