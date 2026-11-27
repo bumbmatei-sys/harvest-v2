@@ -904,6 +904,13 @@
       "when": 1795768888340,
       "tag": "0132_bio_tabs_layout",
       "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1795769758241,
+      "tag": "0134_bio_blocks",
+      "breakpoints": true
     }
   ]
 }

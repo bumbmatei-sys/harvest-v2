@@ -270,7 +270,7 @@ describe("photo, choices and cross-ministry safety", () => {
     await expect(fixture.admin.query("update bio_pages set photo_file_id=$1 where tenant_id=$2", [randomUUID(), people.tenant])).rejects.toThrow();
   });
   it("offers only this ministry's communities and published sign-up forms", async () => {
-    expect(await bioChoices(db(), people.owner, people.tenant)).toEqual({ communities: [], signups: [], giving: [] });
+    expect(await bioChoices(db(), people.owner, people.tenant)).toEqual({ communities: [], signups: [], giving: [], catalog: [], forms: [] });
     expect(await status(bioChoices(db(), people.member, people.tenant))).toBe(403);
   });
   it("keeps the anonymous functions out of PUBLIC and pinned to a fixed search path", async () => {
@@ -390,5 +390,71 @@ describe("rework: named tabs, single page, cover switch (0132)", () => {
     expect(view.tabs.map((t) => t.id)).toEqual(["partnership"]);
     const click = await respondToBioClick(request("/l/grace-church/click", { method: "POST", body: JSON.stringify({ block: "aaaaaaaa" }), ip: "203.0.113.79" }), ctx("grace-church"));
     expect(click.status).toBe(204);
+  });
+});
+
+describe("rework PR 2: new blocks (0134)", () => {
+  const catalogRow = async (tenant: string, kind: "course" | "download", state: string, visibility: string, title: string) => {
+    const id = randomUUID();
+    await fixture.admin.query("insert into catalog_items(tenant_id,id,kind,slug,title,summary,state,visibility) values($1,$2,$3,$4,$5,'Synthetic summary',$6,$7)",
+      [tenant, id, kind, `bio-${kind}-${id.slice(0, 8)}`, title, state, visibility]);
+    return id;
+  };
+  const click = (block: string, ip: string) => respondToBioClick(request("/l/grace-church/click", { method: "POST", body: JSON.stringify({ block }), ip }), ctx("grace-church")).then((r) => r.status);
+  it("shows only the ministry's published, not hidden products and courses, and only download products as files", async () => {
+    const listed = await catalogRow(people.tenant, "course", "published", "listed", "Listed course");
+    const unlisted = await catalogRow(people.tenant, "download", "published", "unlisted", "Unlisted ebook");
+    const draft = await catalogRow(people.tenant, "download", "draft", "listed", "Draft ebook");
+    const hidden = await catalogRow(people.tenant, "course", "published", "hidden", "Hidden course");
+    const foreign = await catalogRow(people.other, "course", "published", "listed", "Other ministry course");
+    const current = await getBioPage(db(), people.owner, people.tenant); version = current.version;
+    const blocks: BioDefinition["blocks"] = [
+      { type: "catalog", id: "catalog1", hidden: false, tab: "home", title: "Learn with us", itemIds: [listed, unlisted, draft, hidden] },
+      { type: "files", id: "files001", hidden: false, tab: "home", title: "", itemIds: [unlisted, draft] },
+      { type: "video", id: "video001", hidden: false, tab: "home", title: "Welcome", provider: "youtube", videoId: "dQw4w9WgXcQ" },
+      { type: "contact", id: "contact1", hidden: false, tab: "home", email: "hello@example.invalid", phone: "+351 912 345 678", whatsapp: "" },
+      { type: "location", id: "locate01", hidden: false, tab: "home", label: "Sunday", address: "Rua Augusta 1, Lisboa" },
+      { type: "live", id: "liveoff1", hidden: false, tab: "home", title: "Live service", url: "https://example.org/live", on: false },
+      { type: "testimonials", id: "testim01", hidden: false, tab: "home", items: [{ id: "quote001", quote: "Synthetic quote.", name: "Ana", role: "" }] },
+    ];
+    const definition: BioDefinition = { ...current.draft, layout: "single", blocks };
+    // Another ministry's item, and a course in the files block, are refused when saving.
+    expect(await status(save(people.owner, undefined, { ...definition, blocks: [{ type: "catalog", id: "catalog1", hidden: false, tab: "home", title: "", itemIds: [foreign] }] }))).toBe(400);
+    expect(await status(save(people.owner, undefined, { ...definition, blocks: [{ type: "files", id: "files001", hidden: false, tab: "home", title: "", itemIds: [listed] }] }))).toBe(400);
+    expect(await status(save(people.owner, undefined, { ...definition, blocks: [{ type: "form", id: "form0001", hidden: false, tab: "home", title: "Pray", slug: "no-such-form" }] }))).toBe(400);
+    await save(people.owner, undefined, definition);
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
+    const view = (await getPublicBio(db(), "grace-church"))!;
+    const byId = Object.fromEntries(view.tabs[0].blocks.map((b) => [b.id, b]));
+    expect((byId.catalog1 as { items: { title: string }[] }).items.map((x) => x.title)).toEqual(["Listed course", "Unlisted ebook"]);
+    expect((byId.files001 as { items: { title: string }[] }).items.map((x) => x.title)).toEqual(["Unlisted ebook"]);
+    expect(byId.video001).toMatchObject({ video: { provider: "youtube", id: "dQw4w9WgXcQ" } });
+    expect(byId.liveoff1).toBeUndefined();
+    expect(Object.keys(byId)).toEqual(["catalog1", "files001", "video001", "contact1", "locate01", "testim01"]);
+    expect(JSON.stringify(view)).not.toContain("Draft ebook"); expect(JSON.stringify(view)).not.toContain("Hidden course");
+    // Clicks: counted for the new blocks that lead somewhere; Live now only while it is on; never for testimonials.
+    expect(await click("catalog1", "203.0.113.90")).toBe(204);
+    expect(await click("contact1", "203.0.113.90")).toBe(204);
+    expect(await click("liveoff1", "203.0.113.90")).toBe(404);
+    expect(await click("testim01", "203.0.113.90")).toBe(404);
+    await save(people.owner, undefined, { ...definition, blocks: blocks.map((b) => b.type === "live" ? { ...b, on: true } : b) });
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
+    expect((await getPublicBio(db(), "grace-church"))!.tabs[0].blocks.find((b) => b.id === "liveoff1")).toMatchObject({ type: "live", url: "https://example.org/live" });
+    expect(await click("liveoff1", "203.0.113.91")).toBe(204);
+    // Unpublishing an item takes it off the page at once, without republishing the page.
+    await fixture.admin.query("update catalog_items set visibility='hidden' where id=$1", [listed]);
+    expect(JSON.stringify(await getPublicBio(db(), "grace-church"))).not.toContain("Listed course");
+  });
+  it("clears the catalog flags it sets and restores the caller's", async () => {
+    const client = await fixture.admin.connect();
+    try {
+      await client.query("begin");
+      await client.query("select set_config('app.catalog_tenant', $1, true), set_config('app.catalog_slug', 'caller-slug', true)", [people.other]);
+      const { rows: [row] } = await client.query("select public.bio_public_page('grace-church') r, current_setting('app.catalog_tenant', true) t, current_setting('app.catalog_slug', true) s");
+      expect(row.r).not.toBeNull(); expect(row.t).toBe(people.other); expect(row.s).toBe("caller-slug");
+      const { rows: [clear] } = await client.query("select public.bio_scope_clear(false) ? 'app.catalog_tenant' a, current_setting('app.catalog_tenant', true) t");
+      expect(clear).toEqual({ a: true, t: "" });
+      await client.query("rollback");
+    } finally { client.release(); }
   });
 });

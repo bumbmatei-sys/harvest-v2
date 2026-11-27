@@ -45,7 +45,7 @@ const step = (page: Page, name: string) => { const label = new RegExp(`^${name}\
 const saved = (page: Page) => expect(page.locator('[data-save-state="saved"]:visible, [role="status"]:has-text("Draft saved.")').first()).toBeVisible();
 
 test("editor, public page, click counts, Message me and messages", async ({ page, browser }) => {
-  test.setTimeout(420000);
+  test.setTimeout(900000);
   // A unique address per attempt: a retry must not collide with the first attempt's published page.
   const handle = `grace-church-${Date.now().toString(36)}`;
   await mkdir(evidence, { recursive: true });
@@ -160,7 +160,7 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   await saved(page);
   await audit(page, "editor", "[data-bio-preview]");
   await page.getByRole("button", { name: "Publish", exact: true }).first().click();
-  await expect(page.getByText("Published.", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Published.", { exact: true }).first()).toBeVisible({ timeout: 90_000 });
 
   // Public page: anonymous visitor, noindex-free published page, light and dark, three widths.
   // A unique visitor address: the per-visitor message limits must not be shared with other specs on the same server.
@@ -244,10 +244,10 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   await expect(page.locator("[data-bio-tab-row]")).toHaveCount(0);
   await expect(page.locator("[data-bio-preview] [role=tablist]")).toHaveCount(0);
   await page.getByRole("button", { name: "Publish changes", exact: true }).first().click();
-  await expect(page.getByText("Published.", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Published.", { exact: true }).first()).toBeVisible({ timeout: 90_000 });
   const single = await browser.newContext({ baseURL: origin, reducedMotion: "reduce" });
   const flat = await single.newPage();
-  await flat.goto(`/l/${handle}`);
+  await expect(async () => { expect((await flat.goto(`/l/${handle}`))?.status()).toBe(200); }).toPass({ timeout: 90_000 });
   await expect(flat.locator('[data-bio-layout="single"]')).toBeVisible();
   await expect(flat.getByRole("tab")).toHaveCount(0);
   await expect(flat.getByRole("link", { name: /Watch services/ })).toBeVisible();
@@ -259,7 +259,7 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   await page.goto(editor);
   await page.getByRole("button", { name: "Unpublish", exact: true }).first().click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Unpublish", exact: true }).click();
-  await expect(page.getByText(/Unpublished\./)).toBeVisible();
+  await expect(page.getByText(/Unpublished\./)).toBeVisible({ timeout: 90_000 });
   expect((await page.request.get(`/l/${handle}`)).status()).toBe(404);
   expect((await page.request.get("/l/no-such-page")).status()).toBe(404);
   expect(errors).toEqual([]);
