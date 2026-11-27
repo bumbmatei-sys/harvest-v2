@@ -1,6 +1,6 @@
 # Your data: download my data and delete my account (founder decision, 27 Nov)
 
-Self-serve access and copy (GDPR Art. 15 and 20) and erasure (Art. 17) for a signed-in person's own Harvest account, plus "Former member" on leaving a community (policy pack §11, G2). Part 1 (export, migration 0134) and part 2 (deletion, migration 0135) are stacked PRs.
+Self-serve access and copy (GDPR Art. 15 and 20) and erasure (Art. 17) for a signed-in person's own Harvest account, plus "Former member" on leaving a community (policy pack §11, G2). Part 1 (export, migration 0134) and part 2 (deletion, migration 0136) are stacked PRs.
 
 ## Part 1: download my data
 
@@ -19,7 +19,7 @@ Self-serve access and copy (GDPR Art. 15 and 20) and erasure (Art. 17) for a sig
 - Unit `your-data` (2): link expiry clamp, file name.
 - E2E `your-data.spec.ts`: download from the profile page, JSON shape, origin check, rate limit message, axe at 1280 and 360 in light and dark.
 
-## Part 2: delete my account (migration 0135, `0135_account_deletion`)
+## Part 2: delete my account (migration 0136, `0136_account_deletion`)
 - **Where:** `/account/profile` links to `/account/delete`: what is deleted, what stays, a typed confirmation (`DELETE`) and a destructive button (44px). Copy says "ministry".
 - **Re-auth:** a sign-in within the last 15 minutes (the session's creation time), the same rule and helper as Harvest staff actions (`assertFreshSignIn`). A stale session sees "Sign in again", which signs out and returns to `/account/delete`; the API answers 401 `REAUTH_REQUIRED`.
 - **Sole-owner blocker:** the screen, the service and the database (`public.account_delete_blockers()`, and again inside `public.account_delete` with the owner rows locked) refuse while the person is the only owner of any ministry, and list those ministries. Co-owned ministries keep their other owners. **Gap:** there is no in-app ownership transfer screen (the members API can make an existing member an owner, but nothing in the app exposes it) and no ministry deletion, so the copy says to contact Harvest support. Follow-up: an ownership transfer screen.
