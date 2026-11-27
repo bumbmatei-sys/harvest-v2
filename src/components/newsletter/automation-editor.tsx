@@ -18,6 +18,7 @@ import { FormSection } from "@/components/form-section";
 import { StatusBadge } from "@/components/status-badge";
 import { BlockCanvas } from "@/components/newsletter/block-canvas";
 import { EmailPreview } from "@/components/newsletter/email-preview";
+import { AutomationClicks } from "@/components/newsletter/automation-clicks";
 import { useCrmRequest } from "@/components/crm/request";
 import { commit, redo, startHistory, undo } from "@/lib/crm-forms";
 import { newId, type BrandKit, type EmailBlock } from "@/lib/email/blocks";
@@ -35,7 +36,7 @@ const runTones: Record<string, StatusTone> = { active: "pending", completed: "su
 type RunRow = { id: string; name: string; state: string; stopReason: string | null; stepIndex: number; startedAt: string };
 type LogRow = { id: string; stepType: string; outcome: string; reason: string | null; at: string };
 
-/** The automation editor (shared EditorShell): Flow (trigger, ordered steps, email content with the campaign block editor) and Activity (who is in it, per-person log). */
+/** The automation editor (shared EditorShell): Flow (trigger, ordered steps, email content with the campaign block editor) and Activity (link-click totals, who is in it, per-person log). */
 export function AutomationEditor({ tenantId, ministryName, brand, suggestions, triggerName, automation }: {
   tenantId: string; ministryName: string; brand: BrandKit; suggestions: boolean; triggerName: string; automation: AutomationData;
 }) {
@@ -156,7 +157,7 @@ export function AutomationEditor({ tenantId, ministryName, brand, suggestions, t
           </div>
           <p className="text-sm text-muted-foreground">{e("consentNote")}</p>
         </section>
-      </> : <Activity tenantId={tenantId} automationId={automation.id} a={a} />}
+      </> : <div className="flex min-w-0 flex-col gap-8"><AutomationClicks tenantId={tenantId} automationId={automation.id} steps={draft.steps} /><Activity tenantId={tenantId} automationId={automation.id} a={a} /></div>}
     </EditorShell>
     <div role="status" aria-live="polite" className="sr-only">{announcement}</div>
   </div>;
