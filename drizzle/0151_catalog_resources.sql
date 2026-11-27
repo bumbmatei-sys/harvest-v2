@@ -75,7 +75,7 @@ BEGIN
     existing_filter, 'community');
 END $$;
 --> statement-breakpoint
--- Keep the existing staff controls for metadata. Course and product opt-in is the ministry owner's decision.
+-- Course and product opt-in requires a ministry owner or full admin. Other catalogue editors can still manage metadata.
 CREATE FUNCTION public.catalog_listing_opt_in_guard() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
   IF current_user <> 'harvest_app' OR NEW.resource_type NOT IN ('course','product') THEN RETURN NEW; END IF;
@@ -85,8 +85,8 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id = NEW.tenant_id
     AND m.user_id = nullif(current_setting('app.user_id',true),'')
-    AND public.access_role(m.tenant_id,m.user_id,'owner_admin',m.role_id) = 'owner') THEN
-    RAISE EXCEPTION 'only the ministry owner can change catalogue opt-in' USING ERRCODE = '42501';
+    AND m.role_id IN ('owner','admin')) THEN
+    RAISE EXCEPTION 'only ministry owners and admins can change catalogue opt-in' USING ERRCODE = '42501';
   END IF;
   RETURN NEW;
 END $$;

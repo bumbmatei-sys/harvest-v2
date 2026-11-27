@@ -20,7 +20,7 @@ const headers = { "Cache-Control": "private, no-store", "X-Content-Type-Options"
 export const resourceLinkSeconds = 60;
 const signature = (secret: string, parts: (string | number)[]) =>
   createHmac("sha256", secret).update(JSON.stringify(["catalog-attachment:v1", ...parts])).digest();
-const resourceKey = () => workerSettings.getStore()?.grantSecret ?? requiredEnv("BETTER_AUTH_SECRET");
+const resourceKey = () => workerSettings.getStore()?.grantSecret ?? requiredEnv("FILE_GRANT_SECRET");
 
 type Resource = { lessonId: string; lessonTitle: string; fileId: string; name: string; mime: string; size: number };
 type Asset = { key: string; name: string; mime: string; size: number };

@@ -17,9 +17,9 @@ export const invalid = (code: string) => new DiscoverValidationError({ code });
 export const conflict = (code = "STALE_VERSION") => new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"), { code });
 const recordId = (id: string) => { const p = z.uuid().safeParse(id); if (!p.success) throw unavailable(); return p.data; };
 
-async function ministry<T>(db: Database, user: string, workspace: string, deps: DiscoverDeps, run: (tx: Transaction, tenant: string) => Promise<T>) {
+async function ministry<T>(db: Database, user: string, workspace: string, deps: DiscoverDeps, run: (tx: Transaction, tenant: string, access: string) => Promise<T>) {
   assertDiscoverEnabled(deps);
-  try { return await withTenant(db, user, recordId(workspace), "catalog:manage", (tx, tenant) => run(tx, tenant)); }
+  try { return await withTenant(db, user, recordId(workspace), "catalog:manage", (tx, tenant, _role, access) => run(tx, tenant, access)); }
   catch (error) { if (error instanceof AccessError && error.status === 403) throw unavailable(); throw error; }
 }
 const audit = (tx: Transaction, tenant: string, actor: string, action: string, target: string, metadata: Record<string, string> = {}) =>
@@ -54,7 +54,7 @@ export function listMyListings(db: Database, user: string, workspace: string, de
 
 const changeInput = z.object({ version: z.number().int().min(0).max(2_147_483_646), optIn: z.boolean().optional(), requestReview: z.literal(true).optional() }).merge(listingMetadata).strict();
 /**
- * Owner opt-in and metadata for one item. A community's opt-in is its canonical setting and is refused here (one source of truth). Opting in a qualifying item requests review;
+ * Staff opt-in and metadata for one item. A community's opt-in is its canonical setting and is refused here (one source of truth). Opting in a qualifying item requests review;
  * opting out removes it from the directory at once and keeps any earlier approval for the same fields.
  */
 export async function changeListing(db: Database, user: string, workspace: string, rawType: string, id: string, raw: unknown, deps: DiscoverDeps) {
@@ -63,9 +63,10 @@ export async function changeListing(db: Database, user: string, workspace: strin
   if (!type.success) throw unavailable();
   if (!input.success) throw invalid("DISCOVER_INVALID_INPUT");
   const data = input.data, kind = type.data;
-  return ministry(db, user, workspace, deps, async (tx, tenant) => {
+  return ministry(db, user, workspace, deps, async (tx, tenant, access) => {
     const resource = recordId(id);
     if (kind === "community" && data.optIn !== undefined) throw invalid("OPT_IN_IN_COMMUNITY_SETTINGS");
+    if (data.optIn !== undefined && access !== "owner" && access !== "admin") throw unavailable();
     const exists = kind === "community"
       ? (await tx.select({ id: communities.id }).from(communities).where(and(eq(communities.tenantId, tenant), eq(communities.id, resource)))).length
       : (await tx.select({ id: catalogItems.id }).from(catalogItems).where(and(eq(catalogItems.tenantId, tenant), eq(catalogItems.id, resource), eq(catalogItems.kind, kind === "course" ? "course" : "download")))).length;

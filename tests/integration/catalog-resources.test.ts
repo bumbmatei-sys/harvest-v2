@@ -8,7 +8,7 @@ import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { createCommunity, getCommunity, publishCommunity, updateCommunity } from "../../src/server/communities";
 import { enterCommunity, leaveCommunity } from "../../src/server/community-joining";
 import { createCatalogItem, enrolInCatalogItem, getCatalogDraft, getPublicCatalogItem, setCatalogPublication, setCatalogState, setCommunityProductLink } from "../../src/server/free-catalog";
-import { courseResources, downloadCourseResource, editorCatalogCover, publicCatalogCover, publicCatalogDirectory } from "../../src/server/catalog-assets";
+import { courseResources, downloadCourseResource, editorCatalogCover, publicCatalogCover, publicCatalogDirectory, validCatalogResourceGrant } from "../../src/server/catalog-assets";
 import { changeListing } from "../../src/server/discover/owner";
 import { decideReview } from "../../src/server/discover/platform";
 import { searchDiscover } from "../../src/server/discover/public";
@@ -41,8 +41,10 @@ async function course(slug: string, visibility: string, published = true, conten
 async function review(id: string, type: "course" | "product") {
   const control = async () => (await f.admin.query("select version from discover_controls where resource_id=$1", [id])).rows[0].version;
   const version = await control();
-  await expect(changeListing(f.db, admin, tenant, type, id, { optIn: true, version }, deps)).rejects.toThrow();
-  await changeListing(f.db, owner, tenant, type, id, { optIn: true, version }, deps);
+  await expect(changeListing(f.db, nonmember, tenant, type, id, { optIn: true, version }, deps)).rejects.toMatchObject(missing);
+  await expect(changeListing(f.db, owner, tenant, type, id, { optIn: true, version }, deps)).resolves.toMatchObject({ listing: { optIn: true } });
+  await expect(changeListing(f.db, admin, tenant, type, id, { optIn: false, version: await control() }, deps)).resolves.toMatchObject({ listing: { optIn: false } });
+  await expect(changeListing(f.db, admin, tenant, type, id, { optIn: true, version: await control() }, deps)).resolves.toMatchObject({ listing: { optIn: true } });
   expect(await decideReview(f.workerPool, { tenantId: tenant, type, id, version: await control(), reviewer: other }, { decision: "approve" })).toBe("approved");
 }
 beforeAll(async () => {
@@ -107,6 +109,15 @@ it("exposes only published attachments to an entitled learner and checks signed 
   expect(JSON.stringify(items)).not.toContain("workspaces/");
   const [{ lessonId, downloadHref }] = items;
   const token = new URL(downloadHref, "https://app.example.invalid").searchParams.get("grant");
+  vi.stubEnv("FILE_GRANT_SECRET", secret);
+  vi.stubEnv("BETTER_AUTH_SECRET", "local-integration-auth-secret");
+  try {
+    const nodeLink = (await courseResources(f.db, member, "member-course")).items[0].downloadHref;
+    const nodeToken = new URL(nodeLink, "https://app.example.invalid").searchParams.get("grant");
+    const issued = Number(nodeToken?.split(".")[0]) - 60;
+    expect(validCatalogResourceGrant(secret, member, "member-course", lessonId, fileId, nodeToken, issued)).toBe(true);
+    expect(validCatalogResourceGrant(process.env.BETTER_AUTH_SECRET!, member, "member-course", lessonId, fileId, nodeToken, issued)).toBe(false);
+  } finally { vi.unstubAllEnvs(); }
   const stream = await downloadCourseResource(f.db, member, "member-course", lessonId, fileId, token, open, secret, now + 59);
   expect(stream.headers.get("content-disposition")).toContain(filename);
   expect(await stream.text()).toBe("12345678");
@@ -129,7 +140,7 @@ it("reuses ready private images for courses and products, and rejects other or u
     lessons: [{ ...lesson, attachmentFileIds: [unready] }] })).rejects.toMatchObject(missing);
 });
 
-it("requires reviewed owner opt-in, lists author and free price data, and pages per ministry", async () => {
+it("requires reviewed staff opt-in, lists author and free price data, and pages per ministry", async () => {
   expect(await publicCatalogDirectory(f.db, tenant, {})).toEqual({ items: [], next: null });
   await review(publicId, "course");
   await review(productId, "product");
