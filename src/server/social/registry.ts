@@ -1,7 +1,7 @@
 import { AccessError } from "../permissions";
 import { message } from "../../i18n/messages";
 import type { SocialProvider, SocialSender } from "./port";
-import type { SocialProviderId } from "./types";
+import type { SocialCredential, SocialProviderId } from "./types";
 import { ZernioAdapter } from "./zernio-adapter";
 
 // Intentionally a constant, not an environment toggle (same pattern as MANAGED_KEY_SERVICE_ENABLED, COMMUNITY_EMAIL_LIVE_DELIVERY).
@@ -14,6 +14,8 @@ export type SocialDeps = {
   /** Provider by id. The default builds only the vendor adapter, which is itself hard-disabled and is built with no transport override here. */
   provider: (id: SocialProviderId) => SocialProvider;
   now: () => Date;
+  /** Server-owned credential for the hosted blog sign-in flow. Only injected for fake tests. */
+  blogConnect?: { providerId: SocialProviderId; credential: SocialCredential };
 };
 export const defaultSocialDeps = (): SocialDeps => ({
   enabled: SOCIAL_INTEGRATION_ENABLED,
