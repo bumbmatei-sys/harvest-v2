@@ -3,7 +3,7 @@ vi.mock("server-only", () => ({}));
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { bioBlockSchema, bioDefinitionSchema, bioLimits, bioReservedHandles, blockShown, emptyBioDefinition, fieldIssues, handleProblem, isLegacyTabId, messageNotice, moveItem, newBlockId,
-  publishIssues, shownTabs, oneLine, safeHttpsUrl, suggestHandle, bioMessageSchema } from "../../src/lib/link-in-bio";
+  publishIssues, shownTabs, oneLine, bioClickTypes, mapsHref, telHref, whatsappHref, safeHttpsUrl, suggestHandle, bioMessageSchema } from "../../src/lib/link-in-bio";
 import { BIO_MESSAGES_PRODUCTION_ENABLED, bioMessagesKey, linkInBioEnabled } from "../../src/server/link-in-bio-mode";
 import { bioVisitorKey } from "../../src/server/link-in-bio-public";
 import { issueBioProof } from "../../src/server/link-in-bio";
@@ -133,6 +133,59 @@ describe("header and tabs (rework, 25 Nov)", () => {
     expect(sql).toMatch(/coalesce\(p_published->>'layout', 'tabs'\) = 'single'/);
     expect(sql).toMatch(/p_kind = 'cover' AND \(page\.published->>'cover'\) = 'false'/);
     expect(sql.split("\n").filter((line) => !line.startsWith("--")).join("\n")).not.toMatch(/SECURITY DEFINER/);
+  });
+});
+
+describe("new block types (rework PR 2)", () => {
+  const base = { ...emptyBioDefinition("Grace Church"), blocks: [link()] };
+  const parse = (block: Record<string, unknown>) => bioDefinitionSchema.safeParse({ ...base, blocks: [{ id: "bbbbbbbb", hidden: false, tab: "home", ...block }] });
+  const item = "11111111-1111-4111-8111-111111111111", other = "22222222-2222-4222-8222-222222222222";
+  it("takes products and courses, and PDFs and ebooks, as lists of the ministry's item ids", () => {
+    expect(parse({ type: "catalog", title: "", itemIds: [item, other] }).success).toBe(true);
+    expect(parse({ type: "catalog", title: "", itemIds: [] }).success).toBe(false);
+    expect(parse({ type: "catalog", title: "", itemIds: [item, item] }).success).toBe(false);
+    expect(parse({ type: "catalog", title: "", itemIds: Array.from({ length: bioLimits.catalogItems + 1 }, (_, i) => `11111111-1111-4111-8111-${String(i).padStart(12, "0")}`) }).success).toBe(false);
+    expect(parse({ type: "files", title: "Ebooks", itemIds: ["not-a-uuid"] }).success).toBe(false);
+  });
+  it("stores a video as provider and id only, from the course lessons' parser", () => {
+    expect(parse({ type: "video", title: "", provider: "youtube", videoId: "dQw4w9WgXcQ" }).success).toBe(true);
+    expect(parse({ type: "video", title: "", provider: "vk", videoId: "-1_2" }).success).toBe(true);
+    expect(parse({ type: "video", title: "", provider: "youtube", videoId: "" }).success).toBe(false);
+    expect(parse({ type: "video", title: "", provider: "vimeo", videoId: "123" }).success).toBe(false);
+    expect(parse({ type: "video", title: "", provider: "youtube", videoId: "dQw4w9WgXcQ", url: "https://youtu.be/x" }).success).toBe(false);
+    const draft = { ...base, blocks: [{ type: "video" as const, id: "bbbbbbbb", hidden: false, tab: "home", title: "", provider: "youtube" as const, videoId: "" }] };
+    expect(fieldIssues(draft)).toEqual({ bbbbbbbb: "url" });
+  });
+  it("needs at least one valid contact channel", () => {
+    expect(parse({ type: "contact", email: "hello@example.invalid", phone: "", whatsapp: "" }).success).toBe(true);
+    expect(parse({ type: "contact", email: "", phone: "+351 912 345 678", whatsapp: "(212) 555-0100" }).success).toBe(true);
+    expect(parse({ type: "contact", email: "", phone: "", whatsapp: "" }).success).toBe(false);
+    for (const bad of [{ email: "nope" }, { phone: "call me" }, { phone: "12" }, { whatsapp: "+1 <script>" }]) expect(parse({ type: "contact", email: "", phone: "", whatsapp: "", ...bad }).success).toBe(false);
+    expect(telHref("+351 912-345 678")).toBe("tel:+351912345678"); expect(whatsappHref("+351 (912) 345 678")).toBe("https://wa.me/351912345678");
+  });
+  it("opens maps by search, never embedding one, and keeps the address as text", () => {
+    expect(parse({ type: "location", label: "", address: "Rua Augusta 1, Lisboa" }).success).toBe(true);
+    expect(parse({ type: "location", label: "", address: "  " }).success).toBe(false);
+    expect(parse({ type: "location", label: "", address: "<iframe>" }).success).toBe(false);
+    expect(mapsHref(" Rua Augusta 1 & 2 ")).toBe("https://www.openstreetmap.org/search?query=Rua%20Augusta%201%20%26%202");
+  });
+  it("takes Live now as an https link with an on switch, and testimonials with a quote and a name", () => {
+    expect(parse({ type: "live", title: "Sunday service", url: "https://example.org/live", on: true }).success).toBe(true);
+    expect(parse({ type: "live", title: "Live", url: "http://example.org/live", on: true }).success).toBe(false);
+    const quote = (id: string) => ({ id, quote: "It helped me.", name: "Ana", role: "" });
+    expect(parse({ type: "testimonials", items: [quote("qqqqqqq1")] }).success).toBe(true);
+    expect(parse({ type: "testimonials", items: [] }).success).toBe(false);
+    expect(parse({ type: "testimonials", items: Array.from({ length: bioLimits.testimonials + 1 }, (_, i) => quote(`qqqqqqq${i}`)) }).success).toBe(false);
+    expect(parse({ type: "testimonials", items: [{ ...quote("qqqqqqq1"), name: "" }] }).success).toBe(false);
+    expect(parse({ type: "form", title: "Prayer request", slug: "prayer-request" }).success).toBe(true);
+    expect(parse({ type: "form", title: "", slug: "prayer-request" }).success).toBe(false);
+  });
+  it("keeps the database's click list and catalog rule in step", () => {
+    const sql = readFileSync("drizzle/0140_bio_blocks.sql", "utf8");
+    const listed = sql.match(/b->>'type' IN \(([^)]*)\)\n\s*AND \(b->>'type' <> 'live'/)![1].match(/'([^']+)'/g)!.map((w) => w.slice(1, -1));
+    expect(listed.sort()).toEqual([...bioClickTypes].sort());
+    expect(sql).toMatch(/c\.state = 'published' AND c\.visibility <> 'hidden'/);
+    expect(sql).toMatch(/'app\.catalog_slug','app\.catalog_tenant'\]/);
   });
 });
 
