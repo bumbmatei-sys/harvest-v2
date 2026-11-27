@@ -172,9 +172,12 @@ BEGIN
     AND EXISTS (SELECT FROM public.ministry_payment_grants g WHERE g.mode = ''checkout''))', current_user, scoped);
   EXECUTE format('CREATE POLICY payment_workspace_owner ON public.workspaces FOR SELECT TO %I USING (
     %s AND EXISTS (SELECT FROM public.ministry_payment_grants g WHERE g.mode = ''checkout''))', current_user, scoped);
+  -- Only the authenticated webhook path inserts event facts. It runs without a session actor and holds a transaction grant.
   EXECUTE format($p$CREATE POLICY payment_event_definer ON public.ministry_payment_events TO %I USING (
+    nullif(current_setting('app.user_id',true),'') IS NULL AND
     EXISTS (SELECT FROM public.ministry_payment_grants g WHERE g.mode = 'event' AND g.provider = ministry_payment_events.provider
       AND g.account_id = ministry_payment_events.account_id)) WITH CHECK (
+    nullif(current_setting('app.user_id',true),'') IS NULL AND
     EXISTS (SELECT FROM public.ministry_payment_grants g WHERE g.mode = 'event' AND g.provider = ministry_payment_events.provider
       AND g.account_id = ministry_payment_events.account_id))$p$, current_user);
 END $$;
