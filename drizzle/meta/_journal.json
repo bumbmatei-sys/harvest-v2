@@ -911,6 +911,13 @@
       "when": 1795770000000,
       "tag": "0136_your_data_export",
       "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1795770100000,
+      "tag": "0137_account_deletion",
+      "breakpoints": true
     }
   ]
 }

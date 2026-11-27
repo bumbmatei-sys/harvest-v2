@@ -211,7 +211,7 @@ The ministry, as controller, answers requests from its people. Harvest, as proce
 | Be informed | 13, 14 | Notice on every form, sign-up and community join |
 | Access and copy | 15, 20 | Self-serve "Download my data" on the profile page (founder, 27 Nov; `docs/acceptance/your-data.md`, not active in production until launch). Staff-assisted access has no export workflow yet; never use a broad CRM export as an answer |
 | Correct | 16 | Profile and CRM edit |
-| Erase | 17 | Self-serve account deletion (founder, 27 Nov: built before launch; not built yet); Connect response and contact erasure (built) |
+| Erase | 17 | Self-serve account deletion (`/account/delete`, `docs/acceptance/your-data.md`); Connect response and contact erasure (built) |
 | Restrict | 18 | Staff mark the contact; no automated sending (needs a field; not built) |
 | Object | 21 | Withdrawal of a purpose; newsletter unsubscribe (RFC 8058, built) |
 | Withdraw consent | 7(3) | Per purpose, as easy as giving it (built for Connect and newsletter) |
@@ -276,12 +276,14 @@ Before leaving, they can delete their own posts. They can also ask the ministry 
 - Account deletion clears the author on posts, replies and chat messages (`ON DELETE SET NULL` on `author_id`: `drizzle/0038_community_forum.sql`, `drizzle/0057_community_chat.sql`), so the name and photo no longer join.
 - Volunteered profile fields are erased after leaving; leave reasons are deleted with the person: C23 items 13.1 and 13.2, `src/server/community-joining.ts` (`leaveCommunity`).
 
+**Built (migration 0137, `docs/acceptance/your-data.md`).**
+- On leaving a community: posts, replies and channel messages in that community are detached from the author and show "Former member". DMs keep their author (so account deletion can still delete them); the other participant sees "Former member" because the name is shown only while the person is an active member.
+- On account deletion: posts, replies and channel messages are detached ("Former member"); the `chat-erasure` hook deletes every DM the person sent; reactions and likes are deleted.
+- The forum shows "Former member" for a detached author (chat and DM screens already did).
+
 **Still to build.**
-- On **leaving** a community, detach the author from that community's posts and replies (today the author link and name stay).
-- Show "Former member" (today the post page falls back to a generic label from `t("unnamed")`).
-- Clear the author from mentions and reactions, or show them as "Former member" too.
-- On leaving: detach the author in that community's channels and in DMs started through it; show "Former member" in the chat and DM screens (already the fallback label there).
-- On account deletion: the `chat-erasure` hook deletes the person's DMs (`docs/runbooks/communities.md`, `docs/setup/feature-flags.md`). Not built: today DM text outlives the account (`author_id` becomes null) until the 30-day purge removes deleted messages only.
+- Mentions of a former member inside other people's chat messages render as "Former member" only because the person is no longer in the directory; the stored mention id is not rewritten.
+- Host moderation screens still label a detached author with the generic "No name".
 
 ## 12. G7: prayer requests in Community Live
 

@@ -15,5 +15,7 @@ export default async function PersonalProfile() {
   return <PublicFrame personal><div className="space-y-6"><h1 className="text-3xl font-semibold">{t("profileTitle")}</h1><p>{profile.email}</p>
     <div className="max-w-xl"><AccountProfileForm mode="profile" initial={{ name: profile.name, locale: profile.locale, cityRegion: profile.cityRegion }} /></div>
     <div className="max-w-xl"><FormSection title={data("title")} description={data("downloadHelp")} divided><DownloadMyData /></FormSection></div>
+    <div className="max-w-xl"><FormSection title={data("deleteLink")} description={data("deleteHelp")} divided>
+      <div><Button asChild variant="outline" className="min-h-11"><Link href="/account/delete">{data("deleteLink")}</Link></Button></div></FormSection></div>
     <Button asChild variant="outline" className="min-h-11"><Link href="/account/welcome">{t("accountHome")}</Link></Button></div></PublicFrame>;
 }
