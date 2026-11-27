@@ -69,7 +69,9 @@ test("reports, moderation queue, mute and ban, held first posts and banned words
     // A member reports a post and a member; the reported person never learns who.
     const r = reporter.page;
     await r.goto(`/communities/${slug}/posts/${spam.id}`);
-    await r.getByRole("button", { name: "Report post Cheap watches" }).click();
+    // Forum redesign (27 Nov): reporting a post is in the post's menu.
+    await r.getByRole("button", { name: "More actions for Cheap watches" }).click();
+    await r.getByRole("menuitem", { name: "Report", exact: true }).click();
     let dialog = r.getByRole("dialog", { name: "Report post" });
     await expect(dialog.getByRole("button", { name: "Send report" })).toBeDisabled();
     await dialog.getByLabel("Spam or advertising").click();

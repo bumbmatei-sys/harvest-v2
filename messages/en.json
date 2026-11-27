@@ -3336,7 +3336,21 @@
     "newer": "Newer posts",
     "older": "Older posts",
     "awaitingReview": "Awaiting review",
-    "mutedUntil": "You can't post until {date}."
+    "mutedUntil": "You can't post until {date}.",
+    "formerMember": "Former member",
+    "moreActions": "More actions for {name}",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied",
+    "copyFailed": "Couldn't copy the link",
+    "likes": "{count, plural, one {<strong>#</strong> like} other {<strong>#</strong> likes}}",
+    "viewReplies": "View all {count, plural, one {# reply} other {# replies}}",
+    "repliesNamed": "{count, plural, one {# reply} other {# replies}} on {name}",
+    "writeReply": "Write a reply",
+    "extras": "Add to post",
+    "tabCover": "Cover",
+    "tabVideo": "Video",
+    "tabFiles": "Files",
+    "edited": "Edited"
   },
   "RichText": {
     "toolbar": "Formatting",
