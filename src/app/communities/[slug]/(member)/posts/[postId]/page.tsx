@@ -1,5 +1,5 @@
-import { communityPostLink } from "@/lib/site-address";
 /** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/social-media/components/post-item.tsx; code written for Harvest, no kit code copied. The post page is the feed card expanded: full post, the replies below and the reply box in the card footer. */
+import { communityPostLink } from "@/lib/site-address";
 import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { ArrowLeft, FileText } from "lucide-react";

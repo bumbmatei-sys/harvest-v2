@@ -1,5 +1,5 @@
-import { communityPostLink } from "@/lib/site-address";
 /** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/social-media/page.tsx; code written for Harvest, no kit code copied. Centred feed of post cards (max-w-2xl) on a sunken page surface; categories as chips above the feed and the composer card at the top in place of the kit left column; the stories row and right-hand suggestions are not used. */
+import { communityPostLink } from "@/lib/site-address";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
