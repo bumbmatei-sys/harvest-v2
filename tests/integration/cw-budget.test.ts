@@ -57,7 +57,7 @@ describe("database shape", () => {
     // One definer: the totals entry point, with search_path pinned, executable by the application role only, owned by the restricted migration owner.
     const definers = await f.admin.query(`select p.proname, p.proconfig, pg_get_userbyid(p.proowner) as owner, r.rolsuper, r.rolbypassrls,
       has_function_privilege('public', p.oid, 'EXECUTE') as public_exec, has_function_privilege('harvest_app', p.oid, 'EXECUTE') as app_exec
-      from pg_proc p join pg_roles r on r.oid = p.proowner where p.prosecdef and (p.prosrc ilike '%campaign_expenses%' or p.prosrc ilike '%campaign_budget%')`);
+      from pg_proc p join pg_roles r on r.oid = p.proowner where p.prosecdef and (p.prosrc ilike '%campaign_expenses%' or p.prosrc ilike '%campaign_budget_lines%' or p.prosrc ilike '%campaign_budget_totals_scoped%')`);
     expect(definers.rows).toEqual([expect.objectContaining({ proname: "campaign_budget_totals", proconfig: ["search_path=pg_catalog, pg_temp"], rolsuper: false, rolbypassrls: false, public_exec: false, app_exec: true })]);
     const inner = await f.admin.query("select has_function_privilege('harvest_app', 'public.campaign_budget_totals_scoped(uuid, uuid)', 'EXECUTE') as app, has_function_privilege('public', 'public.campaign_budget_totals_scoped(uuid, uuid)', 'EXECUTE') as pub");
     expect(inner.rows).toEqual([{ app: false, pub: false }]);
