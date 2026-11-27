@@ -348,7 +348,8 @@ BEGIN
         AND (d.tenant_id,d.id) = (j.tenant_id,j.delivery_id) AND (b.tenant_id,b.id) = (d.tenant_id,d.destination_id)
         AND (c.tenant_id,c.id) = (b.tenant_id,b.connection_id)
       RETURNING jsonb_build_object('tenantId',j.tenant_id,'id',j.id,'lease',j.lease,'attempt',j.attempts,
-        'exhausted',picked.attempts = 4,'operation',j.operation,'payload',j.payload,'postId',d.post_id,
+        'exhausted',picked.attempts = 4 OR (j.operation = 'push' AND picked.attempts > 0 AND d.updated_at <= now() - interval '23 hours'),
+        'operation',j.operation,'payload',j.payload,'postId',d.post_id,
         'remoteId',d.remote_id,'contentHash',d.content_hash,'requestedAt',d.requested_at,'platform',b.platform,'blogRef',b.blog_ref,
         'connectionId',c.id,'provider',c.provider,'accountRef',c.external_account_ref,'credentialEnvelope',c.credential_envelope,
         'authorized',b.authorization = 'authorized' AND b.health <> 'failing')

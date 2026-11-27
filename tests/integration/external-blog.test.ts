@@ -198,6 +198,18 @@ it("uses an independent native schedule, refuses a future Webflow time and offer
   expect(await getDelivery(post.id)).toMatchObject({ status: "draft_on_blog" });
 });
 
+it("reconciles an old attempted create without resending after the key window", async () => {
+  const post = await write("Old disputed create");
+  const job = await queue(post, { operation: "push", timing: { mode: "draft" } });
+  await f.admin.query("update blog_external_deliveries set updated_at = now() - interval '24 hours' where post_id = $1", [post.id]);
+  await f.admin.query("update blog_external_jobs set attempts = 1 where id = $1", [job.jobId]);
+  const before = provider.blogArticles.size;
+  await drain();
+  expect(provider.blogArticles.size).toBe(before);
+  expect(await getDelivery(post.id)).toMatchObject({ status: "failed", reason: "outcome_unknown" });
+  await expect(queue(post, { operation: "push", timing: { mode: "draft" } })).rejects.toMatchObject({ status: 409 });
+});
+
 it("fences expired leases, bounds retries, and cancels queued work on disconnect", async () => {
   const retry = await write("Lease test");
   const job = await queue(retry, { operation: "push", timing: { mode: "draft" } });
