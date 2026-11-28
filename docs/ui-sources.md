@@ -590,6 +590,23 @@ Variants used: `select14` (searchable category dropdown with icons, chosen by th
 
 The shared filter popover is Harvest's CRM pattern (an icon-only filter button with a popover), reimplemented in `src/components/discover/filter-popover.tsx` for three fields because the CRM filter builder is bound to CRM fields (`src/components/crm/filter-builder.tsx`); exception recorded here, not a kit item.
 
+### Product and course landing page (27 Nov 2026)
+
+Founder rule 27 Nov 2026: start from the REAL kit code. The approved items' registry JSON (`https://shadcnuikit.com/r/<name>.json`) was fetched into a scratch folder outside the repository; `files[].content` was copied into the Harvest file and converted (catalogue text, theme tokens, 44px phone targets, real props instead of demo data, no remote images or vendor logos, no centred max-width wrappers). Layout and section order follow the founder's Eden screenshots; style stays Studio Admin. Every file carries the "Derived from Shadcn UI Kit item" header and a `kitProvenance` row.
+
+| Registry item | Tier | Harvest file | Identical lines | Main changes |
+| --- | --- | --- | --- | --- |
+| `hero12` | premium | `src/components/catalog/landing/landing-hero.tsx` | 26 of 86 (30%) | Shop nav, drawer, avatar group, video dialog and partner logos removed (vendor logos and remote images); creator bar with Sign in; meta line, sale pill with countdown, cover art. |
+| `pricing17` | premium | `src/components/catalog/landing/landing-buy-box.tsx` | 43 of 113 (38%) | Plan tabs and demo plans removed; the featured card is the buy box; paid: disabled fields and button with "Checkout opens soon"; free: existing enrol step; featured review, numbered included list, Sold by. |
+| `feature13` | premium | `src/components/catalog/landing/landing-included.tsx` | 12 of 33 (36%) | Demo features become the owner's list; no description line; left-aligned header. |
+| `customer-reviews5` | premium | `src/components/catalog/landing/landing-review-card.tsx` | 39 of 64 (60%) | Tokens for stars and the verified mark; initial instead of photo; no title, photos, votes, menu or Report. |
+| `testimonial11` | premium | `src/components/catalog/landing/landing-reviews.tsx` (second file of the item) | 13 of 34 (38%) | Header and two-column grid kept; cards are the review cards above; average line, empty state, review form. |
+| `feature9` | premium | `src/components/catalog/landing/landing-about.tsx` | 17 of 38 (44%) | First row only; creator photo through `/api/catalog/:slug/photo` or a token fallback; no buttons. |
+| `faq7` | premium | `src/components/catalog/landing/landing-faq.tsx` | 35 of 48 (72%) | Harvest type instead of serif italic uppercase; owner's questions. |
+| `cta2` | premium | `src/components/catalog/landing/landing-cta.tsx` | 60 of 78 (76%) | Owner's quote, price line and label; scrolls to the buy box; hex mask colour replaced by the keyword. |
+
+Why the hero and buy box are lower: their kit sources are mostly demo navigation, plan data, partner logo SVGs and a video dialog, all removed (no vendor logos, remote images or sample data). Reused, not kit: the long sales text renders with the native blog renderer (`RichTextView format="doc"`, Docs sanitiser) and is edited with the blog's block editor (`DocEditorSurface`); the footer is the shared `PublicFrame` footer row (which gains optional `header` and `footer` slots). Stock primitive: `src/components/ui/accordion.tsx`, the stock shadcn accordion API written by hand on `radix-ui` (stock registry unreachable from agent sessions), 44px rows. The Sales page step of the editor is Harvest code on `FormSection`, `Field` and the shared inputs; no kit item.
+
 ### Discover redesign (27 Nov 2026, PR #338)
 
 Founder rule 27 Nov 2026: start from the REAL kit code. The approved items' registry JSON (`https://shadcnuikit.com/r/<name>.json`) was fetched into a scratch folder outside the repository; `files[].content` was copied into the Harvest file and converted (catalogue text, theme tokens, 44px phone targets, real props instead of demo data, no remote images, no centred max-width wrapper). Layout and section order follow the founder's Eden Explore screenshot; style stays Studio Admin. No raw kit source is committed.

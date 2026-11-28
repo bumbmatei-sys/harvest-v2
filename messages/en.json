@@ -8811,7 +8811,8 @@
         "lessons": "Lessons",
         "files": "Files",
         "access": "Access",
-        "publish": "Publish"
+        "publish": "Publish",
+        "sales": "Sales page"
       },
       "problems": {
         "title": "Add a title.",
@@ -8876,6 +8877,59 @@
         "lesson": "Lesson",
         "none": "No lessons yet",
         "note": "Counts under {minimum} are hidden to protect learners' privacy."
+      },
+      "sales": {
+        "title": "Sales page",
+        "subtitle": "Subtitle",
+        "body": "Long description",
+        "included": "What's included",
+        "includedItem": "Item {number}",
+        "addItem": "Add item",
+        "removeItem": "Remove item {number}",
+        "aboutTitle": "About the creator",
+        "aboutHeading": "Heading",
+        "aboutBody": "Bio",
+        "photo": "Photo",
+        "noPhoto": "No photo",
+        "photoHint": "Ready images from Files.",
+        "faqTitle": "Questions",
+        "question": "Question {number}",
+        "answer": "Answer {number}",
+        "addQuestion": "Add question",
+        "removeQuestion": "Remove question {number}",
+        "ctaTitle": "Final call to action",
+        "ctaQuote": "Quote",
+        "ctaLabel": "Button label",
+        "priceTitle": "Price",
+        "price": "Price",
+        "currency": "Currency",
+        "free": "Leave empty for free.",
+        "checkoutOff": "Checkout opens soon. Visitors see the price with the button turned off.",
+        "sale": "Sale price",
+        "saleStarts": "Sale starts",
+        "saleEnds": "Sale ends",
+        "saleProblems": {
+          "needsPrice": "Set a price before a sale.",
+          "notLower": "The sale price must be lower than the price.",
+          "endBeforeStart": "The sale must end after it starts.",
+          "ended": "The sale end must be in the future.",
+          "amount": "Enter an amount like 29 or 12.50."
+        },
+        "save": "Save sales page",
+        "saving": "Saving",
+        "saved": "Sales page saved.",
+        "needsItem": "Save the draft first.",
+        "photoInvalid": "Choose a ready image.",
+        "bodyInvalid": "The long description is too long.",
+        "reviewsTitle": "Reviews",
+        "noReviews": "No reviews yet.",
+        "hide": "Hide",
+        "show": "Show",
+        "hideNamed": "Hide review by {name}",
+        "showNamed": "Show review by {name}",
+        "hidden": "Hidden",
+        "visible": "Visible",
+        "learner": "Learner"
       }
     },
     "lessons": {
@@ -11148,6 +11202,85 @@
     "signInAgain": "Sign in again",
     "removedConnections": "Your connected mail and calendar accounts (disconnected)",
     "disconnectFailed": "Could not disconnect your mail and calendar. Try again."
+  },
+  "CatalogLanding": {
+    "signIn": "Sign in",
+    "byHost": "By {host}",
+    "creatorLabel": "Creator",
+    "meta": {
+      "modules": "{count, plural, one {# module} other {# modules}}",
+      "lessons": "{count, plural, one {# lesson} other {# lessons}}",
+      "files": "{count, plural, one {# file} other {# files}}",
+      "people": "{count, plural, other {# people have it}}",
+      "fewPeople": "Fewer than 5 have it",
+      "rating": "{average} out of 5",
+      "reviews": "{count, plural, one {# review} other {# reviews}}",
+      "ratingLine": "{average} out of 5 · {count, plural, one {# review} other {# reviews}}"
+    },
+    "starsLabel": "{value} out of 5 stars",
+    "saleEndsDays": "Sale ends in {days}d {hours}h {minutes}m",
+    "saleEndsHours": "Sale ends in {hours}h {minutes}m",
+    "salePill": "Sale",
+    "getIt": "Get it now",
+    "seeOptions": "See price and access",
+    "coverLabel": "Cover",
+    "salesText": "About this {kind, select, course {course} other {product}}",
+    "buy": {
+      "label": "Buy",
+      "free": "Free",
+      "oneTime": "One-time purchase",
+      "was": "Was",
+      "firstName": "First name",
+      "email": "Email",
+      "buy": "Buy now",
+      "checkoutSoon": "Checkout opens soon.",
+      "discount": "Have a discount code?",
+      "secure": "Secure checkout",
+      "included": "What's included",
+      "soldBy": "Sold by {host}",
+      "featured": "From a review"
+    },
+    "included": {
+      "title": "What's included",
+      "badge": "Inside"
+    },
+    "reviews": {
+      "title": "Reviews",
+      "badge": "From people who have it",
+      "empty": "No reviews yet.",
+      "verified": "Has this",
+      "edited": "{date}",
+      "write": "Write a review",
+      "edit": "Edit your review",
+      "rating": "Rating",
+      "ratingOption": "{value, plural, one {# star} other {# stars}}",
+      "body": "Review (optional)",
+      "save": "Save review",
+      "saved": "Review saved.",
+      "hiddenNote": "Your review is hidden by the ministry.",
+      "failed": "Could not save your review. Try again.",
+      "notEligible": "Only people who have it can review it.",
+      "signIn": "Sign in to review",
+      "learner": "Learner"
+    },
+    "about": {
+      "eyebrow": "About the creator",
+      "photo": "Photo of the creator"
+    },
+    "faq": {
+      "title": "Questions",
+      "lead": "Questions people ask before they start."
+    },
+    "cta": {
+      "price": "{price}",
+      "free": "Free",
+      "button": "Get it now",
+      "sale": "{price}, was {old}"
+    },
+    "footer": {
+      "creator": "{host}",
+      "soldBy": "Sold by {host}"
+    }
   },
   "Carousel": {
     "previous": "Previous slide",
