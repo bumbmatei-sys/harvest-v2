@@ -1,13 +1,15 @@
 import { createPool } from "../src/db/pool";
 import { requireWorkerRole, workerDatabaseUrl } from "../src/server/worker-role";
+import { retentionJobsEnabled } from "../src/server/retention-jobs";
 import { retentionHealth, runRetentionJob } from "../src/server/connect-retention";
 
-// Connect retention (HC-DEC3 and HC-DEC4 engineering; the policy numbers are unapproved defaults).
+// Connect retention (HC-DEC3 and HC-DEC4 engineering; policy approved 27 Nov 2026).
 //   npm run connect:retention            erase expired responses and delete expired tombstones, in all ministries
 //   npm run connect:retention -- check   print the health and exit 1 if no run succeeded recently or the last one failed
 // Runs as the dedicated harvest_worker role through WORKER_DATABASE_URL (never DATABASE_URL) and prints counts only. Scheduling both commands is an activation step; nothing here sends anything.
 let pool: ReturnType<typeof createPool> | undefined;
 try {
+  if ((process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") && !retentionJobsEnabled(process.env)) process.exit(0);
   const mode = process.argv[2] ?? "run";
   if (mode !== "run" && mode !== "check") throw new Error("USAGE");
   pool = createPool(workerDatabaseUrl());

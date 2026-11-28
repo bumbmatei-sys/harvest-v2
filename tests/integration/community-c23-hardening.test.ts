@@ -20,6 +20,7 @@ afterAll(async () => { await f?.close(); });
 
 const communityTables = `select c.oid, c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public' and c.relkind in ('r', 'p') and (c.relname ~ '^(communit|discover_)'
+    or c.relname in ('retention_rule_status', 'retention_rule_runs', 'retention_contact_reviews')
     or exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'community_id' and not a.attisdropped))`;
 const communityFunctions = `select p.oid, p.oid::regprocedure::text as sig, p.proname, p.prosecdef, p.proconfig, p.prosrc,
     p.prorettype = 'trigger'::regtype as is_trigger, pg_get_userbyid(p.proowner) as owner,
@@ -41,6 +42,7 @@ const appGrants: Record<string, string> = {
   community_warnings: "S", // Points and challenges (C19): no app grants; reached only through the community_points definer.
   community_challenge_members: "", community_challenges: "", community_point_attendance: "", community_point_settings: "",
   community_points_hidden_members: "",
+  retention_rule_status: "", retention_rule_runs: "", retention_contact_reviews: "",
   discover_controls: "SIU", discover_listings: "SIUD", discover_ministry_standing: "", discover_reports: "", discover_review_events: "",
 };
 

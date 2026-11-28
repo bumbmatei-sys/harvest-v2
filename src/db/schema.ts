@@ -134,6 +134,7 @@ export const auditLogs = pgTable("audit_logs", {
   metadata: jsonb("metadata").$type<Record<string, string>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] }),
+  index("retention_audit_expiry").on(t.createdAt, t.id),
   index("community_chat_mutations_idx").on(t.actorId,t.action,t.createdAt),
   check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit', 'bio.message.submit', 'docs.trash.purge', 'blog.external.outcome')`)]);
 export const authSchema = { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits };
@@ -1403,6 +1404,7 @@ export const followUpCases = pgTable("followup_cases", {
   uniqueIndex("followup_cases_response_idx").on(t.tenantId, t.responseId),
   index("followup_cases_queue_idx").on(t.tenantId, t.createdAt, t.id),
   index("followup_cases_assignee_idx").on(t.tenantId, t.assigneeId, t.createdAt, t.id).where(sql`${t.assigneeId} is not null`),
+  index("retention_followup_closed").on(t.stateChangedAt, t.tenantId, t.id).where(sql`${t.state} = 'closed'`),
   index("followup_cases_contact_idx").on(t.tenantId, t.contactId),
   index("followup_cases_campaign_idx").on(t.tenantId, t.campaignId, t.createdAt, t.id),
   check("followup_case_state", sql`${t.state} in ('requested', 'awaiting_assignment', 'assigned', 'attempted', 'no_response', 'connected', 'closed', 'withdrawn')`),
@@ -3870,7 +3872,7 @@ export const platformStaff = pgTable("platform_staff", {
 export const platformStaffAudit = pgTable("platform_staff_audit", {
   id: uuid("id").primaryKey().defaultRandom(), actorId: text("actor_id").notNull(), action: text("action").notNull(), targetType: text("target_type"), targetId: text("target_id"),
   tenantId: uuid("tenant_id"), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [index("platform_staff_audit_actor_idx").on(t.actorId, t.createdAt), check("platform_staff_audit_shape", sql`length(${t.action}) between 1 and 80`)]);
+}, (t) => [index("retention_platform_audit_expiry").on(t.createdAt, t.id), index("platform_staff_audit_actor_idx").on(t.actorId, t.createdAt), check("platform_staff_audit_shape", sql`length(${t.action}) between 1 and 80`)]);
 
 // Per-feature access (0113). A collaborator (role_id 'collaborator') holds exactly the areas listed here, each at 'view' or 'manage'. Rows are written only by
 // public.workspace_access_change and public.workspace_invitation_accept (the application role has SELECT only); public.access_role reads them for every module check.
@@ -4579,3 +4581,41 @@ export const volunteerRosterGrants = pgTable("volunteer_roster_grants", {
   transaction: text("transaction").notNull(),
   tenantId: uuid("tenant_id").notNull(),
 });
+
+// Retention state and evidence are worker-definer-only. The marker stores no contact content.
+export const retentionRuleStatus = pgTable("retention_rule_status", {
+  rule: text("rule").primaryKey(),
+  intervalHours: integer("interval_hours").notNull(),
+  lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+  lastErrorCode: text("last_error_code"),
+  incidentClaimedAt: timestamp("incident_claimed_at", { withTimezone: true }),
+}, t => [check("retention_rule_status_interval_hours_check", sql`${t.intervalHours} > 0`)]);
+
+export const retentionRuleRuns = pgTable("retention_rule_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  rule: text("rule").notNull().references(() => retentionRuleStatus.rule, { onDelete: "no action", onUpdate: "no action" }),
+  finishedAt: timestamp("finished_at", { withTimezone: true }).notNull().default(sql`clock_timestamp()`),
+  durationMs: integer("duration_ms").notNull(),
+  deleted: integer("deleted").notNull(),
+  anonymised: integer("anonymised").notNull(),
+  flagged: integer("flagged").notNull(),
+  errorCode: text("error_code"),
+}, t => [
+  index("retention_rule_runs_expiry").on(t.finishedAt, t.id),
+  check("retention_rule_runs_duration_ms_check", sql`${t.durationMs} >= 0`),
+  check("retention_rule_runs_deleted_check", sql`${t.deleted} >= 0`),
+  check("retention_rule_runs_anonymised_check", sql`${t.anonymised} >= 0`),
+  check("retention_rule_runs_flagged_check", sql`${t.flagged} >= 0`),
+  check("retention_rule_runs_error_code_check", sql`${t.errorCode} in ('row_failed','batch_limit','database_error')`),
+]);
+
+export const retentionContactReviews = pgTable("retention_contact_reviews", {
+  tenantId: uuid("tenant_id").notNull(),
+  contactId: uuid("contact_id").notNull(),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }).notNull(),
+  reviewDue: boolean("review_due").notNull().default(false),
+}, t => [
+  primaryKey({ columns: [t.tenantId, t.contactId] }),
+  foreignKey({ name: "retention_contact_reviews_tenant_id_contact_id_fkey",
+    columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade").onUpdate("cascade"),
+]);

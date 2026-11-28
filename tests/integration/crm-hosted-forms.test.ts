@@ -476,6 +476,22 @@ it("keeps one source tag per form when two people who both used the same form ar
 });
 
 // Last: this test publishes a form in the second ministry.
+it("lets the retention worker purge only expired hosted form responses", async () => {
+  const form = await draft();
+  const slug = "retention-worker-hosted";
+  await publish(form.id, slug, form.revision);
+  const old = await body(slug, { fullname: "Synthetic old", phone000: "+12025550131", consent0: "yes" });
+  expect((await post(slug, JSON.stringify(old))).status).toBe(200);
+  await fixture.admin.query(`update crm_form_responses set submitted_at=now()-interval '91 days', expires_at=now()-interval '1 day' where form_id=$1`, [form.id]);
+  const fresh = await body(slug, { fullname: "Synthetic fresh", phone000: "+12025550132", consent0: "yes" });
+  expect((await post(slug, JSON.stringify(fresh))).status).toBe(200);
+  const freshRows = (await fixture.admin.query("select id from crm_form_responses where form_id=$1 and expires_at>now()", [form.id])).rows;
+  expect(freshRows).toHaveLength(1);
+  const { rows: [{ outcome }] } = await fixture.workerPool.query("select public.retention_run_rule('hosted_form_responses') as outcome");
+  expect(outcome).toMatchObject({ deleted: 1, errorCode: null });
+  expect((await fixture.admin.query("select id from crm_form_responses where form_id=$1", [form.id])).rows).toEqual(freshRows);
+});
+
 it("limits each visitor per form and across forms, charges proofs, and isolates visitors and ministries", async () => {
   // Stay clear of a minute boundary, which would reset the counters mid-test.
   const wait = 61_000 - (Date.now() % 60_000);
