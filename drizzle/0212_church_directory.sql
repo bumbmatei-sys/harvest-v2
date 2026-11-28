@@ -47,7 +47,7 @@ BEGIN
 
   PERFORM set_config('app.access_tenant', p_tenant::text, true);
   PERFORM 1 FROM public.workspace_members m
-    WHERE m.tenant_id = p_tenant AND m.user_id = actor AND m.role_id = 'owner' FOR SHARE;
+    WHERE m.tenant_id = p_tenant AND m.user_id = actor AND public.access_role(p_tenant, actor, 'settings', m.role_id) = 'owner' FOR SHARE;
   allowed := FOUND;
   IF allowed THEN
     INSERT INTO public.church_directory_entries (tenant_id, opted_in) VALUES (p_tenant, p_opted_in)
