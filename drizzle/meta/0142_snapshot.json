@@ -1,6 +1,6 @@
 {
-  "id": "71195ac9-d1d7-4c5d-a31e-b9aa4fcfd4d9",
-  "prevId": "3b468b07-3629-4465-9e32-5ed3870f10f3",
+  "id": "4441d37a-dd62-4e6b-b0ec-ea56d01ec586",
+  "prevId": "e9b98093-e068-417d-a9ce-30ad795fd3d2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3948,7 +3948,7 @@
       "checkConstraints": {
         "bio_file_kind": {
           "name": "bio_file_kind",
-          "value": "\"bio_files\".\"kind\" in ('photo','cover')"
+          "value": "\"bio_files\".\"kind\" in ('photo','cover','gallery')"
         },
         "bio_file_mime": {
           "name": "bio_file_mime",
@@ -20973,7 +20973,13 @@
           "name": "task_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "ownership_offer_id": {
+          "name": "ownership_offer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "due_at": {
           "name": "due_at",
@@ -21110,6 +21116,19 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "crm_notifications_ownership_offer_id_workspace_ownership_offers_id_fk": {
+          "name": "crm_notifications_ownership_offer_id_workspace_ownership_offers_id_fk",
+          "tableFrom": "crm_notifications",
+          "tableTo": "workspace_ownership_offers",
+          "columnsFrom": [
+            "ownership_offer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "crm_notifications_tenant_id_task_id_crm_tasks_tenant_id_id_fk": {
           "name": "crm_notifications_tenant_id_task_id_crm_tasks_tenant_id_id_fk",
           "tableFrom": "crm_notifications",
@@ -21138,13 +21157,17 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "crm_notification_target": {
+          "name": "crm_notification_target",
+          "value": "num_nonnulls(\"crm_notifications\".\"task_id\", \"crm_notifications\".\"ownership_offer_id\") = 1 and (\"crm_notifications\".\"kind\" = 'ownership_transfer') = (\"crm_notifications\".\"ownership_offer_id\" is not null)"
+        },
         "crm_notification_kind": {
           "name": "crm_notification_kind",
-          "value": "\"crm_notifications\".\"kind\" in ('task_assigned', 'task_due', 'task_overdue')"
+          "value": "\"crm_notifications\".\"kind\" in ('task_assigned', 'task_due', 'task_overdue', 'ownership_transfer')"
         },
         "crm_notification_due_at": {
           "name": "crm_notification_due_at",
-          "value": "(\"crm_notifications\".\"kind\" = 'task_assigned') = (\"crm_notifications\".\"due_at\" is null)"
+          "value": "(\"crm_notifications\".\"kind\" in ('task_assigned', 'ownership_transfer')) = (\"crm_notifications\".\"due_at\" is null)"
         }
       },
       "isRLSEnabled": false
@@ -29305,871 +29328,6 @@
         "jobs_error": {
           "name": "jobs_error",
           "value": "\"jobs\".\"last_error\" is null or \"jobs\".\"last_error\" in ('HANDLER_FAILED', 'INVALID_JOB_PAYLOAD', 'UNSUPPORTED_JOB_KIND', 'LEASE_EXPIRED')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.ministry_donation_receipts": {
-      "name": "ministry_donation_receipts",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "ledger_id": {
-          "name": "ledger_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "intent_id": {
-          "name": "intent_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "donor_id": {
-          "name": "donor_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "amount_minor": {
-          "name": "amount_minor",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "currency": {
-          "name": "currency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "paid_at": {
-          "name": "paid_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "legal_name": {
-          "name": "legal_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "personal_support": {
-          "name": "personal_support",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cadence": {
-          "name": "cadence",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "ministry_donation_receipt_donor": {
-          "name": "ministry_donation_receipt_donor",
-          "columns": [
-            {
-              "expression": "donor_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "paid_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "ministry_donation_receipts_donor_id_users_id_fk": {
-          "name": "ministry_donation_receipts_donor_id_users_id_fk",
-          "tableFrom": "ministry_donation_receipts",
-          "tableTo": "users",
-          "columnsFrom": [
-            "donor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "ministry_donation_receipts_tenant_id_ledger_id_ministry_payment_ledger_tenant_id_id_fk": {
-          "name": "ministry_donation_receipts_tenant_id_ledger_id_ministry_payment_ledger_tenant_id_id_fk",
-          "tableFrom": "ministry_donation_receipts",
-          "tableTo": "ministry_payment_ledger",
-          "columnsFrom": [
-            "tenant_id",
-            "ledger_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "ministry_donation_receipts_tenant_id_intent_id_ministry_payment_intents_tenant_id_id_fk": {
-          "name": "ministry_donation_receipts_tenant_id_intent_id_ministry_payment_intents_tenant_id_id_fk",
-          "tableFrom": "ministry_donation_receipts",
-          "tableTo": "ministry_payment_intents",
-          "columnsFrom": [
-            "tenant_id",
-            "intent_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "ministry_donation_receipts_tenant_id_id_pk": {
-          "name": "ministry_donation_receipts_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "ministry_donation_receipt_charge": {
-          "name": "ministry_donation_receipt_charge",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "ledger_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.ministry_payment_accounts": {
-      "name": "ministry_payment_accounts",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provider": {
-          "name": "provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "legal_name": {
-          "name": "legal_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "currency": {
-          "name": "currency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "country": {
-          "name": "country",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "charges_enabled": {
-          "name": "charges_enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "payouts_enabled": {
-          "name": "payouts_enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "requirements_due": {
-          "name": "requirements_due",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "ARRAY[]::text[]"
-        },
-        "disconnected_at": {
-          "name": "disconnected_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status_reported_at": {
-          "name": "status_reported_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "ministry_payment_accounts_tenant_id_workspaces_tenant_id_fk": {
-          "name": "ministry_payment_accounts_tenant_id_workspaces_tenant_id_fk",
-          "tableFrom": "ministry_payment_accounts",
-          "tableTo": "workspaces",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "tenant_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "ministry_payment_accounts_account_id_unique": {
-          "name": "ministry_payment_accounts_account_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "account_id"
-          ]
-        },
-        "ministry_payment_account_tenant_identity": {
-          "name": "ministry_payment_account_tenant_identity",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "account_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "ministry_payment_account_name": {
-          "name": "ministry_payment_account_name",
-          "value": "length(btrim(\"ministry_payment_accounts\".\"legal_name\")) between 1 and 200"
-        },
-        "ministry_payment_account_geo": {
-          "name": "ministry_payment_account_geo",
-          "value": "\"ministry_payment_accounts\".\"currency\" ~ '^[A-Z]{3}$' and \"ministry_payment_accounts\".\"country\" ~ '^[A-Z]{2}$'"
-        },
-        "ministry_payment_account_provider": {
-          "name": "ministry_payment_account_provider",
-          "value": "\"ministry_payment_accounts\".\"provider\" in ('fake','stripe_connect')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.ministry_payment_events": {
-      "name": "ministry_payment_events",
-      "schema": "",
-      "columns": {
-        "provider": {
-          "name": "provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "event_id": {
-          "name": "event_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "outcome": {
-          "name": "outcome",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "ministry_payment_events_provider_event_id_pk": {
-          "name": "ministry_payment_events_provider_event_id_pk",
-          "columns": [
-            "provider",
-            "event_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "ministry_payment_event_outcome": {
-          "name": "ministry_payment_event_outcome",
-          "value": "\"ministry_payment_events\".\"outcome\" in ('recorded','ignored')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.ministry_payment_grants": {
-      "name": "ministry_payment_grants",
-      "schema": "",
-      "columns": {
-        "backend": {
-          "name": "backend",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "transaction": {
-          "name": "transaction",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "mode": {
-          "name": "mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "provider": {
-          "name": "provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.ministry_payment_intents": {
-      "name": "ministry_payment_intents",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "payer_id": {
-          "name": "payer_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cadence": {
-          "name": "cadence",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "item_id": {
-          "name": "item_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "amount_minor": {
-          "name": "amount_minor",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "currency": {
-          "name": "currency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "legal_name": {
-          "name": "legal_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "personal_support": {
-          "name": "personal_support",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "request_key": {
-          "name": "request_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "subscription_ended_at": {
-          "name": "subscription_ended_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "ministry_payment_intents_payer_id_users_id_fk": {
-          "name": "ministry_payment_intents_payer_id_users_id_fk",
-          "tableFrom": "ministry_payment_intents",
-          "tableTo": "users",
-          "columnsFrom": [
-            "payer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "ministry_payment_intents_tenant_id_account_id_ministry_payment_accounts_tenant_id_account_id_fk": {
-          "name": "ministry_payment_intents_tenant_id_account_id_ministry_payment_accounts_tenant_id_account_id_fk",
-          "tableFrom": "ministry_payment_intents",
-          "tableTo": "ministry_payment_accounts",
-          "columnsFrom": [
-            "tenant_id",
-            "account_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "account_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "ministry_payment_intents_tenant_id_item_id_catalog_items_tenant_id_id_fk": {
-          "name": "ministry_payment_intents_tenant_id_item_id_catalog_items_tenant_id_id_fk",
-          "tableFrom": "ministry_payment_intents",
-          "tableTo": "catalog_items",
-          "columnsFrom": [
-            "tenant_id",
-            "item_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "ministry_payment_intents_tenant_id_id_pk": {
-          "name": "ministry_payment_intents_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "ministry_payment_intent_request": {
-          "name": "ministry_payment_intent_request",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "payer_id",
-            "request_key"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "ministry_payment_intent_money": {
-          "name": "ministry_payment_intent_money",
-          "value": "\"ministry_payment_intents\".\"currency\" ~ '^[A-Z]{3}$' and \"ministry_payment_intents\".\"amount_minor\" between 1 and 1000000000000"
-        },
-        "ministry_payment_intent_kind": {
-          "name": "ministry_payment_intent_kind",
-          "value": "(\"ministry_payment_intents\".\"kind\" = 'donation' and \"ministry_payment_intents\".\"item_id\" is null and \"ministry_payment_intents\".\"cadence\" in ('once','monthly'))\n    or (\"ministry_payment_intents\".\"kind\" = 'sale' and \"ministry_payment_intents\".\"item_id\" is not null and \"ministry_payment_intents\".\"cadence\" = 'once')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.ministry_payment_ledger": {
-      "name": "ministry_payment_ledger",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "intent_id": {
-          "name": "intent_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "payment_ref": {
-          "name": "payment_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "object_ref": {
-          "name": "object_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount_minor": {
-          "name": "amount_minor",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "currency": {
-          "name": "currency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "occurred_at": {
-          "name": "occurred_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "ministry_payment_ledger_tenant_date": {
-          "name": "ministry_payment_ledger_tenant_date",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "occurred_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "ministry_payment_ledger_related_charge": {
-          "name": "ministry_payment_ledger_related_charge",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "payment_ref",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "ministry_payment_ledger_tenant_id_account_id_ministry_payment_accounts_tenant_id_account_id_fk": {
-          "name": "ministry_payment_ledger_tenant_id_account_id_ministry_payment_accounts_tenant_id_account_id_fk",
-          "tableFrom": "ministry_payment_ledger",
-          "tableTo": "ministry_payment_accounts",
-          "columnsFrom": [
-            "tenant_id",
-            "account_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "account_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "ministry_payment_ledger_tenant_id_intent_id_ministry_payment_intents_tenant_id_id_fk": {
-          "name": "ministry_payment_ledger_tenant_id_intent_id_ministry_payment_intents_tenant_id_id_fk",
-          "tableFrom": "ministry_payment_ledger",
-          "tableTo": "ministry_payment_intents",
-          "columnsFrom": [
-            "tenant_id",
-            "intent_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "ministry_payment_ledger_tenant_id_id_pk": {
-          "name": "ministry_payment_ledger_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "ministry_payment_ledger_provider_object": {
-          "name": "ministry_payment_ledger_provider_object",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "account_id",
-            "kind",
-            "object_ref"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "ministry_payment_ledger_money": {
-          "name": "ministry_payment_ledger_money",
-          "value": "\"ministry_payment_ledger\".\"currency\" ~ '^[A-Z]{3}$' and \"ministry_payment_ledger\".\"amount_minor\" between 0 and 1000000000000"
-        },
-        "ministry_payment_ledger_kind": {
-          "name": "ministry_payment_ledger_kind",
-          "value": "\"ministry_payment_ledger\".\"kind\" in ('charge','application_fee','refund','dispute_opened','dispute_won','dispute_lost','payout')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.ministry_payment_onboarding": {
-      "name": "ministry_payment_onboarding",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "request_key": {
-          "name": "request_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "fingerprint": {
-          "name": "fingerprint",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "ministry_payment_onboarding_tenant_id_ministry_payment_accounts_tenant_id_fk": {
-          "name": "ministry_payment_onboarding_tenant_id_ministry_payment_accounts_tenant_id_fk",
-          "tableFrom": "ministry_payment_onboarding",
-          "tableTo": "ministry_payment_accounts",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "tenant_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "ministry_payment_onboarding_tenant_id_request_key_pk": {
-          "name": "ministry_payment_onboarding_tenant_id_request_key_pk",
-          "columns": [
-            "tenant_id",
-            "request_key"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.ministry_payment_prices": {
-      "name": "ministry_payment_prices",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "item_id": {
-          "name": "item_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "currency": {
-          "name": "currency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount_minor": {
-          "name": "amount_minor",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "ministry_payment_prices_tenant_id_item_id_catalog_items_tenant_id_id_fk": {
-          "name": "ministry_payment_prices_tenant_id_item_id_catalog_items_tenant_id_id_fk",
-          "tableFrom": "ministry_payment_prices",
-          "tableTo": "catalog_items",
-          "columnsFrom": [
-            "tenant_id",
-            "item_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "ministry_payment_prices_tenant_id_item_id_pk": {
-          "name": "ministry_payment_prices_tenant_id_item_id_pk",
-          "columns": [
-            "tenant_id",
-            "item_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "ministry_payment_price_money": {
-          "name": "ministry_payment_price_money",
-          "value": "\"ministry_payment_prices\".\"currency\" ~ '^[A-Z]{3}$' and \"ministry_payment_prices\".\"amount_minor\" between 1 and 1000000000000"
         }
       },
       "isRLSEnabled": false
@@ -40774,6 +39932,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "revision": {
+          "name": "revision",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
         "can_manage_admins": {
           "name": "can_manage_admins",
           "type": "boolean",
@@ -40868,6 +40033,180 @@
         "workspace_member_admins_flag": {
           "name": "workspace_member_admins_flag",
           "value": "\"workspace_members\".\"can_manage_admins\" = false or \"workspace_members\".\"role_id\" = 'admin'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.workspace_ownership_grants": {
+      "name": "workspace_ownership_grants",
+      "schema": "",
+      "columns": {
+        "token": {
+          "name": "token",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_id": {
+          "name": "actor_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issued_at": {
+          "name": "issued_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workspace_ownership_offers": {
+      "name": "workspace_ownership_offers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_user_id": {
+          "name": "from_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "to_user_id": {
+          "name": "to_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_revision": {
+          "name": "from_revision",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "to_revision": {
+          "name": "to_revision",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "workspace_ownership_one_offer": {
+          "name": "workspace_ownership_one_offer",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"workspace_ownership_offers\".\"status\" = 'pending'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workspace_ownership_offers_tenant_id_workspaces_tenant_id_fk": {
+          "name": "workspace_ownership_offers_tenant_id_workspaces_tenant_id_fk",
+          "tableFrom": "workspace_ownership_offers",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "workspace_ownership_offers_from_user_id_users_id_fk": {
+          "name": "workspace_ownership_offers_from_user_id_users_id_fk",
+          "tableFrom": "workspace_ownership_offers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "from_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "workspace_ownership_offers_to_user_id_users_id_fk": {
+          "name": "workspace_ownership_offers_to_user_id_users_id_fk",
+          "tableFrom": "workspace_ownership_offers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "to_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workspace_ownership_distinct_members": {
+          "name": "workspace_ownership_distinct_members",
+          "value": "\"workspace_ownership_offers\".\"from_user_id\" <> \"workspace_ownership_offers\".\"to_user_id\""
+        },
+        "workspace_ownership_offer_status": {
+          "name": "workspace_ownership_offer_status",
+          "value": "\"workspace_ownership_offers\".\"status\" in ('pending','accepted','cancelled','declined','expired','membership_changed')"
         }
       },
       "isRLSEnabled": false

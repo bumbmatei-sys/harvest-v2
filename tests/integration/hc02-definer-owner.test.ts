@@ -53,7 +53,7 @@ beforeAll(async () => {
   await fixture.admin.query(`grant select on public.workspace_member_access to ${role}`);
   // Account-erase policies (0136) read the token table; production definer owners own it, the restricted copy needs the read.
   await fixture.admin.query(`grant select on public.account_erase_grants to ${role}`);
-  // The payout-account definer's owner check (0160) reads its transaction grant table in the same way.
+  // The payout-account definer's owner check (0146) reads its transaction grant table in the same way.
   await fixture.admin.query(`grant select on public.ministry_payment_grants to ${role}`);
   await fixture.admin.query(`grant usage on schema public to ${role}`);
   await fixture.admin.query(`grant select, insert, update, delete on ${tables.join(", ")} to ${role}`);

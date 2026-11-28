@@ -1,6 +1,6 @@
 # Ministry payments foundation
 
-Working migration `0160_ministry_payments`. Standard connected accounts are the merchant for direct charges. The fake provider works only with the explicit non-production fixture switch. Live processing and the Connect webhook stay hard-off.
+Migration `0146_ministry_payments`. Standard connected accounts are the merchant for direct charges. The fake provider works only with the explicit non-production fixture switch. Live processing and the Connect webhook stay hard-off.
 
 | Route | Contract |
 | --- | --- |

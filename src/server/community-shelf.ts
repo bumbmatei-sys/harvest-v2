@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { Database } from "../db/client";
 import { catalogItems, communityProductLinks, entitlements } from "../db/schema";
-import type { CatalogKind, CatalogVisibility } from "../lib/catalog";
+import { legacyCatalogVisibility, type CatalogKind, type CatalogVisibility } from "../lib/catalog";
 import { freeCatalogEnabled } from "./free-catalog-mode";
 import { forumContextTx, type ForumContext } from "./community-forum";
 import { withUser } from "./tenancy";
@@ -27,6 +27,6 @@ export async function communityShelf(db: Database, userId: string, slug: string,
       .where(and(eq(communityProductLinks.tenantId, context.tenantId), eq(communityProductLinks.communityId, context.id), eq(communityProductLinks.kind, kind),
         eq(catalogItems.state, "published")))
       .orderBy(desc(communityProductLinks.featured), asc(communityProductLinks.position), asc(catalogItems.title), asc(catalogItems.id)).limit(200);
-    return { context, items };
+    return { context, items: items.map(row => ({ ...row, visibility: legacyCatalogVisibility(row.visibility) })) };
   });
 }
