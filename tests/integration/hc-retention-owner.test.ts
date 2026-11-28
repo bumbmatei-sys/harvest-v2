@@ -31,6 +31,27 @@ it("sweeps and expires tombstones as a restricted owner", async () => {
     let token = ""; await dispatchInvitation(f.db, async (mail) => { token = mail.token; });
     const flow = await prepareInvitation(f.db, { token });
     await consumeInvitation(f.db, flow, { id: "ro-guest", email: "guest-ro@example.test", emailVerified: true }, { action: "confirm" });
+    const { rows: [associated] } = await f.admin.query("select id, contact_id from campaign_responses where status='associated'");
+    expect((await f.admin.query("select contact_id from retention_contact_reviews")).rows).toEqual([{ contact_id: associated.contact_id }]);
+    const runRule = async (name: string) => (await f.workerPool.query("select public.retention_run_rule($1) as outcome", [name])).rows[0].outcome;
+    // Seed historical case state with the administrator. Normal transitions stamp the current time.
+    await f.admin.query("begin");
+    try {
+      await f.admin.query("alter table followup_cases disable trigger followup_case_guard");
+      await f.admin.query(`insert into followup_cases(tenant_id,campaign_id,response_id,contact_id,state,state_changed_at)
+        values($1,$2,$3,$4,'closed',now()-interval '11 months')`, [tenant, campaign, associated.id, associated.contact_id]);
+      await f.admin.query("alter table followup_cases enable trigger followup_case_guard");
+      await f.admin.query("commit");
+    } catch (error) { await f.admin.query("rollback"); throw error; }
+    expect(await runRule("closed_followup_cases")).toMatchObject({ deleted: 0, errorCode: null });
+    await f.admin.query("begin");
+    try {
+      await f.admin.query("alter table followup_cases disable trigger followup_case_guard");
+      await f.admin.query("update followup_cases set state_changed_at=now()-interval '13 months'");
+      await f.admin.query("alter table followup_cases enable trigger followup_case_guard");
+      await f.admin.query("commit");
+    } catch (error) { await f.admin.query("rollback"); throw error; }
+    expect(await runRule("closed_followup_cases")).toMatchObject({ deleted: 1, errorCode: null });
     const owner = async (statement: string) => {
       await f.admin.query("begin");
       try { await f.admin.query(`set local role ${f.migrationOwner}`); await f.admin.query("select set_config('app.tenant_id', $1, true)", [tenant]); await f.admin.query(statement); await f.admin.query("commit"); }
@@ -57,15 +78,16 @@ it("sweeps and expires tombstones as a restricted owner", async () => {
     expect(before.status).toBe("associated");
     expect(before.sources + before.subjects + before.origins).toBeGreaterThan(0);
     await owner("update campaign_responses set expires_at = now() - interval '1 hour' where status in ('pending', 'associated')");
-    expect(await runRetention(pool)).toMatchObject({ erased: 1, deleted: 0 });
+    expect(await runRule("connect_responses")).toMatchObject({ anonymised: 1, deleted: 0, errorCode: null });
     const { rows: tombs } = await f.admin.query("select count(*)::int n from (select 1 from campaign_responses where status = 'erased') x");
     expect(tombs[0].n).toBe(1);
     // A fresh tombstone stays; an old one goes with its redacted consent rows.
     expect(await runRetention(pool)).toMatchObject({ erased: 0, deleted: 0 });
     await owner("update campaign_responses set erased_at = date_trunc('day', now() - interval '91 days') where status = 'erased'");
-    expect(await runRetention(pool)).toMatchObject({ erased: 0, deleted: 1 });
+    expect(await runRule("connect_responses")).toMatchObject({ anonymised: 0, deleted: 0, errorCode: null });
+    expect(await runRule("connect_tombstones")).toMatchObject({ anonymised: 0, deleted: 1, errorCode: null });
     // Nothing that pointed at the response is left anywhere.
     expect(await children()).toEqual({ responses: 0, consents: 0, methods: 0, receipts: 0, events: 0, invitations: 0, claims: 0, subjects: 0, origins: 0, completions: 0, sources: 0, status: null });
     expect(await retentionHealth(pool)).toMatchObject({ healthy: true });
   } finally { vi.unstubAllEnvs(); await f.close(); }
-});
+}, 120_000);
