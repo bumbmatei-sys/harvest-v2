@@ -216,9 +216,9 @@ test("host: Event shortcut and the picker for every item kind; linked cards and 
     await page.waitForURL(`**/communities/${slug}/posts/${hostPost}`);
     const cards = page.getByRole("list", { name: "Linked items" });
     await expect(cards.getByRole("link", { name: /Harvest supper/ })).toHaveAttribute("href", `/communities/${slug}/events/${items.event}`);
-    await expect(cards.getByRole("link", { name: /Walking with God/ })).toHaveAttribute("href", "/courses/walking-with-god");
+    await expect(cards.getByRole("link", { name: /Walking with God/ })).toHaveAttribute("href", /^\/courses\/walking-with-god-[0-9a-f]{8}$/);
     await expect(cards.getByRole("link", { name: /Walking with God/ })).toContainText("Free");
-    await expect(cards.getByRole("link", { name: /Prayer journal/ })).toHaveAttribute("href", "/products/prayer-journal");
+    await expect(cards.getByRole("link", { name: /Prayer journal/ })).toHaveAttribute("href", /^\/products\/prayer-journal-[0-9a-f]{8}$/);
     await expect(cards.getByRole("link", { name: /Sabbath rest/ })).toHaveAttribute("href", /\/blog\/grace-[a-z0-9]+\/sabbath-rest$/);
     await expect(cards.getByRole("link", { name: /prayer/i }).last()).toHaveAttribute("href", /^\/f\//);
     // A removed item stays on the post as "No longer available", with no link.
