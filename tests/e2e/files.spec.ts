@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 const origin = "http://127.0.0.1:3100";
 async function signIn(page: Page, email: string) {

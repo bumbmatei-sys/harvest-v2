@@ -1,4 +1,4 @@
-import { test, type Page } from "@playwright/test";
+import { test, type Page } from "./helpers/test";
 import { adsWorkspace, audit, expect, releaseAfterEach } from "./helpers/ads";
 import { signIn } from "./helpers/session";
 

@@ -1,5 +1,5 @@
 import { mkdir, readFile } from "node:fs/promises";
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { signUnsubscribe } from "../../src/lib/community-email-token";
 import { origin, signIn } from "./helpers/session";

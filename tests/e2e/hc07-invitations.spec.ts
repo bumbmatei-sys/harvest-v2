@@ -4,7 +4,7 @@ import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { expect,test,type Page } from "@playwright/test";
+import { expect,test,type Page } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin,signIn } from "./helpers/session";
 test.use({actionTimeout:30000});

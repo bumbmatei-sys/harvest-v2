@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { expect as check, test, type Page } from "@playwright/test";
+import { expect as check, test, type Page } from "./helpers/test";
 import { origin, signIn } from "./helpers/session";
 
 // Per-feature access: a collaborator who accepts an invitation sees only the areas granted; a guest sees no feature entries.

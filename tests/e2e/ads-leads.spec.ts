@@ -1,4 +1,4 @@
-import { test, type Page } from "@playwright/test";
+import { test, type Page } from "./helpers/test";
 import { adsSynced, adsWorkspace, audit, expect, releaseAfterEach } from "./helpers/ads";
 
 // Lead forms (built on the shared forms builder with the ads preset) and leads (with the explicit add-to-CRM action), against the real Ads routes and the in-memory test provider.

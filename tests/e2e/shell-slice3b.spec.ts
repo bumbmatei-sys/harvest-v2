@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
-import { expect as playwrightExpect, test, type Browser, type Locator, type Page } from "@playwright/test";
+import { expect as playwrightExpect, test, type Browser, type Locator, type Page } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { signIn, origin } from "./helpers/session";
 

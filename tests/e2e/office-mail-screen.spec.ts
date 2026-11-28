@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { expect as base, test, type Browser, type Page, type Route } from "@playwright/test";
+import { expect as base, test, type Browser, type Page, type Route } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";
@@ -160,7 +160,6 @@ test("office mail: connect, list, search, thread, markers, person link, drafts, 
   await expect(thread.getByTestId("message-from")).toHaveText("sender@example.test");
   await expect(rows.first()).toHaveAttribute("data-unread", "false");
   await expect.poll(async () => ((await (await page.request.post(`${api}/office`, { headers: { origin }, data: { action: "threads", connectionId: connection.id, input: {} } })).json()) as { data: { items: { marker: { read: boolean } }[] } }).data.items[0].marker.read).toBe(true);
-  await audit(page, "thread", async () => { await expect(thread).toBeVisible(); await expect(thread.getByTestId("message")).toBeVisible(); });
 
   // ---- Star and read markers are stored and survive a reload -------------------------------------------------------------------------------------------
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -168,12 +167,23 @@ test("office mail: connect, list, search, thread, markers, person link, drafts, 
   await expect(star).toHaveAttribute("aria-pressed", "false");
   await star.click(); await expect(star).toHaveAttribute("aria-pressed", "true");
   await expect(rows.first().getByTestId("starred-marker")).toBeVisible();
+  await expect(thread.getByTestId("read-toggle")).toHaveAccessibleName("Mark as unread");
+  const markedUnread = page.waitForResponse((response) => {
+    const request = response.request();
+    if (request.method() !== "POST" || new URL(request.url()).pathname !== `${api}/office`) return false;
+    const data = request.postDataJSON();
+    return data.action === "marker" && data.input.read === false;
+  });
   await thread.getByTestId("read-toggle").click();
+  expect((await markedUnread).ok()).toBe(true);
   await expect(rows.first()).toHaveAttribute("data-unread", "true");
   await page.reload();
   await expect(page.getByTestId("thread").getByTestId("star-toggle")).toHaveAttribute("aria-pressed", "true");
   await expect(rows.first().getByTestId("starred-marker")).toBeVisible();
   await page.getByTestId("star-toggle").click(); await expect(page.getByTestId("star-toggle")).toHaveAttribute("aria-pressed", "false");
+
+  // The responsive audit reloads the page, so run it after testing markers on the originally opened thread.
+  await audit(page, "thread", async () => { await expect(thread).toBeVisible(); await expect(thread.getByTestId("message")).toBeVisible(); });
 
   // ---- Link the thread to a CRM person (an explicit reference, nothing created) ----------------------------------------------------------------------
   const person = await (await page.request.post(`${api}/contacts`, { headers: { origin }, data: { name: "Synthetic Grace Okafor", email: "grace.okafor@example.test" } })).json() as { id: string };

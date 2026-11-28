@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 
 test.beforeEach(async ({ context }, testInfo) => {

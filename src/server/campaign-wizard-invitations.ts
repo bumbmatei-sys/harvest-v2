@@ -1,3 +1,4 @@
+import { runtimeEnv } from "../lib/env";
 import { campaignInvitationLink } from "../lib/site-address";
 import { createHash, randomBytes } from "node:crypto";
 import { appendFile } from "node:fs/promises";
@@ -20,7 +21,7 @@ export type InvitationSender = (mail: InvitationMail) => Promise<void>;
 /** Writes the link to a local file only when a test mailbox is configured and never in production. Nothing is sent anywhere. */
 export const syntheticInvitationSink: InvitationSender = async (mail) => {
   const mailbox = process.env.HARVEST_E2E_MAILBOX;
-  if (!mailbox || process.env.NODE_ENV === "production" || CAMPAIGN_INVITATION_LIVE_DELIVERY) return;
+  if (!mailbox || runtimeEnv().NODE_ENV === "production" || CAMPAIGN_INVITATION_LIVE_DELIVERY) return;
   await appendFile(`${mailbox}.campaign-invitations`, `${JSON.stringify(mail)}\n`, { mode: 0o600 });
 };
 

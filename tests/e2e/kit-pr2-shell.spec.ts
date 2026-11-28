@@ -1,6 +1,6 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { Client } from "pg";
-import { expect as playwrightExpect, test, type Browser, type Page } from "@playwright/test";
+import { expect as playwrightExpect, test, type Browser, type Page } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { signIn, origin } from "./helpers/session";
 

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
-import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Locator, type Page } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { Client } from "pg";
 import { joinAndWaitForForum, waitForCommunityResponse } from "./helpers/community";

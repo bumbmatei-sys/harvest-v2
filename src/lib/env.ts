@@ -4,3 +4,6 @@ export function requiredEnv(name: string): string {
   if (!value) throw new Error(message("LibEnv.missingRequiredEnvironmentVariableValue", { name: name }));
   return value;
 }
+
+// Keep the runtime test environment available inside optimized server bundles.
+export const runtimeEnv = () => process.env;

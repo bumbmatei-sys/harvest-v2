@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./helpers/test";
 import { signIn, origin } from "./helpers/session";
 import AxeBuilder from "@axe-core/playwright";
 import { BRAND_THEMES, COLOR_MODES } from "../../src/lib/theme-registry";

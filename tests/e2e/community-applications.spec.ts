@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Locator, type Page } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { joinAndWaitForForum, waitForCommunityResponse } from "./helpers/community";
 import { origin, signIn } from "./helpers/session";
