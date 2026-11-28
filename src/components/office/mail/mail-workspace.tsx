@@ -41,6 +41,12 @@ export function MailWorkspace({ tenantId, api, connection, disconnect, onReconne
   const [search, setSearch] = useState(""), [paneOpen, setPaneOpen] = useState(false);
   const [composer, setComposer] = useState<(ComposeSeed & { key: number }) | null>(null), [pending, setPending] = useState<(() => void) | null>(null);
   const dirty = useRef(false), keyCounter = useRef(0), run = useRef(0), abort = useRef<AbortController | null>(null);
+  const markerRevision = useRef(0);
+  const savedMarkers = useRef(new Map<string, { revision: number; marker: Marker }>());
+  const reconcileMarkers = useCallback((items: ThreadSummary[], startRevision: number) => items.map((item) => {
+    const saved = savedMarkers.current.get(item.ref);
+    return saved && saved.revision > startRevision ? { ...item, marker: saved.marker } : item;
+  }), []);
 
   const go = useCallback((next: Record<string, string | null>) => {
     const query = new URLSearchParams(params.toString());
@@ -72,7 +78,7 @@ export function MailWorkspace({ tenantId, api, connection, disconnect, onReconne
   const fail = (error: unknown): ListView<never> => ({ ...emptyView(), status: error instanceof OfficeApiError && error.unavailable ? "unavailable" : "error" });
   const loadFirst = useCallback(async () => {
     if (folderRef === undefined) return;
-    const mine = ++run.current;
+    const mine = ++run.current, startRevision = markerRevision.current;
     abort.current?.abort();
     const controller = abort.current = new AbortController();
     try {
@@ -85,20 +91,20 @@ export function MailWorkspace({ tenantId, api, connection, disconnect, onReconne
         const result = await api.threads(connection.id, { ...(folderRef ? { folderRef } : {}), ...(search ? { search } : {}) }, controller.signal);
         if (mine !== run.current) return;
         if (result.state === "reconnect_needed") return onReconnect();
-        setThreads(result.state === "available" ? { status: "ready", items: result.data.items, nextCursor: result.data.nextCursor ?? null, more: "idle", partial: !!result.data.partial } : { ...emptyView(), status: result.state === "temporarily_unavailable" ? "error" : "unavailable" });
+        setThreads(result.state === "available" ? { status: "ready", items: reconcileMarkers(result.data.items, startRevision), nextCursor: result.data.nextCursor ?? null, more: "idle", partial: !!result.data.partial } : { ...emptyView(), status: result.state === "temporarily_unavailable" ? "error" : "unavailable" });
       }
     } catch (error) {
       if (controller.signal.aborted || mine !== run.current) return;
       (mode === "drafts" ? setDraftList : setThreads)(fail(error) as never);
     }
-  }, [api, connection.id, folderRef, mode, search, onReconnect]);
+  }, [api, connection.id, folderRef, mode, search, onReconnect, reconcileMarkers]);
   useEffect(() => { void Promise.resolve().then(loadFirst); return () => abort.current?.abort(); }, [loadFirst]);
 
   const markMore = (value: "idle" | "loading" | "error") => { if (mode === "drafts") setDraftList((current) => ({ ...current, more: value })); else setThreads((current) => ({ ...current, more: value })); };
   async function loadMore() {
     const view = mode === "drafts" ? draftList : threads;
     if (!view.nextCursor || view.more === "loading") return;
-    const cursor = view.nextCursor, mine = run.current;
+    const cursor = view.nextCursor, mine = run.current, startRevision = markerRevision.current;
     markMore("loading");
     try {
       if (mode === "drafts") {
@@ -110,7 +116,7 @@ export function MailWorkspace({ tenantId, api, connection, disconnect, onReconne
         const result = await api.threads(connection.id, { cursor, ...(folderRef ? { folderRef } : {}), ...(search ? { search } : {}) });
         if (mine !== run.current) return;
         if (result.state !== "available") return setThreads((current) => ({ ...current, more: "error" }));
-        setThreads((current) => ({ ...current, items: dedupe(current.items, result.data.items), nextCursor: result.data.nextCursor ?? null, partial: current.partial || !!result.data.partial, more: "idle" }));
+        setThreads((current) => ({ ...current, items: dedupe(current.items, reconcileMarkers(result.data.items, startRevision)), nextCursor: result.data.nextCursor ?? null, partial: current.partial || !!result.data.partial, more: "idle" }));
       }
     } catch { if (mine === run.current) markMore("error"); }
   }
@@ -127,7 +133,11 @@ export function MailWorkspace({ tenantId, api, connection, disconnect, onReconne
     setPaneOpen(false); if (hosted) setOpenMobile(false);
   });
 
-  const onMarker = useCallback((marker: Marker) => setThreads((current) => ({ ...current, items: current.items.map((item) => item.ref === marker.ref ? { ...item, marker } : item) })), []);
+  const onMarker = useCallback((marker: Marker) => {
+    // A list response started before this write completed may still contain the old marker.
+    savedMarkers.current.set(marker.ref, { revision: ++markerRevision.current, marker });
+    setThreads((current) => ({ ...current, items: current.items.map((item) => item.ref === marker.ref ? { ...item, marker } : item) }));
+  }, []);
   const onSaved = useCallback((draft: Draft) => { setDraftList((current) => current.status !== "ready" ? current : { ...current, items: [draft, ...current.items.filter((item) => item.ref !== draft.ref)] }); }, []);
   const onDeleted = useCallback((ref: string) => { setDraftList((current) => ({ ...current, items: current.items.filter((item) => item.ref !== ref) })); closeComposer(); }, [closeComposer]);
 

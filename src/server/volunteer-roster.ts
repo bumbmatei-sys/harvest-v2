@@ -7,7 +7,7 @@ import {
 } from "../db/schema";
 import { message } from "../i18n/messages";
 import { departmentKeys } from "../lib/campaign-wizard";
-import { AccessError } from "./permissions";
+import { AccessError, can, type Permission } from "./permissions";
 import { withTenant } from "./tenancy";
 
 const uuid = z.uuid();
@@ -43,12 +43,10 @@ const commandInput = z.discriminatedUnion("action", [
 
 type RosterAction = { outcome: string; id?: string; warnings?: ("unavailable" | "double_booked")[]; counts?: Record<string, number> };
 
-async function inRoster<T>(db: Database, user: string, tenant: string, run: (tx: Transaction, tenant: string, role: string) => Promise<T>) {
+async function inRoster<T>(db: Database, user: string, tenant: string, run: (tx: Transaction, tenant: string, role: string) => Promise<T>,
+  permission: Extract<Permission, `volunteers:${string}`> = "volunteers:participate") {
   try {
-    return await withTenant(db, user, uuid.parse(tenant), "workspace:read", (tx, id, _effective, role) => {
-      if (!staff(role) && role !== "member") throw notFound();
-      return run(tx, id, role);
-    });
+    return await withTenant(db, user, uuid.parse(tenant), permission, (tx, id, _effective, access) => run(tx, id, access));
   } catch (error) {
     if (error instanceof AccessError && error.status === 403) throw notFound();
     throw error;
@@ -79,14 +77,15 @@ export function getVolunteerRoster(db: Database, actor: string, tenant: string, 
       .where(and(eq(volunteerRequests.tenantId, scope), inArray(volunteerRequests.slotId, ids))) : [];
     const availability = await tx.select().from(volunteerAvailability).where(and(eq(volunteerAvailability.tenantId, scope),
       gte(volunteerAvailability.unavailableDate, from), lte(volunteerAvailability.unavailableDate, to)));
-    const directory = staff(role) ? await tx.select().from(volunteers).where(eq(volunteers.tenantId, scope)) : undefined;
+    const directory = can(role, "volunteers:manage") ? await tx.select().from(volunteers).where(eq(volunteers.tenantId, scope)) : undefined;
     return { roles, slots: slots.map(slot => ({ ...slot, filled: counts[slot.id] ?? 0 })), assignments, requests, availability, volunteers: directory };
   });
 }
 
 export function changeVolunteerRoster(db: Database, actor: string, tenant: string, raw: unknown) {
   const input = commandInput.parse(raw);
-  return inRoster(db, actor, tenant, async (tx, scope, role) => {
+  const staffAction = ["role", "volunteer", "slot", "assign", "remove", "approve", "reject", "reminder"].includes(input.action);
+  return inRoster(db, actor, tenant, async (tx, scope) => {
     // Use the same lock as the assignment definer so role, availability and slot edits serialize with assignments.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('volunteer:' || ${scope}, 0))`);
     const { action } = input;
@@ -98,7 +97,6 @@ export function changeVolunteerRoster(db: Database, actor: string, tenant: strin
       return { outcome: "ok" };
     }
     if (action === "role") {
-      if (!staff(role)) throw notFound();
       const { id, name, description, department, archived } = input;
       const data = { name, description, department, archived };
       const [saved] = id ? await tx.update(volunteerRoles).set(data)
@@ -108,7 +106,6 @@ export function changeVolunteerRoster(db: Database, actor: string, tenant: strin
       return saved;
     }
     if (action === "volunteer") {
-      if (!staff(role)) throw notFound();
       const { id, roleId, userId, contactId, startDate, endDate, note } = input;
       const [active] = await tx.select().from(volunteerRoles).where(and(eq(volunteerRoles.tenantId, scope), eq(volunteerRoles.id, roleId)));
       if (!active || (!id && active.archived)) throw notFound();
@@ -132,7 +129,6 @@ export function changeVolunteerRoster(db: Database, actor: string, tenant: strin
       return saved;
     }
     if (action === "slot") {
-      if (!staff(role)) throw notFound();
       const { id, eventId, roleId, title, needed, open } = input;
       const [active] = await tx.select().from(volunteerRoles).where(and(eq(volunteerRoles.tenantId, scope), eq(volunteerRoles.id, roleId), eq(volunteerRoles.archived, false)));
       if (!active) throw notFound();
@@ -163,7 +159,7 @@ export function changeVolunteerRoster(db: Database, actor: string, tenant: strin
     if (action === "reminder") return apply(tx, scope, action, { slot: input.slotId, due: input.dueAt });
     if ("requestId" in input) return apply(tx, scope, action, { id: input.requestId });
     return apply(tx, scope, action, { slot: input.slotId });
-  });
+  }, staffAction ? "volunteers:manage" : "volunteers:participate");
 }
 
 export function volunteerNotifications(db: Database, actor: string, tenant: string, mark?: unknown) {

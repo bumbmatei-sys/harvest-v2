@@ -29,11 +29,11 @@ async function open(workspace: string, id: string, user: string) {
 }
 
 beforeAll(async () => {
-  f = await testDatabase();
-  await f.db.insert(users).values(people.map((id) => ({ id, name: id, email: `${id}@example.test`, emailVerified: true })));
+  f = await testDatabase({ migrationOwner: true });
+  await f.db.insert(users).values(people.map((id) => ({ id, name: id, email: `${id}@example.invalid`, emailVerified: true })));
   tenant = (await createWorkspace(f.db, owner, "Shelf Ministry", "church")).tenantId;
   foreignTenant = (await createWorkspace(f.db, other, "Other Ministry", "church")).tenantId;
-  await putMember(f.db, owner, tenant, `${viewer}@example.test`, "viewer");
+  await putMember(f.db, owner, tenant, `${viewer}@example.invalid`, "viewer");
   circle = (await createCommunity(f.db, owner, tenant, { name: "Shelf circle", slug: "shelf-circle" })).id;
   quiet = (await createCommunity(f.db, owner, tenant, { name: "Quiet circle", slug: "quiet-circle" })).id;
   foreignCircle = (await createCommunity(f.db, other, foreignTenant, { name: "Foreign circle", slug: "foreign-shelf" })).id;
@@ -85,6 +85,20 @@ it("shows members the classroom and products of their community only, without gr
   await enrolInCatalogItem(f.db, member, "shelf-course");
   expect((await communityShelf(f.db, member, "shelf-circle", "course"))?.items[0]).toMatchObject({ enrolled: true });
   expect((await communityShelf(f.db, leaver, "shelf-circle", "course"))?.items[0]).toMatchObject({ enrolled: false });
+  const { rows: [lesson] } = await f.admin.query("select id, section_id from catalog_lessons where tenant_id=$1 and item_id=$2", [tenant, course]);
+  const hiddenLesson = randomUUID();
+  await f.admin.query("insert into catalog_lessons(tenant_id,item_id,id,title,body,position,published,section_id) values($1,$2,$3,'Draft',$4,1,false,$5)",
+    [tenant, course, hiddenLesson, JSON.stringify(body), lesson.section_id]);
+  await enrolInCatalogItem(f.db, leaver, "shelf-course");
+  await f.admin.query("insert into catalog_progress(tenant_id,item_id,lesson_id,user_id) values($1,$2,$3,$4),($1,$2,$5,$6)",
+    [tenant, course, lesson.id, leaver, hiddenLesson, member]);
+  expect((await communityShelf(f.db, member, "shelf-circle", "course"))?.items[0]).toMatchObject({ lessonCount: 1, completedCount: 0 });
+  expect((await communityShelf(f.db, leaver, "shelf-circle", "course"))?.items[0]).toMatchObject({ lessonCount: 1, completedCount: 1 });
+  const unlinked = sql`select * from public.catalog_shelf_counts(${tenant}::uuid,${quiet}::uuid,array[${course}::uuid])`;
+  const forged = sql`select * from public.catalog_shelf_counts(${tenant}::uuid,${circle}::uuid,array[${course}::uuid])`;
+  await expect(withUser(f.db, member, async tx => (await tx.execute(unlinked)).rows)).resolves.toEqual([]);
+  await expect(withUser(f.db, outsider, async tx => (await tx.execute(forged)).rows)).resolves.toEqual([]);
+
 });
 
 it("keeps raw SQL to the caller's own communities and to published shelf items", async () => {

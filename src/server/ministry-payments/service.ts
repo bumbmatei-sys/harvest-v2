@@ -7,7 +7,7 @@ import { auditLogs, catalogItems, ministryDonationReceipts, ministryPaymentAccou
 import { idempotencyKeyInput } from "../../lib/fundraising";
 import { message } from "../../i18n/messages";
 import { checkoutInput, ministryApplicationFee, paymentAccountAction, paymentPolicy, type MinistryPaymentKind } from "../../lib/ministry-payments";
-import { AccessError } from "../permissions";
+import { AccessError, can } from "../permissions";
 import { withTenant, withUser } from "../tenancy";
 import { fakeConnectedAccountId, fakePaymentProvider, type AccountStatus, type MinistryPaymentProvider } from "./provider";
 
@@ -18,14 +18,10 @@ const synthetic = (provider: MinistryPaymentProvider) => {
   if (provider.identity !== "fake") throw paymentMissing();
 };
 
-type FinanceAccess = "owner" | "admin";
 async function finance<T>(db: Database, user: string, tenant: string,
-  run: (tx: Transaction, id: string, access: FinanceAccess) => Promise<T>) {
+  run: (tx: Transaction, id: string, access: string) => Promise<T>) {
   try {
-    return await withTenant(db, user, z.uuid().parse(tenant), "workspace:read", (tx, id, _role, access) => {
-      if (access !== "owner" && access !== "admin") throw paymentMissing();
-      return run(tx, id, access);
-    });
+    return await withTenant(db, user, z.uuid().parse(tenant), "payments:finance", (tx, id, _role, access) => run(tx, id, access));
   } catch (error) {
     if (error instanceof AccessError && error.status === 403) throw paymentMissing();
     throw error;
@@ -45,7 +41,7 @@ export function paymentAccount(db: Database, actor: string, tenant: string) {
   return finance(db, actor, tenant, async (tx, id, access) => {
     const [account] = await tx.select().from(ministryPaymentAccounts).where(eq(ministryPaymentAccounts.tenantId, id));
     // Founder decision 27 Nov: only the owner connects, syncs or disconnects the payout account.
-    return { account: accountView(account), policy: paymentPolicy, canManageAccount: access === "owner" };
+    return { account: accountView(account), policy: paymentPolicy, canManageAccount: can(access, "payments:manage") };
   });
 }
 
@@ -70,7 +66,7 @@ export function changePaymentAccount(db: Database, actor: string, tenant: string
   return finance(db, actor, tenant, async (tx, id, access) => {
     const input = paymentAccountAction.parse(raw);
     // Founder decision 27 Nov: admins keep read access and pricing, but the payout account is the owner's alone.
-    if (input.action !== "price" && access !== "owner") throw paymentMissing();
+    if (input.action !== "price" && !can(access, "payments:manage")) throw paymentMissing();
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('ministry-payments:' || ${id}, 0))`);
     const key = eq(ministryPaymentAccounts.tenantId, id);
     const [account] = await tx.select().from(ministryPaymentAccounts).where(key);

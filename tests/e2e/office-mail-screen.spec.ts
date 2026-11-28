@@ -168,8 +168,18 @@ test("office mail: connect, list, search, thread, markers, person link, drafts, 
   await expect(star).toHaveAttribute("aria-pressed", "false");
   await star.click(); await expect(star).toHaveAttribute("aria-pressed", "true");
   await expect(rows.first().getByTestId("starred-marker")).toBeVisible();
+  // Reopen an already-read thread before marking it unread. Opening is a one-time action.
+  await page.reload();
+  const unreadWrite = page.waitForResponse((response) => {
+    const request = response.request();
+    if (request.method() !== "POST" || new URL(request.url()).pathname !== `${api}/office`) return false;
+    const payload = request.postDataJSON();
+    return payload.action === "marker" && payload.input.read === false;
+  });
   await thread.getByTestId("read-toggle").click();
+  expect((await unreadWrite).ok()).toBe(true);
   await expect(rows.first()).toHaveAttribute("data-unread", "true");
+  await expect.poll(async () => ((await (await page.request.post(`${api}/office`, { headers: { origin }, data: { action: "threads", connectionId: connection.id, input: {} } })).json()) as { data: { items: { marker: { read: boolean } }[] } }).data.items[0].marker.read).toBe(false);
   await page.reload();
   await expect(page.getByTestId("thread").getByTestId("star-toggle")).toHaveAttribute("aria-pressed", "true");
   await expect(rows.first().getByTestId("starred-marker")).toBeVisible();
