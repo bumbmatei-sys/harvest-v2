@@ -1009,6 +1009,13 @@
       "when": 1795825302385,
       "tag": "0146_ministry_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "7",
+      "when": 1795828729119,
+      "tag": "0147_feature_access_scope",
+      "breakpoints": true
     }
   ]
 }
