@@ -7,6 +7,7 @@ import { communitiesEnabled } from "@/server/communities-mode";
 import { getPublicCommunity } from "@/server/community-joining";
 import { publicReadCharge } from "@/server/public-read-limit";
 import { communityCanJoin } from "@/lib/editor-preview";
+import { landingJoinCode } from "@/lib/connect-landing";
 import { optionalSession } from "@/server/page-session";
 import { PublicFrame } from "@/components/connect/public-frame";
 import { CommunityPageView } from "@/components/communities/community-page-view";
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
 // One per-visitor charge per request, shared by the metadata and the page. Over the limit nothing is read; a page cannot answer 429,
 // so it shows a neutral notice and is never indexed.
 const pageCharge = cache(async () => publicReadCharge(await headers(), "community-page"));
-type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ invite?: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ invite?: string; qr?: string }> };
 
 export async function generateMetadata({ params, searchParams }: Props) {
   if (!communitiesEnabled()) return {};
@@ -31,7 +32,7 @@ export async function generateMetadata({ params, searchParams }: Props) {
 
 export default async function CommunityPage({ params, searchParams }: Props) {
   if (!communitiesEnabled()) notFound();
-  const { slug } = await params, { invite } = await searchParams;
+  const { slug } = await params, { invite, qr: rawQr } = await searchParams;
   if ((await pageCharge()).limited) return <PublicFrame personal notice={false}>
     <p role="status" className="text-sm text-muted-foreground">{(await getTranslations("CommunityPage"))("busy")}</p>
   </PublicFrame>;
@@ -39,11 +40,13 @@ export default async function CommunityPage({ params, searchParams }: Props) {
   if (!community) notFound();
   const session = await optionalSession(), t = await getTranslations("CommunityPage");
   const invited = community.invited ? invite : undefined, canJoin = communityCanJoin({ invited: Boolean(invited), allowOpen: community.allowOpen, allowApply: community.allowApply });
-  const back = `/communities/${community.slug}${invited ? `?invite=${invited}` : ""}`;
+  // C20: a QR page code (link-level, never a person) is kept through sign-in so a join from that page adds one to its count.
+  const qr = !invited && typeof rawQr === "string" && landingJoinCode.safeParse(rawQr).success ? rawQr : undefined;
+  const back = `/communities/${community.slug}${invited ? `?invite=${invited}` : qr ? `?qr=${qr}` : ""}`;
   return <PublicFrame personal notice={false}>
     <CommunityPageView data={{ name: community.name, tagline: community.tagline, description: community.description, rulesList: community.rulesList, hostName: community.hostName }}
       join={canJoin ? <JoinDialog slug={community.slug} name={community.name} rules={community.rulesList} rulesVersion={community.rulesVersion}
-        questions={community.joinQuestions} questionsVersion={community.questionsVersion} apply={community.allowApply} invite={invited}
+        questions={community.joinQuestions} questionsVersion={community.questionsVersion} apply={community.allowApply} invite={invited} qr={qr}
         signedIn={Boolean(session)} signInHref={`/sign-in?personal=1&next=${encodeURIComponent(back)}`} />
         : <p className="text-sm text-muted-foreground">{t("closed")}</p>} />
   </PublicFrame>;

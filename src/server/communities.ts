@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
 import { auditLogs, communities, communityCategories, communityInvites, communityPosts, communityMemberships, discoverListings, entitlements, reservedCommunitySlugs, users, workspaces } from "../db/schema";
 import { questionSet } from "../lib/questions";
-import { categoryInput, forumLimits } from "../lib/forum";
+import { categoryInput, forumLimits, forumPostingValues } from "../lib/forum";
 import { normaliseBannedWords } from "../lib/moderation";
 import { refreshDiscoverListing } from "./discover/refresh";
 import { discoverEligible, emailHash, emailHint, hashSecret, listingFor, newInviteToken } from "../lib/community-listing";
@@ -36,6 +36,7 @@ const updateInput = z.object({
   allowOpen: z.boolean().optional(), allowApply: z.boolean().optional(),
   allowInvite: z.boolean().optional(), allowEntitlement: z.boolean().optional(),
   description: description.nullable().optional(), rulesList: rulesList.optional(), joinQuestions: questionSet.optional(), discoverOptIn: z.boolean().optional(),
+  forumPosting: z.enum(forumPostingValues).optional(),
   // C12a: held content.
   holdFirstPosts: z.boolean().optional(), bannedWords: z.array(z.string().max(200)).max(200).optional(),
   // C15a: the welcome card's message and the introductions category.

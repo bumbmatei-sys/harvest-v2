@@ -1,9 +1,10 @@
 import "server-only";
 import { and, eq, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../db/client";
-import { campaigns, campaignResponseLinks, connectLandingStates, connectLandingVersions } from "../db/schema";
+import { campaigns, campaignResponseLinks, communities, connectCommunityJoinCounts, connectLandingStates, connectLandingVersions } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
-import { emptyLanding, landingDefinition, landingExpectation, saveLandingInput, type LandingDefinition } from "../lib/connect-landing";
+import { emptyLanding, landingDefinition, landingExpectation, saveLandingInput, type LandingCommunity, type LandingDefinition } from "../lib/connect-landing";
+import { suppressSmall } from "../lib/connect-retention";
 import { message } from "../i18n/messages";
 import { AccessError, can } from "./permissions";
 import { withTenant } from "./tenancy";
@@ -18,8 +19,13 @@ async function read(tx: Transaction, tenantId: string, campaignId: string, linkI
   const [published] = state?.publishedRevision ? await tx.select({ definition: connectLandingVersions.definition, revision: connectLandingVersions.revision })
     .from(connectLandingVersions).where(and(eq(connectLandingVersions.tenantId, tenantId), eq(connectLandingVersions.linkId, linkId), eq(connectLandingVersions.revision, state.publishedRevision))) : [];
   const editable = !link.archivedAt && link.status !== "archived";
-  return { definition: state?.definition ?? emptyLanding, revision: state?.revision ?? 0, expectedCode: link.publicCode,
+  return { definition: state?.definition ?? emptyLanding, communities: await recommendable(tx, tenantId), revision: state?.revision ?? 0, expectedCode: link.publicCode,
     published: published ?? null, title: link.title, permissions: { edit: editable && can(role, "campaigns:write"), publish: editable && can(role, "connect:publish") } };
+}
+/** C20: the ministry's own communities that may be recommended on a QR page (published and listed), read under the tenant's staff policy. */
+function recommendable(tx: Transaction, tenantId: string): Promise<({ id: string } & LandingCommunity)[]> {
+  return tx.select({ id: communities.id, slug: communities.slug, name: communities.name, tagline: communities.tagline }).from(communities)
+    .where(and(eq(communities.tenantId, tenantId), eq(communities.status, "published"), eq(communities.visibility, "listed"))).orderBy(communities.name).limit(200);
 }
 export type EditableLanding = Awaited<ReturnType<typeof getLanding>>;
 export async function getLanding(db: Database, user: string, tenant: string, campaign: string, link: string) {
@@ -31,6 +37,10 @@ export async function writeLanding(db: Database, user: string, tenant: string, c
   const input = publish ? landingExpectation.parse(body) : saveLandingInput.parse(body);
   return withTenant(db, user, tenantId, publish ? "connect:publish" : "campaigns:write", async (tx, id, role) => {
     const definition = "definition" in input ? JSON.stringify(input.definition) : null;
+    // The guest page re-checks the community on every read; this only stops a ministry saving one that is not its own published, listed community.
+    const chosen = publish ? undefined : (input as unknown as { definition: LandingDefinition }).definition.communityId;
+    if (chosen && !(await recommendable(tx, id)).some(c => c.id === chosen))
+      throw new AccessError(400, message("LandingEditor.invalid"));
     const { rows } = await tx.execute<{ outcome: string }>(sql`select public.connect_landing_write(${id}::uuid,${campaignId}::uuid,${linkId}::uuid,
       ${input.expectedRevision}::integer,${input.expectedCode},${definition}::jsonb,${publish}) as outcome`);
     const outcome = rows[0].outcome;
@@ -48,6 +58,33 @@ export async function resolvePublishedLanding(db: Database, kind: "qr" | "short"
     const row = rows[0];
     if (!row) return undefined;
     // Fail closed on malformed stored presentation; never substitute private draft content.
-    return { locale: row.locale, title: row.public_title, definition: row.definition ? landingDefinition.parse(row.definition) : undefined };
+    const parsed = row.definition ? landingDefinition.parse(row.definition) : undefined;
+    // The stored community id never leaves the server: the guest gets the public fields of a community that still qualifies, or nothing.
+    const { communityId, ...definition } = parsed ?? { communityId: undefined };
+    const community = communityId ? await resolveLandingCommunity(db, kind, code) : undefined;
+    return { locale: row.locale, title: row.public_title, definition: parsed ? definition as LandingDefinition : undefined, ...(community ? { community } : {}) };
   } catch { console.error("connect_landing_resolve_failed"); return undefined; }
+}
+/** C20: the recommended community of the current published snapshot, only while it is published, listed, the ministry's own and not suspended by Harvest. */
+async function resolveLandingCommunity(db: Database, kind: "qr" | "short", code: string): Promise<LandingCommunity | undefined> {
+  const { rows } = await db.execute<{ community_slug: string; community_name: string; community_tagline: string | null }>(
+    sql`select community_slug,community_name,community_tagline from public.resolve_connect_landing_community(${kind},${code})`);
+  const row = rows[0];
+  return row ? { slug: row.community_slug, name: row.community_name, tagline: row.community_tagline } : undefined;
+}
+/** C20: per QR link, how many joins started from its recommended community. Counts only (no person), with the Connect small-group rule: 1 to 4 shows as null. */
+export async function landingJoinCounts(db: Database, user: string, tenant: string, campaign: string): Promise<Record<string, number | null>> {
+  const tenantId = uuidInput.parse(tenant), campaignId = uuidInput.parse(campaign);
+  return withTenant(db, user, tenantId, "campaigns:write", async (tx, id) => {
+    const rows = await tx.select({ linkId: connectCommunityJoinCounts.linkId, joins: sql<number>`sum(${connectCommunityJoinCounts.joins})::int` }).from(connectCommunityJoinCounts)
+      .innerJoin(campaignResponseLinks, and(eq(campaignResponseLinks.tenantId, connectCommunityJoinCounts.tenantId), eq(campaignResponseLinks.id, connectCommunityJoinCounts.linkId)))
+      .where(and(eq(connectCommunityJoinCounts.tenantId, id), eq(campaignResponseLinks.campaignId, campaignId))).groupBy(connectCommunityJoinCounts.linkId);
+    return Object.fromEntries(rows.map(r => [r.linkId, suppressSmall(r.joins)]));
+  });
+}
+/** C20: called by the community join in the same transaction, right after a new membership. Adds one to the count when the code's published page recommends this community. */
+export async function countLandingJoin(tx: Transaction, code: string, slug: string) {
+  try {
+    return await tx.transaction(async (inner) => (await inner.execute<{ ok: boolean }>(sql`select public.connect_count_community_join(${code}, ${slug}) as ok`)).rows[0]?.ok === true);
+  } catch { console.error("connect_join_count_failed"); return false; }
 }

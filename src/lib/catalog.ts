@@ -13,11 +13,17 @@ export type CatalogState = (typeof catalogStates)[number];
 export const catalogVisibilities = ["hidden", "unlisted", "listed"] as const;
 export type CatalogVisibility = (typeof catalogVisibilities)[number];
 
+/** Legacy editor spellings and the four publication states exposed to new callers. */
+export const catalogPublicationVisibilities = ["public", "community", "unlisted", "draft"] as const;
+export type CatalogPublicationVisibility = (typeof catalogPublicationVisibilities)[number];
+export const legacyCatalogVisibility = (value: CatalogVisibility | "public" | "community"): CatalogVisibility =>
+  value === "public" ? "listed" : value === "community" ? "hidden" : value;
+
 export const stateTone = defineStatusTones({ draft: "neutral", published: "success", archived: "pending" });
 
 /** Editorial metadata, as the list and the item read return it. */
-export type CatalogRow = { id: string; kind: CatalogKind; slug: string; title: string; summary: string; state: CatalogState; visibility: CatalogVisibility; version: number; updatedAt: string };
-export type CatalogLesson = { id: string; title: string; body: RichDoc; published: boolean; sectionId?: string; video?: LessonVideo | null };
+export type CatalogRow = { id: string; kind: CatalogKind; slug: string; title: string; summary: string; state: CatalogState; visibility: CatalogVisibility; publicationVisibility?: CatalogPublicationVisibility; coverFileId?: string | null; priceLabel?: string; version: number; updatedAt: string };
+export type CatalogLesson = { id: string; title: string; body: RichDoc; published: boolean; sectionId?: string; video?: LessonVideo | null; attachmentFileIds?: string[] };
 /** The item read: owners and admins also get lessons, structure, labels, file ids and the communities that show it; members and viewers get the metadata only. */
 export type CatalogItem = CatalogRow & { lessons?: CatalogLesson[]; levels?: { id: string; title: string }[]; sections?: { id: string; levelId: string | null; title: string }[];
   labels?: CourseLabels; fileIds?: string[]; communityIds?: string[] };

@@ -56,6 +56,16 @@ export class S3Storage implements StorageAdapter, MultipartStorage {
     return inspectFileBytes(object.Body as AsyncIterable<Uint8Array>, expected, head.ContentType,
       () => (object.Body as { destroy?: () => void }).destroy?.());
   }
+  async open(key: string) {
+    try {
+      const object = await this.client.send(new GetObjectCommand({ Bucket: this.config.bucket, Key: key }),
+        { abortSignal: AbortSignal.timeout(15_000) });
+      return object.Body?.transformToWebStream() ?? null;
+    } catch (error) {
+      if (error instanceof Error && error.name === "NoSuchKey") return null;
+      throw error;
+    }
+  }
   presignDownload(key: string, name: string, options?: { inlineImage?: ImageMime; expiresIn?: number }) {
     return getSignedUrl(this.client, new GetObjectCommand({ Bucket: this.config.bucket, Key: key,
       ResponseContentDisposition: options?.inlineImage ? "inline" : downloadDisposition(name),

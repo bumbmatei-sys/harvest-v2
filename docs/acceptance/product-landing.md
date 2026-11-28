@@ -1,6 +1,6 @@
 # Product and course landing page with reviews
 
-Founder spec of 27 Nov 2026 ("Landing page", section order 1 to 9) and the approved kit items `hero12`, `pricing17`, `feature13`, `customer-reviews5` in `testimonial11`'s grid, `feature9`, `faq7`, `cta2`. Working migration **`0190_product_landing`** (journal index 142, snapshot `0142_snapshot.json`; renumber at merge after whatever merges first, never renumber a merged one). Draft PR: not for merge without independent review and founder approval. No deployment, no checkout, no real outbound message.
+Founder spec of 27 Nov 2026 ("Landing page", section order 1 to 9) and the approved kit items `hero12`, `pricing17`, `feature13`, `customer-reviews5` in `testimonial11`'s grid, `feature9`, `faq7`, `cta2`. Working migration **`0154_product_landing`** (journal index 142, snapshot `0142_snapshot.json`; renumber at merge after whatever merges first, never renumber a merged one). Draft PR: not for merge without independent review and founder approval. No deployment, no checkout, no real outbound message.
 
 Status values: BUILT, DEFERRED (with reason).
 
@@ -46,3 +46,6 @@ Screenshots (`docs/screenshots/product-landing/`, deviceScaleFactor 2, 390 and 1
 6. **Featured review** is the newest visible review with text (no owner choice).
 7. The sale countdown here (`sale-countdown.tsx`) and Discover's `sale-line.tsx` (#338) share `timeLeft`; unify when both merge.
 8. The shared `globals.css` line `@source not "../../docs"` is also in #338 (identical), so e2e screenshots do not reload dev pages.
+
+## Founder approval (visuals)
+The founder saw the landing page and editor screenshots (390 and 1440, light and dark) and approved them for merge on 28 Nov 2026 ("Yes looks for merge to main", about 00:40 Berlin; "Yes the screens are looking good", morning of 28 Nov). Kit items approved 27 Nov.

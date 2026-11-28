@@ -7,7 +7,7 @@ import { getLanding, publicLanding, saveLanding, saveReview, setReviewHidden } f
 import { deleteMyAccount } from "../../src/server/account-deletion";
 import { withUser } from "../../src/server/tenancy";
 
-// Product and course landing page (0190): owner editing, the public read, sale rules, reviews, hiding, small-group stats and account deletion.
+// Product and course landing page (0154): owner editing, the public read, sale rules, reviews, hiding, small-group stats and account deletion.
 // Synthetic people only.
 const people = ["lp-owner", "lp-admin", "lp-member", "lp-other", "lp-l1", "lp-l2", "lp-l3", "lp-l4", "lp-l5", "lp-outsider"];
 const [owner, admin, member, other, l1, l2, l3, l4, l5, outsider] = people;

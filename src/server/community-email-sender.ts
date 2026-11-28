@@ -24,6 +24,6 @@ export const sendLiveCommunityEmail: CommunityMailSender = (mail) => createStagi
 /** Operator-invoked LOCAL mock mailbox: one JSON line per email. Never an application route and never a provider bypass. */
 export function testMailboxSender(path: string): CommunityMailSender {
   return async (mail) => {
-    await appendFile(path, `${JSON.stringify({ to: mail.to, subject: mail.subject, text: mail.text, headers: mail.headers, idempotencyKey: mail.idempotencyKey })}\n`, { mode: 0o600 });
+    await appendFile(path, `${JSON.stringify({ deliveryId: mail.deliveryId, to: mail.to, subject: mail.subject, text: mail.text, headers: mail.headers, idempotencyKey: mail.idempotencyKey })}\n`, { mode: 0o600 });
   };
 }

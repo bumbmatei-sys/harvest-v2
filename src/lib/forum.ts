@@ -8,6 +8,19 @@ export const attachmentMimes = FILE_MIME_TYPES;
 export const forumSorts = ["new", "best"] as const;
 export type ForumSort = (typeof forumSorts)[number];
 
+export const forumPostingValues = ["everyone", "hosts"] as const;
+export const forumItemKinds = ["article", "product", "course", "event", "form"] as const;
+export const forumFeelings = ["grateful", "hopeful", "joyful", "encouraged", "thoughtful", "sad", "praying", "celebrating", "learning", "serving"] as const;
+export type ForumItemKind = (typeof forumItemKinds)[number];
+const detailsInput = z.object({
+  photoIds: z.array(z.uuid()).max(10).default([]),
+  location: z.string().trim().min(1).max(240).regex(/^[^\p{Cc}]+$/u).nullable().default(null),
+  feeling: z.enum(forumFeelings).nullable().default(null),
+  mentionIds: z.array(z.string().min(1).max(200)).max(10).default([]),
+  linkedItems: z.array(z.object({ kind: z.enum(forumItemKinds), id: z.uuid() }).strict()).max(5).default([]),
+}).strict();
+export type ForumPostDetailsInput = z.infer<typeof detailsInput>;
+
 export const postInput = z.object({
   categoryId: z.uuid(),
   title: z.string().trim().min(1).max(forumLimits.title),
@@ -17,6 +30,7 @@ export const postInput = z.object({
   attachmentIds: z.array(z.uuid()).max(forumLimits.attachments).default([]),
   commentsOff: z.boolean().default(false),
   likesOff: z.boolean().default(false),
+  postDetails: detailsInput.optional(),
 }).strict();
 export const commentInput = z.object({ body: z.string().trim().min(1).max(forumLimits.comment) }).strict();
 

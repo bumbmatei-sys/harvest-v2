@@ -51,5 +51,5 @@ async function load(tx: Transaction, tenant: string, type: DiscoverType, id: str
   // A price on the landing page (shown only; checkout stays off until the ministry can take payments) lists the item as paid.
   const [landing] = await tx.select({ price: catalogLandings.priceCents }).from(catalogLandings).where(and(eq(catalogLandings.tenantId, tenant), eq(catalogLandings.itemId, id)));
   const free = landing?.price == null;
-  return { name: item.title, summary: item.summary, tagline: null, slug: item.slug, free, pricing: free ? "free" : "paid", admission: [], published: item.state === "published" && item.visibility === "listed", optIn: null };
+  return { name: item.title, summary: item.summary, tagline: null, slug: item.slug, free, pricing: free ? "free" : "paid", admission: [], published: item.state === "published" && (item.visibility === "listed" || item.visibility === "public"), optIn: null };
 }

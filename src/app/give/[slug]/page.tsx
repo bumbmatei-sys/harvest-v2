@@ -29,6 +29,6 @@ export default async function GivePage({ params }: Props) {
   if (!view) notFound();
   const methods = await publicGiveMethods(db, slug);
   return <PublicFrame personal notice={false}>
-    <div className="mx-auto max-w-5xl"><GivePageView view={view} coverUrl={view.hasCover ? `/give/${view.slug}/cover` : null} methods={methods} reportUrl={`/give/${view.slug}/report`} /></div>
+    <GivePageView view={view} coverUrl={view.hasCover ? `/give/${view.slug}/cover` : null} methods={methods} reportUrl={`/give/${view.slug}/report`} />
   </PublicFrame>;
 }

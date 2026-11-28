@@ -12,6 +12,7 @@ import { runNewsletterWorker } from "../../src/server/newsletter-campaigns/worke
 import { purgeNewsletterClicks, recheckNewsletterDomains } from "../../src/server/newsletter-campaigns/maintenance";
 import { saveMailingAddress } from "../../src/server/newsletter-campaigns/sender-setup";
 import { newsletterAnalyticsOverview, newsletterCampaignAnalytics } from "../../src/server/newsletter-campaigns/analytics-overview";
+import { newsletterStatistics } from "../../src/server/newsletter-campaigns/statistics";
 import { newsletterClickSettings, saveNewsletterClickSettings } from "../../src/server/newsletter-clicks";
 import { createNewsletterSignupFormDraft } from "../../src/server/newsletter-forms";
 import { getCrmForm } from "../../src/server/crm-forms";
@@ -258,6 +259,9 @@ it("reports totals, the UTC day and top links only, withholding small groups, fo
   expect(detail.clicks?.total).toBeNull();
   // The daily total together with the visible links could identify the small group.
   expect(detail.clicks?.links).toEqual([]);
+  const statistics = await newsletterStatistics(fixture.db, people.admin, people.tenant, { campaignId });
+  expect(statistics.totals).toMatchObject({ clicks: null, opens: null });
+  expect(statistics.days.find((day) => day.day === today)).toMatchObject({ clicks: null, opens: null });
   const text = JSON.stringify([overview, detail]);
   for (const email of recipients) expect(text).not.toContain(email);
   expect(text).not.toMatch(/delivery|subscriber|contact/i);
@@ -275,7 +279,7 @@ it("reports totals, the UTC day and top links only, withholding small groups, fo
   try {
     await expect(newsletterAnalyticsOverview(fixture.db, people.viewer, people.tenant, 30)).rejects.toMatchObject({ status: 404 });
     await expect(newsletterCampaignAnalytics(fixture.db, people.viewer, people.tenant, campaignId)).rejects.toMatchObject({ status: 404 });
-    await expect(withTenant(fixture.db, people.viewer, people.tenant, "newsletter:analytics", (tx) =>
+    await expect(withTenant(fixture.db, people.viewer, people.tenant, "workspace:read", (tx) =>
       tx.execute(sql`select public.newsletter_click_report(${people.tenant}::uuid,${campaignId}::uuid,${range.from}::date,${range.until}::date)`)))
       .rejects.toHaveProperty("cause.code", "42501");
   } finally {

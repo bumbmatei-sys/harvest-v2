@@ -47,10 +47,12 @@ import { checklistStep, communityAddressLocked, nextSlug, slugFollowsName, comin
 export type EditableCommunity = { id: string; slug: string; name: string; tagline: string | null; status: "draft" | "published" | "archived";
   visibility: "listed" | "unlisted" | "hidden"; allowOpen: boolean; allowApply: boolean; allowInvite: boolean; allowEntitlement: boolean; version: number;
   description: string | null; rulesList: string[]; joinQuestions: Question[]; discoverOptIn: boolean; holdFirstPosts: boolean; bannedWords: string[]; welcomeMessage: string | null; introCategoryId: string | null;
+  /** Who can create forum posts: everyone (default) or only hosts (owner, admin, moderator); replies stay open either way. */
+  forumPosting?: "everyone" | "hosts";
   /** Set the first time the community is published, never cleared: the address is then locked for good. */
   firstPublishedAt?: string | Date | null };
 export type CommunityMember = { userId: string; name: string; role: string; status: string };
-type Fields = Pick<EditableCommunity, "name" | "slug" | "tagline" | "visibility" | "allowOpen" | "allowApply" | "allowInvite" | "allowEntitlement" | "description" | "rulesList" | "joinQuestions" | "discoverOptIn" | "holdFirstPosts" | "bannedWords" | "welcomeMessage" | "introCategoryId">;
+type Fields = Pick<EditableCommunity, "name" | "slug" | "tagline" | "visibility" | "allowOpen" | "allowApply" | "allowInvite" | "allowEntitlement" | "description" | "rulesList" | "joinQuestions" | "discoverOptIn" | "holdFirstPosts" | "bannedWords" | "welcomeMessage" | "introCategoryId" | "forumPosting">;
 const optionalText = ["tagline", "description", "welcomeMessage"] as const;
 const equal = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 // What is sent: trimmed rules and questions, with blank rules and blank options dropped.
@@ -59,7 +61,7 @@ const cleanQuestions = (questions: Question[]) => questions.map((q) => ({ ...q, 
 const admissionKeys = ["allowOpen", "allowApply", "allowInvite", "allowEntitlement"] as const;
 const fieldsOf = (c: EditableCommunity): Fields => ({ name: c.name, slug: c.slug, tagline: c.tagline, visibility: c.visibility, allowOpen: c.allowOpen, allowApply: c.allowApply,
   allowInvite: c.allowInvite, allowEntitlement: c.allowEntitlement, description: c.description, rulesList: c.rulesList, joinQuestions: c.joinQuestions, discoverOptIn: c.discoverOptIn,
-  holdFirstPosts: c.holdFirstPosts, bannedWords: c.bannedWords, welcomeMessage: c.welcomeMessage, introCategoryId: c.introCategoryId });
+  holdFirstPosts: c.holdFirstPosts, bannedWords: c.bannedWords, welcomeMessage: c.welcomeMessage, introCategoryId: c.introCategoryId, forumPosting: c.forumPosting ?? "everyone" });
 const same = (a: Fields, b: Fields) => (Object.keys(a) as (keyof Fields)[]).every((key) => equal(a[key], b[key]));
 
 export function CommunityEditor({ initial, members, invites, applications, categories, chat, shelf, endpoint, listHref, host, writable, discoverTenant, discoverListing }: { initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[];
@@ -195,6 +197,13 @@ export function CommunityEditor({ initial, members, invites, applications, categ
           {questionsOn && <CardContent><QuestionListEditor questions={fields.joinQuestions} onChange={(next) => set("joinQuestions", next)} disabled={!writable} /></CardContent>}</Card>
       </>}
       {step === "channels" && <>
+        <Card><CardContent>
+          <FormSection as="fieldset" title={t("forumPosting")}>
+            <RadioGroup value={fields.forumPosting ?? "everyone"} onValueChange={(value) => set("forumPosting", value as NonNullable<Fields["forumPosting"]>)} disabled={!writable} className="gap-2" aria-label={t("forumPosting")}>
+              {(["everyone", "hosts"] as const).map((value) => <Label key={value} htmlFor={`community-forum-posting-${value}`} className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal">
+                <RadioGroupItem id={`community-forum-posting-${value}`} value={value} />{t(`forumPostingValues.${value}`)}</Label>)}
+            </RadioGroup></FormSection>
+        </CardContent></Card>
         <Card><CardHeader><CardTitle><h3 className="text-base font-semibold">{t("forumCategories")}</h3></CardTitle></CardHeader>
           <CardContent><ForumCategoriesEditor endpoint={endpoint} initial={categories} writable={writable} /></CardContent></Card>
         <Card><CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3"><CardTitle><h3 className="text-base font-semibold">{t("chatChannels")}</h3></CardTitle>

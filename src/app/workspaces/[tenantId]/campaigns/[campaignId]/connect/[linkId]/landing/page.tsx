@@ -7,6 +7,7 @@ import { pageSession } from "@/server/page-session";
 import { AccessError } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
 import { LandingEditor } from "@/components/connect-admin/landing-editor";
+import { communitiesEnabled } from "@/server/communities-mode";
 export const dynamic = "force-dynamic";
 export async function generateMetadata() { return { title: (await getTranslations("LandingEditor"))("title"), robots: { index: false, follow: false } }; }
 export default async function LandingEditorPage({ params }: { params: Promise<{ tenantId: string; campaignId: string; linkId: string }> }) {
@@ -15,6 +16,6 @@ export default async function LandingEditorPage({ params }: { params: Promise<{ 
   const initial = await getLanding(getDb(), session.user.id, tenantId, campaignId, linkId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
   if (!initial) notFound();
   const manifest = await landingPreviewForm(getDb(), session.user.id, tenantId, campaignId, linkId);
-  return <LandingEditor initial={initial} manifest={manifest} backHref={`/workspaces/${tenantId}/campaigns/${campaignId}/connect`}
+  return <LandingEditor initial={initial} manifest={manifest} communityPicker={communitiesEnabled()} backHref={`/workspaces/${tenantId}/campaigns/${campaignId}/connect`}
     endpoint={`/api/workspaces/${tenantId}/campaigns/${campaignId}/connect/links/${linkId}/landing`} />;
 }

@@ -92,6 +92,8 @@ test("owner shows a course and a product; a member enrols from the Classroom and
   await signIn(outsider);
   await outsider.goto(`/communities/${slug}/classroom`);
   await expect(outsider).toHaveURL(new RegExp(`/communities/${slug}$`));
+  // Let the redirected page settle, so the next navigation is not merged into it (goto then returns no response).
+  await outsider.waitForLoadState("networkidle");
   // The hidden course stays invisible outside the shelf.
   expect((await outsider.goto(`/courses/${leadersSlug}`))?.status()).toBe(404);
   expect((await outsider.request.get(`/api/catalog/${leadersSlug}`)).status()).toBe(404);

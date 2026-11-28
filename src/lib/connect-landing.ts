@@ -19,15 +19,21 @@ export const landingCard = z.discriminatedUnion("kind", [
     description: plain(300), url: z.string().refine(safeLandingUrl), price: z.enum(["free", "paid"]) }).strict()
     .refine((card) => card.category !== "community" || card.price === "free"),
 ]);
-export const landingDefinition = z.object({ heading: plain(120), message: plain(600), cards: z.array(landingCard).max(8) }).strict();
+/** C20: one of the ministry's own published, listed communities, recommended after the free resources. Lowercase UUID, matching 0152. */
+export const landingCommunityId = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+export const landingDefinition = z.object({ heading: plain(120), message: plain(600), cards: z.array(landingCard).max(8), communityId: landingCommunityId.optional() }).strict();
 export type LandingDefinition = z.infer<typeof landingDefinition>;
 export type LandingCard = LandingDefinition["cards"][number];
 export const emptyLanding: LandingDefinition = { heading: "", message: "", cards: [] };
 /** JSONB reorders object keys; dirty detection compares content and card order. */
 export function sameLandingDefinition(a: LandingDefinition, b: LandingDefinition) {
-  const key = (d: LandingDefinition) => JSON.stringify([d.heading, d.message, d.cards.map(c => c.kind === "resource"
+  const key = (d: LandingDefinition) => JSON.stringify([d.heading, d.message, d.communityId ?? null, d.cards.map(c => c.kind === "resource"
     ? [c.kind, c.resourceId] : [c.kind, c.category, c.title, c.description, c.url, c.price])]);
   return key(a) === key(b);
 }
 export const landingExpectation = z.object({ expectedRevision: z.number().int().min(0).max(2147483646), expectedCode: z.string().regex(publicCodePattern) }).strict();
 export const saveLandingInput = landingExpectation.extend({ definition: landingDefinition }).strict();
+/** The public fields of a recommended community, as the guest page shows them. */
+export type LandingCommunity = { slug: string; name: string; tagline: string | null };
+/** The QR code a community join may carry back for a count (a QR or short code: link-level, never a person). */
+export const landingJoinCode = z.string().regex(/^(?:[a-f0-9]{32}|[0-9A-HJKMNP-TV-Z]{12})$/);
