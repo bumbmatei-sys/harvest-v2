@@ -971,8 +971,50 @@
     {
       "idx": 141,
       "version": "7",
-      "when": 1795806342656,
-      "tag": "0170_feature_access_scope",
+      "when": 1795807824409,
+      "tag": "0141_bio_gallery",
+      "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1795814292630,
+      "tag": "0142_ownership_transfer",
+      "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "7",
+      "when": 1795816190884,
+      "tag": "0143_volunteer_roster",
+      "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1795817835318,
+      "tag": "0144_catalog_resources",
+      "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1795819500579,
+      "tag": "0145_ministry_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 146,
+      "version": "7",
+      "when": 1795825302385,
+      "tag": "0146_ministry_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "7",
+      "when": 1795828729119,
+      "tag": "0147_feature_access_scope",
       "breakpoints": true
     }
   ]

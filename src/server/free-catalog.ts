@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
-import { auditLogs, catalogItems, catalogLessons, catalogLevels, catalogSections, catalogFiles, communities, communityProductLinks, files } from "../db/schema";
+import { auditLogs, catalogItems, catalogLessonAttachments, catalogLessons, catalogLevels, catalogSections, catalogFiles, communities, communityProductLinks, files } from "../db/schema";
+import { catalogPublicationVisibilities, legacyCatalogVisibility, type CatalogPublicationVisibility } from "../lib/catalog";
+import { coverMimes } from "../lib/forum";
 import { sanitizeRichText, type RichDoc } from "../lib/rich-text";
 import { parseVideoLink, type LessonVideo } from "../lib/lesson-video";
 import { labelLimit, maxLevels, maxSections, type CourseLabels } from "../lib/course-structure";
@@ -21,10 +23,12 @@ const title = z.string().trim().min(1).max(120).refine((value) => !value.include
 const version = z.number().int().min(1).max(2_147_483_646);
 const fields = {
   title, slug: slugSchema, summary: z.string().max(2000).refine((value) => !value.includes("\u0000")).default(""),
-  visibility: z.enum(["hidden", "unlisted", "listed"]).default("hidden"),
+  visibility: z.enum(["hidden", "unlisted", "listed", "community", "public"]).default("hidden"),
+  coverFileId: uuid.nullable().optional(),
 };
 const plain = (value: string) => !/[\u0000-\u001f\u007f]/.test(value);
-const lesson = z.object({ id: uuid.optional(), title, published: z.boolean(), body: z.unknown(), videoUrl: z.string().max(2048).nullable().optional() }).strict()
+const attachmentIds = z.array(uuid).max(20).refine(ids => new Set(ids).size === ids.length);
+const lesson = z.object({ attachmentFileIds: attachmentIds.optional(), id: uuid.optional(), title, published: z.boolean(), body: z.unknown(), videoUrl: z.string().max(2048).nullable().optional() }).strict()
   .transform(({ videoUrl, ...input }, ctx) => {
     const body = sanitizeRichText(input.body);
     if (!body || Buffer.byteLength(JSON.stringify(body)) > 28_000) {
@@ -72,7 +76,7 @@ const invalid = () => new AccessError(400, message("Errors.checkTheSuppliedDetai
 
 type Draft = z.infer<typeof draft>;
 type Item = typeof catalogItems.$inferSelect;
-type Metadata = { slug: string; title: string; summary: string; kind: Item["kind"] };
+type Metadata = { slug: string; title: string; summary: string; kind: Item["kind"]; priceLabel?: string; hasCover?: boolean };
 type Content = Metadata & { lessons: { id: string; title: string; body: RichDoc; sectionId?: string; video?: LessonVideo | null }[]; files: { id: string; name: string }[];
   labels?: CourseLabels; levels?: { id: string; title: string }[]; sections?: { id: string; levelId: string | null; title: string }[];
   /** 0131: the caller's own completed lessons and notes (published lessons only). */
@@ -133,16 +137,22 @@ async function lockItem(tx: Transaction, tenant: string, id: string) {
 }
 const editorialMetadata = {
   id: catalogItems.id, kind: catalogItems.kind, slug: catalogItems.slug, title: catalogItems.title, summary: catalogItems.summary,
-  state: catalogItems.state, visibility: catalogItems.visibility, version: catalogItems.version, updatedAt: catalogItems.updatedAt,
+  state: catalogItems.state, visibility: catalogItems.visibility, coverFileId: catalogItems.coverFileId, priceLabel: catalogItems.priceLabel, version: catalogItems.version, updatedAt: catalogItems.updatedAt,
+};
+const catalogView = <T extends Pick<Item, "visibility" | "state">>(row: T) => {
+  const visibility = legacyCatalogVisibility(row.visibility);
+  const publicationVisibility: CatalogPublicationVisibility = row.state === "draft" ? "draft"
+    : visibility === "listed" ? "public" : visibility === "hidden" ? "community" : "unlisted";
+  return { ...row, visibility, publicationVisibility };
 };
 const audit = (tx: Transaction, tenantId: string, actorId: string, action: string, item: Item) =>
   tx.insert(auditLogs).values({ tenantId, actorId, action, targetId: item.id, metadata: { state: item.state, version: String(item.version) } });
 
 export function listCatalog(db: Database, user: string, tenant: string, after: string | null) {
-  return ministry(db, user, tenant, false, (tx, scope) =>
-    tx.select(editorialMetadata).from(catalogItems)
+  return ministry(db, user, tenant, false, async (tx, scope) =>
+    (await tx.select(editorialMetadata).from(catalogItems)
       .where(and(eq(catalogItems.tenantId, scope), after === null ? undefined : sql`${catalogItems.id} > ${uuid.parse(after)}::uuid`))
-      .orderBy(catalogItems.id).limit(50));
+      .orderBy(catalogItems.id).limit(50)).map(catalogView));
 }
 export function getCatalogDraft(db: Database, user: string, tenant: string, id: string) {
   return ministry(db, user, tenant, false, async (tx, scope, role) => {
@@ -150,11 +160,15 @@ export function getCatalogDraft(db: Database, user: string, tenant: string, id: 
     const query = tx.select(editorialMetadata).from(catalogItems).where(itemScope(scope, id));
     const [item] = await (author ? query.for("share") : query);
     if (!item) throw notFound();
-    if (!author) return item;
+    if (!author) return catalogView(item);
     const rows = await tx.select({ id: catalogLessons.id, title: catalogLessons.title, body: catalogLessons.body, published: catalogLessons.published,
       sectionId: catalogLessons.sectionId, videoProvider: catalogLessons.videoProvider, videoId: catalogLessons.videoId })
       .from(catalogLessons).where(and(eq(catalogLessons.tenantId, scope), eq(catalogLessons.itemId, id))).orderBy(asc(catalogLessons.position));
-    const lessons = rows.map(({ videoProvider, videoId, ...row }) => ({ ...row, video: videoProvider && videoId ? { provider: videoProvider, id: videoId } : null }));
+    const attachments = await tx.select({ lessonId: catalogLessonAttachments.lessonId, fileId: catalogLessonAttachments.fileId })
+      .from(catalogLessonAttachments).where(and(eq(catalogLessonAttachments.tenantId, scope), eq(catalogLessonAttachments.itemId, id)))
+      .orderBy(catalogLessonAttachments.position);
+    const lessons = rows.map(({ videoProvider, videoId, ...row }) => ({ ...row,
+      attachmentFileIds: attachments.filter(file => file.lessonId === row.id).map(file => file.fileId), video: videoProvider && videoId ? { provider: videoProvider, id: videoId } : null }));
     const levels = await tx.select({ id: catalogLevels.id, title: catalogLevels.title }).from(catalogLevels)
       .where(and(eq(catalogLevels.tenantId, scope), eq(catalogLevels.itemId, id))).orderBy(asc(catalogLevels.position));
     const sections = await tx.select({ id: catalogSections.id, levelId: catalogSections.levelId, title: catalogSections.title }).from(catalogSections)
@@ -166,7 +180,7 @@ export function getCatalogDraft(db: Database, user: string, tenant: string, id: 
     // The communities that show this item on their shelf (a link confers no access). Authors only, like the lessons.
     const shelves = await tx.select({ id: communityProductLinks.communityId }).from(communityProductLinks)
       .where(and(eq(communityProductLinks.tenantId, scope), eq(communityProductLinks.itemId, id))).orderBy(asc(communityProductLinks.communityId));
-    return { ...item, lessons, levels, sections, labels: named, fileIds: downloads.map((file) => file.id), communityIds: shelves.map((link) => link.id) };
+    return { ...catalogView(item), lessons, levels, sections, labels: named, fileIds: downloads.map((file) => file.id), communityIds: shelves.map((link) => link.id) };
   });
 }
 async function writeDraft(tx: Transaction, item: Item, input: Draft) {
@@ -193,14 +207,24 @@ async function writeDraft(tx: Transaction, item: Item, input: Draft) {
     if (sections.length) await tx.insert(catalogSections).values(sections.map((row, position) =>
       ({ ...owner, id: row.key, levelId: row.level, title: row.title, position })))
       .onConflictDoUpdate(upsert(catalogSections, { title: sql`excluded.title`, position: sql`excluded.position`, levelId: sql`excluded.level_id` }));
-    const lessonRows = lessons.map(({ section: sectionId, video, id, ...row }, position) =>
-      ({ ...row, ...owner, id: id ?? randomUUID(), position, sectionId, videoProvider: video?.provider ?? null, videoId: video?.id ?? null }));
-    if (lessonRows.length) await tx.insert(catalogLessons).values(lessonRows)
+    const lessonRows = lessons.map(({ section: sectionId, video, id, attachmentFileIds, ...row }, position) =>
+      ({ record: { ...row, ...owner, id: id ?? randomUUID(), position, sectionId, videoProvider: video?.provider ?? null, videoId: video?.id ?? null }, attachmentFileIds }));
+    if (lessonRows.length) await tx.insert(catalogLessons).values(lessonRows.map(({ record }) => record))
       .onConflictDoUpdate(upsert(catalogLessons, { title: sql`excluded.title`, body: sql`excluded.body`, published: sql`excluded.published`, position: sql`excluded.position`,
         sectionId: sql`excluded.section_id`, videoProvider: sql`excluded.video_provider`, videoId: sql`excluded.video_id` }));
+    const configured = lessonRows.filter(row => row.attachmentFileIds !== undefined);
+    const requested = [...new Set(configured.flatMap(row => row.attachmentFileIds ?? []))];
+    await requireCatalogAssets(tx, item.tenantId, requested);
+    if (configured.length) {
+      await tx.delete(catalogLessonAttachments).where(and(eq(catalogLessonAttachments.tenantId, item.tenantId),
+        eq(catalogLessonAttachments.itemId, item.id), inArray(catalogLessonAttachments.lessonId, configured.map(({ record }) => record.id))));
+      const attachments = configured.flatMap(({ record, attachmentFileIds }) =>
+        (attachmentFileIds ?? []).map((fileId, position) => ({ ...owner, lessonId: record.id, fileId, position })));
+      if (attachments.length) await tx.insert(catalogLessonAttachments).values(attachments);
+    }
     const keep = (ids: string[], column: typeof catalogLessons.id | typeof catalogSections.id | typeof catalogLevels.id) =>
       ids.length ? sql`${column} not in (${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)})` : sql`true`;
-    await tx.delete(catalogLessons).where(and(scope, keep(lessonRows.map((row) => row.id), catalogLessons.id)));
+    await tx.delete(catalogLessons).where(and(scope, keep(lessonRows.map(({ record }) => record.id), catalogLessons.id)));
     await tx.delete(catalogSections).where(and(sectionScope, keep(sections.map((row) => row.key), catalogSections.id)));
     await tx.delete(catalogLevels).where(and(levelScope, keep(levels.map((row) => row.key), catalogLevels.id)));
   } else {
@@ -214,16 +238,24 @@ async function writeDraft(tx: Transaction, item: Item, input: Draft) {
       ({ fileId, position, tenantId: item.tenantId, itemId: item.id })));
   }
 }
+async function requireCatalogAssets(tx: Transaction, tenant: string, ids: string[], image = false) {
+  if (!ids.length) return;
+  const rows = await tx.select({ id: files.id }).from(files).where(and(eq(files.tenantId, tenant), inArray(files.id, ids),
+    eq(files.status, "ready"), eq(files.visibility, "private"), eq(files.socialUpload, false),
+    image ? inArray(files.mime, [...coverMimes]) : undefined)).for("share");
+  if (rows.length !== ids.length) throw notFound();
+}
 const itemFields = (input: Draft) => {
-  const { title, summary, slug, visibility } = input;
+  const { title, summary, slug, visibility, coverFileId } = input;
   // Labels belong to the course. A save without them keeps the ones stored (the original API sends none).
   const named = input.kind === "course" && input.labels ? { levelLabel: input.labels.level, sectionLabel: input.labels.section, lessonLabel: input.labels.lesson } : {};
-  return { title, summary, slug, visibility, ...named };
+  return { title, summary, slug, visibility, ...(coverFileId === undefined ? {} : { coverFileId }), ...named };
 };
 
 export function createCatalogItem(db: Database, user: string, tenant: string, raw: unknown) {
   return ministry(db, user, tenant, true, async (tx, scope) => {
     const input = draft.parse(raw);
+    if (input.coverFileId) await requireCatalogAssets(tx, scope, [input.coverFileId], true);
     const [item] = await tx.insert(catalogItems).values({ ...itemFields(input), kind: input.kind, tenantId: scope, createdBy: user }).returning();
     await writeDraft(tx, item, input);
     await audit(tx, scope, user, "catalog.create", item);
@@ -236,14 +268,36 @@ export function updateCatalogItem(db: Database, user: string, tenant: string, id
     const input = edit.parse(raw);
     if (current.version !== input.version || current.state !== "draft") throw conflict();
     if (current.kind !== input.draft.kind) throw invalid();
+    if (input.draft.coverFileId) await requireCatalogAssets(tx, scope, [input.draft.coverFileId], true);
     await writeDraft(tx, current, input.draft);
-    const [item] = await tx.update(catalogItems).set({ ...itemFields(input.draft), version: current.version + 1, updatedAt: new Date() })
+    const fields = itemFields(input.draft);
+    if (fields.visibility === legacyCatalogVisibility(current.visibility)) fields.visibility = current.visibility;
+    const [item] = await tx.update(catalogItems).set({ ...fields, version: current.version + 1, updatedAt: new Date() })
       .where(itemScope(scope, id)).returning();
     await audit(tx, scope, user, "catalog.edit", item);
     await refreshDiscoverListing(tx, scope, item.kind === "course" ? "course" : "product", id);
     return { id, version: item.version };
   });
 }
+const publication = z.object({ version, visibility: z.enum(catalogPublicationVisibilities).optional(),
+  coverFileId: uuid.nullable().optional() }).strict().refine(value => value.visibility !== undefined || value.coverFileId !== undefined);
+
+export function setCatalogPublication(db: Database, user: string, tenant: string, id: string, raw: unknown) {
+  return ministry(db, user, tenant, true, async (tx, scope) => {
+    const current = await lockItem(tx, scope, id);
+    const input = publication.parse(raw);
+    if (current.version !== input.version || current.state === "archived") throw conflict();
+    if (input.coverFileId) await requireCatalogAssets(tx, scope, [input.coverFileId], true);
+    const state = input.visibility === "draft" ? "draft" : current.state;
+    const visibility = input.visibility === undefined || input.visibility === "draft" ? current.visibility : input.visibility;
+    const [item] = await tx.update(catalogItems).set({ state, visibility, coverFileId: input.coverFileId,
+      version: current.version + 1, updatedAt: new Date() }).where(itemScope(scope, id)).returning();
+    await audit(tx, scope, user, "catalog.publication", item);
+    await refreshDiscoverListing(tx, scope, item.kind === "course" ? "course" : "product", id);
+    return { version: item.version, state: item.state, visibility: catalogView(item).publicationVisibility, coverFileId: item.coverFileId };
+  });
+}
+
 export function setCatalogState(db: Database, user: string, tenant: string, id: string, raw: unknown) {
   return ministry(db, user, tenant, true, async (tx, scope) => {
     const current = await lockItem(tx, scope, id);
@@ -309,7 +363,7 @@ export function listCommunityShelf(db: Database, user: string, tenant: string, c
         eq(communityProductLinks.itemId, catalogItems.id), eq(communityProductLinks.communityId, communityId)))
       .where(and(eq(catalogItems.tenantId, scope), eq(catalogItems.state, "published")))
       .orderBy(sql`${communityProductLinks.position} is null`, desc(communityProductLinks.featured), asc(communityProductLinks.position), asc(catalogItems.title), asc(catalogItems.id)).limit(500);
-    return rows.map(({ position, featured, ...row }) => ({ ...row, linked: position !== null, position, featured: featured === true }));
+    return rows.map(({ position, featured, ...row }) => ({ ...row, visibility: legacyCatalogVisibility(row.visibility), linked: position !== null, position, featured: featured === true }));
   });
 }
 const arrangement = z.object({ kind: z.enum(["course", "download"]), order: z.array(uuid).max(500).refine((ids) => new Set(ids).size === ids.length),

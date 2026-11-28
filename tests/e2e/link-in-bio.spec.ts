@@ -15,8 +15,8 @@ const post = (page: Page, url: string, data: unknown = {}) => page.request.post(
 /** axe, retried when the dev server reloads the page mid-run (a late compile or a restart); a real violation is returned, never retried away. */
 async function axe(page: Page) {
   for (let attempt = 0; ; attempt++) {
-    try { return (await new AxeBuilder({ page }).exclude("iframe").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations; }
-    catch (error) { if (attempt >= 3 || !/Execution context was destroyed|navigat/i.test(String(error))) throw error; await page.waitForLoadState("load"); await settleForAxe(page); }
+    try { await settleForAxe(page); return (await new AxeBuilder({ page }).exclude("iframe").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations; }
+    catch (error) { if (attempt >= 6 || !/Execution context was destroyed|navigat|appendChild/i.test(String(error))) throw error; await page.waitForTimeout(2000); await page.waitForLoadState("load"); }
   }
 }
 /** One scene per width and scheme: axe (WCAG 2.0 to 2.2 A and AA), no horizontal overflow, and a screenshot. */
@@ -29,7 +29,6 @@ async function audit(page: Page, name: string, ready: string, prepare?: () => Pr
     await prepare?.();
     for (const [label, width, height] of sizes) {
       await page.setViewportSize({ width, height });
-      await settleForAxe(page);
       const found = await axe(page);
       expect(found.map((v) => `${label}/${scheme} ${v.id}: ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(" | ")}`)).toEqual([]);
       // Allow a late layout pass (fonts, the tab carousel measuring itself) before judging sideways overflow; name the widest element when it fails.

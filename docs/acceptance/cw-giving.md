@@ -90,7 +90,7 @@ IBAN one; a unit test keeps its list identical to the code's), and again on ever
 
 ## Reuse and exceptions
 - Reused: Item/ItemGroup, Button, Switch, Dialog, Field/Input, Alert, SearchableSelect, EmptyState, FormSection, StatusBadge, ConfirmDialog, CopyButton,
-  link-in-bio Row/EditorShell and `safeHttpsUrl`. No new kit items, no new dependencies. Brand logos (founder request 26 Nov) come from Simple Icons 16.38.1 (CC0-1.0, copied, not installed) for 12 kinds; bank transfer and the 8 brands without a verified mark keep generic lucide icons (`src/components/giving/giving-logos.tsx`, docs/ui-sources.md "Ways to give logos").
+  link-in-bio Row/EditorShell and `safeHttpsUrl`. Rebuilt on 27 Nov from the approved kit items list-block29 (manager), dashboard-modal22 (method dialog), payment-methods1 and dashboard-modal14 (public block, Report); no new dependencies. Brand logos (founder request 26 Nov) come from Simple Icons 16.38.1 (CC0-1.0, copied, not installed) for 12 kinds; bank transfer and the 8 brands without a verified mark keep generic lucide icons (`src/components/giving/giving-logos.tsx`, docs/ui-sources.md "Ways to give logos").
 - Kind names (PayPal, Wise, Venmo, Zelle, Revolut, Cash App) are the ministry's own account labels at the founder's request; all other copy is provider-neutral.
 
 ## Evidence (author-executed)
