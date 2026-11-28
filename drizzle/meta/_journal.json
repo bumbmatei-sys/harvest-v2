@@ -1016,6 +1016,13 @@
       "when": 1795828729119,
       "tag": "0147_feature_access_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1795830296566,
+      "tag": "0148_community_points",
+      "breakpoints": true
     }
   ]
 }

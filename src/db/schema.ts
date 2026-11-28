@@ -4112,6 +4112,76 @@ export const blogPosts = pgTable("blog_posts", {
   check("blog_posts_version", sql`${t.version} >= 1`),
 ]);
 
+// Community points are projected from authoritative activity. Only the scoped points function reads or writes these tables.
+export const communityPointSettings = pgTable("community_point_settings", {
+  enabled: boolean("enabled").notNull().default(false),
+  tenantId: uuid("tenant_id").notNull(),
+  communityId: uuid("community_id").notNull(),
+  postPoints: integer("post_points").notNull().default(5),
+  replyPoints: integer("reply_points").notNull().default(2),
+  lessonPoints: integer("lesson_points").notNull().default(10),
+  eventPoints: integer("event_points").notNull().default(15),
+  thresholds: integer("thresholds").array().notNull().default(sql`ARRAY[25, 100, 250]`),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.communityId] }),
+  foreignKey({ name: "point_settings_community_fk", columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  check("community_point_settings_post_points_check", sql`${t.postPoints} BETWEEN 0 AND 1000`),
+  check("community_point_settings_reply_points_check", sql`${t.replyPoints} BETWEEN 0 AND 1000`),
+  check("community_point_settings_lesson_points_check", sql`${t.lessonPoints} BETWEEN 0 AND 1000`),
+  check("community_point_settings_event_points_check", sql`${t.eventPoints} BETWEEN 0 AND 1000`),
+]);
+
+export const communityPointAttendance = pgTable("community_point_attendance", {
+  tenantId: uuid("tenant_id").notNull(),
+  communityId: uuid("community_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  userId: text("user_id").notNull(),
+}, (t) => [
+  primaryKey({ name: "point_attendance_pk", columns: [t.tenantId, t.communityId, t.eventId, t.userId] }),
+  foreignKey({ name: "point_attendance_event_link_fk", columns: [t.tenantId, t.eventId, t.communityId], foreignColumns: [communityEventLinks.tenantId, communityEventLinks.eventId, communityEventLinks.communityId] }).onDelete("cascade"),
+  foreignKey({ name: "point_attendance_member_fk", columns: [t.tenantId, t.communityId, t.userId], foreignColumns: [communityMemberships.tenantId, communityMemberships.communityId, communityMemberships.userId] }).onDelete("cascade"),
+]);
+
+export const communityChallenges = pgTable("community_challenges", {
+  tenantId: uuid("tenant_id").notNull(),
+  communityId: uuid("community_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  title: text("title").notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  goal: text("goal", { enum: ["post", "reply", "lesson", "event"] }).notNull(),
+  target: integer("target").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.communityId, t.id] }),
+  foreignKey({ name: "community_challenges_community_fk", columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  check("community_challenges_title_check", sql`length(btrim(${t.title})) BETWEEN 1 AND 120 AND ${t.title} !~ '[[:cntrl:]]'`),
+  check("community_challenges_ends_at_check", sql`${t.endsAt} > ${t.startsAt}`),
+  check("community_challenges_goal_check", sql`${t.goal} IN ('post', 'reply', 'lesson', 'event')`),
+  check("community_challenges_target_check", sql`${t.target} BETWEEN 1 AND 10000`),
+]);
+
+export const communityChallengeMembers = pgTable("community_challenge_members", {
+  tenantId: uuid("tenant_id").notNull(),
+  communityId: uuid("community_id").notNull(),
+  challengeId: uuid("challenge_id").notNull(),
+  userId: text("user_id").notNull(),
+  joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (t) => [
+  primaryKey({ name: "challenge_members_pk", columns: [t.tenantId, t.communityId, t.challengeId, t.userId] }),
+  foreignKey({ name: "challenge_members_challenge_fk", columns: [t.tenantId, t.communityId, t.challengeId], foreignColumns: [communityChallenges.tenantId, communityChallenges.communityId, communityChallenges.id] }).onDelete("cascade"),
+  foreignKey({ name: "challenge_members_member_fk", columns: [t.tenantId, t.communityId, t.userId], foreignColumns: [communityMemberships.tenantId, communityMemberships.communityId, communityMemberships.userId] }).onDelete("cascade"),
+]);
+
+export const communityPointsHiddenMembers = pgTable("community_points_hidden_members", {
+  tenantId: uuid("tenant_id").notNull(),
+  communityId: uuid("community_id").notNull(),
+  userId: text("user_id").notNull(),
+}, (t) => [
+  primaryKey({ name: "point_hidden_member_pk", columns: [t.tenantId, t.communityId, t.userId] }),
+  foreignKey({ name: "point_hidden_member_fk", columns: [t.tenantId, t.communityId, t.userId], foreignColumns: [communityMemberships.tenantId, communityMemberships.communityId, communityMemberships.userId] }).onDelete("cascade"),
+]);
+
 export const ministryPaymentAccounts = pgTable("ministry_payment_accounts", {
   tenantId: uuid("tenant_id").primaryKey().references(() => workspaces.tenantId),
   accountId: text("account_id").notNull().unique(),
