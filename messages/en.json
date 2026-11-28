@@ -2362,6 +2362,8 @@
     "expires": "Expires {date}",
     "noExpiry": "No expiry",
     "rotations": "{count, plural, =0 {Original code} one {Rotated once} other {Rotated # times}}",
+    "communityJoins": "{count, plural, one {# joined from this QR page} other {# joined from this QR page}}",
+    "communityJoinsFew": "Fewer than 5 joined from this QR page",
     "preview": "Preview",
     "present": "Present",
     "download": "Download",
@@ -2593,6 +2595,11 @@
     "formSeparation": "Response and account choices",
     "previewForm": "Preview only — submissions are disabled.",
     "publicationHelp": "Publishing updates the page at your existing QR code and short link. A paused or expired QR code stays unavailable.",
+    "recommendedCommunity": "Recommended community",
+    "noCommunity": "None",
+    "communityUnavailable": "No longer available",
+    "communityBadge": "Optional community",
+    "viewCommunity": "View community",
     "headingPlaceholder": "We’re glad you’re here",
     "messagePlaceholder": "Take a moment to explore these resources and choose your next step.",
     "cardsHelp": "Choose free Harvest guides or add a link to your community, course, or product. Visitors decide what to open.",
@@ -9816,6 +9823,7 @@
     "reset": "Reset",
     "resetFilters": "Reset filters",
     "sortLabel": "Sort by",
+    "recommended": "Recommended",
     "sorts": {
       "relevance": "Relevance",
       "newest": "Newest",
@@ -10077,7 +10085,31 @@
     "freeOnly": "Free only",
     "allCategories": "All categories",
     "searchCategories": "Search categories",
-    "noCategoryMatch": "No category found."
+    "noCategoryMatch": "No category found.",
+    "anyPrice": "Any price",
+    "moreNamed": "More options for {name}",
+    "includes": "What is inside",
+    "contents": {
+      "course": "Lessons",
+      "product": "Files",
+      "community": "Discussions"
+    },
+    "byLabel": "By",
+    "oldPrice": "Was",
+    "saleEndsDays": "Sale ends in {days}d {hours}h",
+    "saleEndsHours": "Sale ends in {hours}h {minutes}m",
+    "seeAll": "See all",
+    "seeAllNamed": "See all: {name}",
+    "scrollPrev": "Previous in {name}",
+    "scrollNext": "Next in {name}",
+    "shelves": {
+      "picks": "Picks",
+      "picksPersonal": "Based on what you joined",
+      "picksBody": "Approved listings to start with",
+      "newest": "New this week",
+      "free": "Free to start",
+      "all": "All"
+    }
   },
   "CatalogPublic": {
     "free": "Free",
@@ -11116,5 +11148,9 @@
     "signInAgain": "Sign in again",
     "removedConnections": "Your connected mail and calendar accounts (disconnected)",
     "disconnectFailed": "Could not disconnect your mail and calendar. Try again."
+  },
+  "Carousel": {
+    "previous": "Previous slide",
+    "next": "Next slide"
   }
 }

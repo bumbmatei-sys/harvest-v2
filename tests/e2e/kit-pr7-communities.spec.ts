@@ -168,9 +168,10 @@ test("community screens: member list, moderation queue, Discover and feed cards,
     await test.step("Discover: cards with the initials band and the open filter", async () => {
       const p = outsider.page;
       await p.goto("/discover");
-      await expect(p.getByRole("heading", { name: "Kit Youth Group", level: 2 })).toBeVisible();
-      await expect(p.getByRole("link", { name: "View Kit Youth Group" })).toBeVisible();
-      await tall(p.getByRole("link", { name: "View Kit Youth Group" }));
+      await expect(p.getByRole("heading", { name: "Kit Youth Group", level: 3 })).toBeVisible();
+      await expect(p.getByRole("link", { name: "Kit Youth Group", exact: true })).toBeVisible();
+      // The title link stretches over the whole card (after:inset-0), so the tap target is the card.
+      await tall(p.locator("[data-slot=listing-card]").filter({ has: p.getByRole("link", { name: "Kit Youth Group", exact: true }) }));
       await audit(p, "discover");
       await p.goto("/discover?q=zzzz-none");
       await expect(p.getByText("No results")).toBeVisible();

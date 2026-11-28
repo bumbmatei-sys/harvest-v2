@@ -581,7 +581,7 @@ Variants used: `select14` (searchable category dropdown with icons, chosen by th
 
 | Registry item | Free/premium | Retrieved | Approved (founder) | Files | Local changes |
 | --- | --- | --- | --- | --- | --- |
-| `product-card1` | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/listing-card.tsx` | Token-coloured category mark instead of a photo, type badge, name, summary, host, free badge, first joining route, Quick look, View and Report. Reused (26 Nov, C13/C16) by the community Classroom and Products tabs (`src/components/communities/community-shelf.tsx`): Quick look and Report are optional, an empty host line is left out, and an `action` slot replaces View with the free enrol, Continue or Open step. No new kit item. |
+| `product-card1` | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/listing-card.tsx` (**superseded 27 Nov 2026 by `product-cards8`**, see Discover redesign) | Token-coloured category mark instead of a photo, type badge, name, summary, host, free badge, first joining route, Quick look, View and Report. Reused (26 Nov, C13/C16) by the community Classroom and Products tabs (`src/components/communities/community-shelf.tsx`): Quick look and Report are optional, an empty host line is left out, and an `action` slot replaces View with the free enrol, Continue or Open step. No new kit item. |
 | `product-quickview2` | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/quick-look.tsx` | Compact dialog with the public fields as a definition list, Report and Open page. |
 | `select14` | free (corrected 2026-11-26, see the tier check) | 2026-11-25 | 2026-11-25 | `src/components/searchable-select.tsx` | Shared searchable select with icons and an all row; Discover category filter. 26% identical lines (imports, trigger). |
 | `product-list7` (second file) | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/discover-browser.tsx` | Result count, type tabs with facet counts, search and grid on the server's approved listings. |
@@ -589,6 +589,17 @@ Variants used: `select14` (searchable category dropdown with icons, chosen by th
 | `switch-card1` (second file) | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/list-in-discover.tsx` | Label, one line of text and a switch, with review status, category and language beneath; used in the community editor and My listings. |
 
 The shared filter popover is Harvest's CRM pattern (an icon-only filter button with a popover), reimplemented in `src/components/discover/filter-popover.tsx` for three fields because the CRM filter builder is bound to CRM fields (`src/components/crm/filter-builder.tsx`); exception recorded here, not a kit item.
+
+### Discover redesign (27 Nov 2026, PR #338)
+
+Founder rule 27 Nov 2026: start from the REAL kit code. The approved items' registry JSON (`https://shadcnuikit.com/r/<name>.json`) was fetched into a scratch folder outside the repository; `files[].content` was copied into the Harvest file and converted (catalogue text, theme tokens, 44px phone targets, real props instead of demo data, no remote images, no centred max-width wrapper). Layout and section order follow the founder's Eden Explore screenshot; style stays Studio Admin. No raw kit source is committed.
+
+| Registry item | Tier | Retrieved | Approved | Harvest file | Identical lines | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| `product-cards8` | premium | 2026-11-27 | 2026-11-27 | `src/components/discover/listing-card.tsx` | 30 of 134 (22%) | Supersedes `product-card1` (25 Nov) for the shared card. Demo property data, remote photo and the three-figure footer replaced by real fields, token fallback cover, menu (Quick look, Report), content tags, host and price, optional action and sale rows. |
+| `product-list4` | premium | 2026-11-27 | 2026-11-27 | `src/components/discover/discover-shelf.tsx` | 55 of 93 (59%) | Header, carousel options, `basis-70` items and arrows kept; demo products and star rating replaced by the shared card; wrapper width removed; 44px arrows with labels naming the shelf. |
+| `product-list5` | premium | 2026-11-27 | 2026-11-27 | `src/components/discover/discover-chips.tsx` | 10 of 44 (22%) | Rounded-full chip nav kept; became a reusable `ChipRow` (links for type, toggles for category and price). Its grid classes are used for the All grid in `discover-browser.tsx`. |
+| `carousel1` | free | 2026-11-27 | 2026-11-27 | none (see note) | n/a | The item is the demo of the stock carousel primitive only. `src/components/ui/carousel.tsx` is the stock shadcn carousel API written by hand (stock registry unreachable from agent sessions) on `embla-carousel-react` 8.6.0 (already approved); Harvest changes: catalogue arrow labels, 44px arrows below 1024px, instant scroll under reduced motion. |
 
 ### Campaign wizard steps 4 and 5 (25 Nov)
 

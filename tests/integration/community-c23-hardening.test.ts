@@ -41,7 +41,7 @@ const appGrants: Record<string, string> = {
   community_warnings: "S", // Points and challenges (C19): no app grants; reached only through the community_points definer.
   community_challenge_members: "", community_challenges: "", community_point_attendance: "", community_point_settings: "",
   community_points_hidden_members: "",
-  discover_controls: "SIU", discover_listings: "SIUD", discover_ministry_standing: "", discover_reports: "", discover_review_events: "",
+  connect_community_join_counts: "S", discover_controls: "SIU", discover_listings: "SIUD", discover_ministry_standing: "", discover_reports: "", discover_review_events: "",
 };
 
 // Reviewed definers that do not clear every app.* flag on entry. Each sets only its own single-purpose flag, keys every read on
@@ -156,8 +156,13 @@ describe("catalog", () => {
 
   it("never reads Harvest Connect responses, consents or follow-up cases from a community function (PRD edge case 16)", async () => {
     const fns = (await f.admin.query<Fn>(communityFunctions)).rows.filter((fn) => isCommunity(fn.proname));
-    const pastoral = /\b(campaign_responses|campaign_response_[a-z_]+|connect_[a-z_]+|response_account_claims|followup_cases|campaign_followup_team|crm_form_responses|fundraising_pledges)\b/;
-    expect(fns.filter((fn) => pastoral.test(fn.prosrc)).map((fn) => `${fn.proname}: ${fn.prosrc.match(pastoral)![0]}`)).toEqual([]);
+    // The founder's rule protects responses, consents and follow-up cases. Excluded exactly: campaign_response_links, which holds the public QR/short code,
+    // its status and expiry (C20 resolves the recommended community from it), and C20's published landing definition (connect_landing_states/versions,
+    // public guest page content) and its count-only connect_community_join_counts (no person column). app.connect_* flag names are settings, not reads.
+    const allowed = new Set(["campaign_response_links", "connect_landing_states", "connect_landing_versions", "connect_community_join_counts"]);
+    const pastoral = /(?<!\bapp\.)\b(campaign_responses|campaign_response_[a-z_]+|connect_[a-z_]+|response_account_claims|followup_cases|campaign_followup_team|crm_form_responses|fundraising_pledges)\b/g;
+    const reads = (src: string) => [...src.matchAll(pastoral)].map((m) => m[1]).filter((name) => !allowed.has(name));
+    expect(fns.filter((fn) => reads(fn.prosrc).length > 0).map((fn) => `${fn.proname}: ${reads(fn.prosrc)[0]}`)).toEqual([]);
     // Nor does any community policy.
     const { rows } = await f.admin.query(`select tablename, policyname from pg_policies where schemaname = 'public' and tablename ~ '^(communit|discover_)'
       and (coalesce(qual, '') || coalesce(with_check, '')) ~ '(campaign_respon|connect_|followup_cases|crm_form_responses)'`);
