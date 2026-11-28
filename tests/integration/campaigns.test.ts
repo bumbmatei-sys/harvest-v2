@@ -49,7 +49,8 @@ describe("CW-01 campaign tenancy and creation", () => {
       .toEqual([{ definition: "PRIMARY KEY (tenant_id, id)" }]);
     const grants = await fixture.admin.query("select has_table_privilege('harvest_app','campaigns','UPDATE') as update, has_table_privilege('harvest_app','campaigns','DELETE') as delete");
     expect(grants.rows).toEqual([{ update: false, delete: false }]);
-    expect((await fixture.admin.query("select roles = ARRAY['harvest_app']::name[] as runtime_only from pg_policies where tablename='campaigns' and policyname not in ('connect_definer_campaign_read','intake_campaign_lock','campaign_budget_definer_campaign')")).rows)
+    // The audited network aggregate has a migration-owner SELECT policy for counting linked campaigns.
+    expect((await fixture.admin.query("select roles = ARRAY['harvest_app']::name[] as runtime_only from pg_policies where tablename='campaigns' and policyname not in ('connect_definer_campaign_read','intake_campaign_lock','campaign_budget_definer_campaign','church_network_count')")).rows)
       .toEqual([{ runtime_only: true }, { runtime_only: true }, { runtime_only: true }, { runtime_only: true }]); // read, create, campaigns_set_status (owner/admin, status only) and campaigns_create_wizard (0106: a wizard Finish by someone other than the draft's creator)
     // HC-05 needs an exact-campaign owner UPDATE policy for PostgreSQL shared row locks. Since the campaign wizard (0092) harvest_app also
     // holds UPDATE on status and updated_at only, through campaigns_set_status for owners and admins. That is a different role and policy,

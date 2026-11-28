@@ -1065,6 +1065,13 @@
       "when": 1795852640836,
       "tag": "0154_product_landing",
       "breakpoints": true
+    },
+    {
+      "idx": 213,
+      "version": "7",
+      "when": 1795854524431,
+      "tag": "0213_church_network",
+      "breakpoints": true
     }
   ]
 }
