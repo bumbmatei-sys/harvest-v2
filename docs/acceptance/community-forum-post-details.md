@@ -1,0 +1,11 @@
+# Community forum posting and post details
+
+Working migration 0140 adds the `forumPosting` setting to the existing ministry community settings API. Its values are `everyone` (the default) and `hosts`. The post-create definer combines it with the category's existing host restriction. Owners, admins and moderators are hosts. Comments and replies continue to use their existing permissions. The forum context returns `forumPosting` and `canCreatePost`, and each category still returns `hostsOnly`.
+
+The existing create and edit routes accept optional `postDetails`. A supplied object replaces the details. Omit it for a legacy edit that preserves them. It accepts up to 10 ready photo upload IDs, a plain-text location of up to 240 characters, a feeling from `forumFeelings`, up to 10 current-member mention IDs, and up to 5 linked items. A member block prevents tagging in either direction. Photos reuse the community file readiness and download checks. Older clients can still send five generic attachments. Photos in either list count toward the ten-photo cap. Mentions appear on the post and do not emit notifications in this slice.
+
+The host picker is `GET /api/communities/:slug/posts/linkable-items?kind=…&q=…&page=…`. It returns up to 25 matching cards and a `hasMore` flag. Linked items store their kind and ID only. Feed and post detail resolve their cards for the current viewer. Published catalog resources and hosted form publications use their public routes. Event links use existing access and placement checks. An unavailable reference has the label “No longer available” and omits the original title, image, and link. Location is returned as text for the client to build a maps link.
+
+Native articles still depend on the independent native blog changes in #315 and #316. The article picker is empty when the blog tables are absent. Once those changes ship, the forum uses the blog's published-only data and public article and image routes. The article path needs combined verification after those PRs land.
+
+The attachment rows have FORCE RLS and no direct application grant. The test fixture uses two ministries and verifies database refusals, visibility, and author anonymisation when a member leaves. Attachments remain readable through the same feed and detail rules. No HC-02 gate is activated.

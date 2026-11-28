@@ -1044,6 +1044,13 @@
       "when": 1795836104250,
       "tag": "0151_external_blog",
       "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1795837869990,
+      "tag": "0152_community_forum_post_details",
+      "breakpoints": true
     }
   ]
 }

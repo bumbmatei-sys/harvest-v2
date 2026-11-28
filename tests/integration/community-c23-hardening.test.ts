@@ -37,7 +37,7 @@ const appGrants: Record<string, string> = {
   community_dm_participants: "S", community_dm_report_evidence: "", community_email_deliveries: "", community_email_feedback: "", community_email_feedback_grants: "", community_email_suppressions: "", community_event_links: "", community_exits: "S",
   community_files: "SIU", community_invites: "SIU", community_likes: "SIU", community_live_events: "S", community_member_profiles: "",
   community_memberships: "SIU", community_message_reactions: "S", community_messages: "S", community_moderation_actions: "S",
-  community_notifications: "SI", community_post_revisions: "S", community_posts: "SIU", community_product_links: "SIUD", community_reports: "S",
+  community_notifications: "SI", community_post_details: "", community_post_revisions: "S", community_posts: "SIU", community_product_links: "SIUD", community_reports: "S",
   community_warnings: "S", // Points and challenges (C19): no app grants; reached only through the community_points definer.
   community_challenge_members: "", community_challenges: "", community_point_attendance: "", community_point_settings: "",
   community_points_hidden_members: "",
