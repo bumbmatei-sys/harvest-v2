@@ -43866,6 +43866,339 @@
         }
       },
       "isRLSEnabled": false
+    },
+    "public.catalog_landings": {
+      "name": "catalog_landings",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subtitle": {
+          "name": "subtitle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "body": {
+          "name": "body",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "included": {
+          "name": "included",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "ARRAY[]::text[]"
+        },
+        "about_heading": {
+          "name": "about_heading",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "about_body": {
+          "name": "about_body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "about_photo_id": {
+          "name": "about_photo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "faq": {
+          "name": "faq",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "cta_quote": {
+          "name": "cta_quote",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "cta_label": {
+          "name": "cta_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "price_cents": {
+          "name": "price_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sale_cents": {
+          "name": "sale_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sale_starts_at": {
+          "name": "sale_starts_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sale_ends_at": {
+          "name": "sale_ends_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "catalog_landings_tenant_id_item_id_catalog_items_tenant_id_id_fk": {
+          "name": "catalog_landings_tenant_id_item_id_catalog_items_tenant_id_id_fk",
+          "tableFrom": "catalog_landings",
+          "tableTo": "catalog_items",
+          "columnsFrom": [
+            "tenant_id",
+            "item_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "catalog_landings_tenant_id_item_id_pk": {
+          "name": "catalog_landings_tenant_id_item_id_pk",
+          "columns": [
+            "tenant_id",
+            "item_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "catalog_landing_text": {
+          "name": "catalog_landing_text",
+          "value": "length(\"catalog_landings\".\"subtitle\") <= 160 and length(\"catalog_landings\".\"about_heading\") <= 120 and length(\"catalog_landings\".\"about_body\") <= 1500\n    and length(\"catalog_landings\".\"cta_quote\") <= 280 and length(\"catalog_landings\".\"cta_label\") <= 40 and cardinality(\"catalog_landings\".\"included\") <= 12"
+        },
+        "catalog_landing_lists": {
+          "name": "catalog_landing_lists",
+          "value": "jsonb_typeof(\"catalog_landings\".\"faq\") = 'array' and jsonb_array_length(\"catalog_landings\".\"faq\") <= 12\n    and (\"catalog_landings\".\"body\" is null or (jsonb_typeof(\"catalog_landings\".\"body\") = 'object' and octet_length(\"catalog_landings\".\"body\"::text) <= 65536))"
+        },
+        "catalog_landing_price": {
+          "name": "catalog_landing_price",
+          "value": "(\"catalog_landings\".\"price_cents\" is null and \"catalog_landings\".\"currency\" is null and \"catalog_landings\".\"sale_cents\" is null)\n    or (\"catalog_landings\".\"price_cents\" between 100 and 10000000 and \"catalog_landings\".\"currency\" in ('USD','EUR','GBP'))"
+        },
+        "catalog_landing_sale": {
+          "name": "catalog_landing_sale",
+          "value": "(\"catalog_landings\".\"sale_cents\" is null and \"catalog_landings\".\"sale_starts_at\" is null and \"catalog_landings\".\"sale_ends_at\" is null)\n    or (\"catalog_landings\".\"sale_cents\" > 0 and \"catalog_landings\".\"sale_cents\" < \"catalog_landings\".\"price_cents\" and \"catalog_landings\".\"sale_starts_at\" is not null and \"catalog_landings\".\"sale_ends_at\" > \"catalog_landings\".\"sale_starts_at\")"
+        },
+        "catalog_landing_version": {
+          "name": "catalog_landing_version",
+          "value": "\"catalog_landings\".\"version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.catalog_reviews": {
+      "name": "catalog_reviews",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rating": {
+          "name": "rating",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "hidden_at": {
+          "name": "hidden_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hidden_by": {
+          "name": "hidden_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "catalog_reviews_item_idx": {
+          "name": "catalog_reviews_item_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "catalog_reviews_user_id_users_id_fk": {
+          "name": "catalog_reviews_user_id_users_id_fk",
+          "tableFrom": "catalog_reviews",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "catalog_reviews_hidden_by_users_id_fk": {
+          "name": "catalog_reviews_hidden_by_users_id_fk",
+          "tableFrom": "catalog_reviews",
+          "tableTo": "users",
+          "columnsFrom": [
+            "hidden_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "catalog_reviews_tenant_id_item_id_catalog_items_tenant_id_id_fk": {
+          "name": "catalog_reviews_tenant_id_item_id_catalog_items_tenant_id_id_fk",
+          "tableFrom": "catalog_reviews",
+          "tableTo": "catalog_items",
+          "columnsFrom": [
+            "tenant_id",
+            "item_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "catalog_reviews_tenant_id_item_id_user_id_pk": {
+          "name": "catalog_reviews_tenant_id_item_id_user_id_pk",
+          "columns": [
+            "tenant_id",
+            "item_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "catalog_review_rating": {
+          "name": "catalog_review_rating",
+          "value": "\"catalog_reviews\".\"rating\" between 1 and 5"
+        },
+        "catalog_review_body": {
+          "name": "catalog_review_body",
+          "value": "length(\"catalog_reviews\".\"body\") <= 1000 and translate(\"catalog_reviews\".\"body\", E'\\n\\r\\t', '') !~ '[[:cntrl:]]'"
+        }
+      },
+      "isRLSEnabled": false
     }
   },
   "enums": {},

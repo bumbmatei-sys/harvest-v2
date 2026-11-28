@@ -160,7 +160,7 @@ it("checks ready private files at publication and at every signed download", asy
 it("forces RLS on every new table and denies raw cross-tenant operations", async () => {
   expect((await f.admin.query(`select relname from pg_class where relrowsecurity and relforcerowsecurity and
     (relname like 'catalog_%' or relname='community_product_links') order by relname`)).rows.map((row) => row.relname))
-    .toEqual(["catalog_asset_grants", "catalog_enrolments", "catalog_files", "catalog_items", "catalog_lesson_attachments", "catalog_lessons", "catalog_levels", "catalog_notes", "catalog_progress", "catalog_sections", "community_product_links"]);
+    .toEqual(["catalog_asset_grants", "catalog_enrolments", "catalog_files", "catalog_items", "catalog_landings", "catalog_lesson_attachments", "catalog_lessons", "catalog_levels", "catalog_notes", "catalog_progress", "catalog_reviews", "catalog_sections", "community_product_links"]);
   expect((await f.admin.query(`select roles::text[] as roles from pg_policies
     where schemaname='public' and tablename='files' and policyname='catalog_resolver_file'`)).rows)
     .toEqual([{ roles: [f.migrationOwner] }]);
