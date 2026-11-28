@@ -2,7 +2,8 @@ import { afterEach, expect, it, vi } from "vitest";
 import { catalogRoute } from "../../src/server/free-catalog-route";
 import { freeCatalogEnabled } from "../../src/server/free-catalog-mode";
 
-const mock = vi.hoisted(() => ({ getDb: vi.fn(), verifiedUser: vi.fn(), verifyOrigin: vi.fn() }));
+const mock = vi.hoisted(() => ({ getDb: vi.fn(), verifiedUser: vi.fn(), verifyOrigin: vi.fn(), getSession: vi.fn() }));
+vi.mock("../../src/server/auth-instance", () => ({ getAuth: () => ({ api: { getSession: mock.getSession } }) }));
 vi.mock("../../src/db/client", () => ({ getDb: mock.getDb }));
 vi.mock("../../src/server/http", () => ({ verifiedUser: mock.verifiedUser, verifyOrigin: mock.verifyOrigin }));
 
@@ -14,7 +15,7 @@ it("allows local work and keeps both production environments off with the flag e
   expect(freeCatalogEnabled({ NODE_ENV: "test", VERCEL_ENV: "production", HARVEST_COMMUNITIES: "enabled" })).toBe(false);
 });
 
-it.each(["public", "read", "write"] as const)("returns an empty 404 before auth, origin and DB work for %s requests", async (mode) => {
+it.each(["public", "optional", "read", "write"] as const)("returns an empty 404 before auth, origin and DB work for %s requests", async (mode) => {
   vi.stubEnv("NODE_ENV", "production");
   vi.stubEnv("HARVEST_COMMUNITIES", "enabled");
   const handler = vi.fn();
@@ -27,5 +28,18 @@ it.each(["public", "read", "write"] as const)("returns an empty 404 before auth,
   expect(handler).not.toHaveBeenCalled();
   expect(mock.getDb).not.toHaveBeenCalled();
   expect(mock.verifiedUser).not.toHaveBeenCalled();
+  expect(mock.getSession).not.toHaveBeenCalled();
   expect(mock.verifyOrigin).not.toHaveBeenCalled();
+});
+
+
+it("looks up an optional session only when a cookie is present", async () => {
+  const handler = vi.fn(async (_db, user: string) => ({ user }));
+  const route = catalogRoute(handler, "optional");
+  const input = { params: Promise.resolve({}) };
+  const url = "https://app.example.invalid/api/catalog/course";
+  expect(await (await route(new Request(url), input)).json()).toEqual({ user: "" });
+  expect(mock.getSession).not.toHaveBeenCalled();
+  mock.getSession.mockResolvedValueOnce({ user: { id: "learner" } });
+  expect(await (await route(new Request(url, { headers: { Cookie: "session=synthetic" } }), input)).json()).toEqual({ user: "learner" });
 });

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -11,17 +11,34 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { parseVideoLink, videoLink } from "@/lib/lesson-video";
-import { bioLimits, newBlockId, type BioBlock } from "@/lib/link-in-bio";
+import { bioLimits, moveItem, newBlockId, type BioBlock } from "@/lib/link-in-bio";
+import { coverAccept, coverFileProblem, uploadEventCover, type CoverProblem } from "@/lib/event-cover";
+import { cn } from "@/lib/utils";
 import type { BioChoices } from "@/server/link-in-bio";
 
-type NewBlock = Extract<BioBlock, { type: "catalog" | "files" | "form" | "video" | "contact" | "location" | "live" | "testimonials" }>;
+type NewBlock = Extract<BioBlock, { type: "catalog" | "files" | "form" | "video" | "contact" | "location" | "live" | "testimonials" | "gallery" | "share" | "countdown" }>;
 
 /** The editor fields of the block types added by the link in bio rework (PR 2). The older types keep their fields in the editor itself. */
-export function BioBlockFields({ block, patch, choices, issue }: { block: NewBlock; patch: (change: Record<string, unknown>) => void; choices: BioChoices; issue?: "url" | "required" }) {
+export function BioBlockFields({ block, patch, choices, issue, endpoint, galleryUrls }: { block: NewBlock; patch: (change: Record<string, unknown>) => void; choices: BioChoices; issue?: "url" | "required";
+  /** The page's API address (gallery uploads) and the signed previews of its gallery pictures. */
+  endpoint: string; galleryUrls: Record<string, string | null> }) {
   const t = useTranslations("LinkInBio.blocks");
   const [videoText, setVideoText] = useState(() => block.type === "video" && block.videoId ? videoLink({ provider: block.provider, id: block.videoId }) : "");
   const id = (name: string) => `${name}-${block.id}`;
   switch (block.type) {
+    case "gallery": return <GalleryFields block={block} patch={patch} endpoint={endpoint} urls={galleryUrls} />;
+    case "share": return <Field data-invalid={issue === "required" || undefined}><FieldLabel htmlFor={id("sh")}>{t("buttonText")}</FieldLabel>
+      <Input id={id("sh")} className="min-h-11" maxLength={bioLimits.messageTitle} value={block.title} aria-invalid={issue === "required" || undefined} onChange={(e) => patch({ title: e.target.value })} /></Field>;
+    case "countdown": return <>
+      <Field data-invalid={issue === "required" || undefined}><FieldLabel htmlFor={id("cdt")}>{t("countdownTitle")}</FieldLabel>
+        <Input id={id("cdt")} className="min-h-11" maxLength={bioLimits.label} value={block.title} aria-invalid={issue === "required" || undefined} onChange={(e) => patch({ title: e.target.value })} /></Field>
+      <Field data-invalid={issue === "url" || undefined}><FieldLabel htmlFor={id("cda")}>{t("countdownAt")}</FieldLabel>
+        <Input id={id("cda")} type="datetime-local" className="min-h-11" value={localValue(block.at)} aria-invalid={issue === "url" || undefined}
+          onChange={(e) => { const at = fromLocal(e.target.value); if (at) patch({ at }); }} /></Field>
+      <Field className="sm:col-span-2"><FieldLabel htmlFor={id("cdu")}>{t("countdownUrl")}</FieldLabel>
+        <Input id={id("cdu")} type="url" inputMode="url" className="min-h-11" maxLength={bioLimits.url} value={block.url} onChange={(e) => patch({ url: e.target.value })} />
+        {issue === "url" && <FieldError>{t("countdownProblem")}</FieldError>}</Field>
+    </>;
     case "catalog": case "files": {
       const options = (choices.catalog ?? []).filter((item) => block.type === "catalog" || item.kind === "download");
       const toggle = (itemId: string, on: boolean) => patch({ itemIds: on ? [...block.itemIds, itemId] : block.itemIds.filter((x) => x !== itemId) });
@@ -97,4 +114,44 @@ export function BioBlockFields({ block, patch, choices, issue }: { block: NewBlo
       </div>;
     }
   }
+}
+
+/** The browser's local date and time for a stored UTC moment, and back (the datetime-local field has no zone; the visitor's own zone is used). */
+const localValue = (iso: string) => { const time = Date.parse(iso); if (Number.isNaN(time)) return ""; const d = new Date(time - new Date(time).getTimezoneOffset() * 60_000); return d.toISOString().slice(0, 16); };
+const fromLocal = (value: string) => { const time = new Date(value).getTime(); return Number.isNaN(time) ? null : new Date(time).toISOString(); };
+
+/** Gallery pictures: upload through the same private, scanned path as the profile photo, then order and remove them. Up to twelve per block. */
+function GalleryFields({ block, patch, endpoint, urls }: { block: Extract<BioBlock, { type: "gallery" }>; patch: (change: Record<string, unknown>) => void; endpoint: string; urls: Record<string, string | null> }) {
+  const t = useTranslations("LinkInBio.blocks");
+  const [status, setStatus] = useState<"idle" | "busy" | CoverProblem>("idle");
+  const full = block.fileIds.length >= bioLimits.galleryPhotos;
+  async function add(file: File | undefined) {
+    if (!file || full) return;
+    const early = coverFileProblem(file);
+    if (early) { setStatus(early); return; }
+    setStatus("busy");
+    const result = await uploadEventCover(`${endpoint}/gallery`, file, { onPhase: () => undefined, onProgress: () => undefined });
+    if (!result.ok) { setStatus(result.problem); return; }
+    setStatus("idle"); patch({ fileIds: [...block.fileIds, result.fileId] });
+  }
+  return <div className="space-y-3 sm:col-span-2" data-bio-gallery-editor>
+    <Field><FieldLabel htmlFor={`gt-${block.id}`}>{t("sectionTitle")}</FieldLabel>
+      <Input id={`gt-${block.id}`} className="min-h-11" maxLength={bioLimits.messageTitle} value={block.title} onChange={(e) => patch({ title: e.target.value })} /></Field>
+    <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">{block.fileIds.map((fileId, index) => <li key={fileId} className="space-y-1">
+      <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-muted text-center text-xs text-muted-foreground">
+        {/* eslint-disable-next-line @next/next/no-img-element -- a signed address from the server */}
+        {urls[fileId] ? <img src={urls[fileId]!} alt={t("galleryPhoto", { position: index + 1 })} className="size-full object-cover" /> : <span className="p-2">{t("galleryChecking")}</span>}
+      </div>
+      <div className="flex">
+        <Button type="button" variant="ghost" size="icon" className="size-11" disabled={index === 0} aria-label={t("galleryMoveUp", { position: index + 1 })} onClick={() => patch({ fileIds: moveItem(block.fileIds, index, index - 1) })}><ArrowLeft aria-hidden="true" /></Button>
+        <Button type="button" variant="ghost" size="icon" className="size-11" aria-label={t("galleryRemove", { position: index + 1 })} disabled={block.fileIds.length <= 1} onClick={() => patch({ fileIds: block.fileIds.filter((x) => x !== fileId) })}><Trash2 aria-hidden="true" /></Button>
+      </div>
+    </li>)}</ul>
+    <div className="flex flex-wrap items-center gap-2">
+      <Label htmlFor={`gu-${block.id}`} className={cn("inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border px-4 text-sm font-medium has-[input:focus-visible]:ring-[3px] has-[input:focus-visible]:ring-ring/50", (full || status === "busy") && "pointer-events-none opacity-60")}>
+        <Upload className="size-4" aria-hidden="true" />{t("galleryAdd")}
+        <input id={`gu-${block.id}`} type="file" accept={coverAccept} className="sr-only" disabled={full || status === "busy"} data-testid="gallery-input" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; void add(file); }} /></Label>
+      <span className="text-sm text-muted-foreground" role="status">{status === "busy" ? t("galleryUploading") : status !== "idle" ? t("galleryProblem") : full ? t("maxItems", { max: bioLimits.galleryPhotos }) : ""}</span>
+    </div>
+  </div>;
 }

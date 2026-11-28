@@ -1,3 +1,4 @@
+import { readSiteAddresses } from "../lib/site-address";
 import { hasQaSignInBindings } from "./qa-sign-in-gate";
 import { qaDatabaseAllowed } from "./qa-database-allowlist";
 
@@ -71,7 +72,7 @@ export function qaShortcutNodeAccess(env: Env): { token: string; origin: string 
   const token = env.QA_PREVIEW_TOKEN;
   if (!token || token.trim().length < TOKEN_MIN || token === env.BETTER_AUTH_SECRET) return null;
   let origin: URL;
-  try { origin = new URL(env.BETTER_AUTH_URL ?? ""); } catch { return null; }
+  try { origin = new URL(readSiteAddresses(env).app); } catch { return null; }
   if (!loopback.includes(origin.hostname) || !["http:", "https:"].includes(origin.protocol)) return null;
   return { token, origin: origin.origin };
 }

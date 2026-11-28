@@ -445,6 +445,11 @@ describe("rework PR 2: new blocks (0140)", () => {
     expect((await getPublicBio(db(), "grace-church"))!.tabs[0].blocks.find((b) => b.id === "liveoff1")).toMatchObject({ type: "live", url: "https://example.org/live" });
     expect(await click("liveoff1", "203.0.113.91")).toBe(204);
     // Unpublishing an item takes it off the page at once, without republishing the page.
+    // A members-only item (visibility 'community') never shows on the public page; a public one does.
+    await fixture.admin.query("update catalog_items set visibility='community' where id=$1", [unlisted]);
+    expect(JSON.stringify(await getPublicBio(db(), "grace-church"))).not.toContain("Unlisted ebook");
+    await fixture.admin.query("update catalog_items set visibility='public' where id=$1", [unlisted]);
+    expect(JSON.stringify(await getPublicBio(db(), "grace-church"))).toContain("Unlisted ebook");
     await fixture.admin.query("update catalog_items set visibility='hidden' where id=$1", [listed]);
     expect(JSON.stringify(await getPublicBio(db(), "grace-church"))).not.toContain("Listed course");
   });
@@ -459,5 +464,75 @@ describe("rework PR 2: new blocks (0140)", () => {
       expect(clear).toEqual({ a: true, t: "" });
       await client.query("rollback");
     } finally { client.release(); }
+  });
+});
+
+describe("rework PR 3: gallery, share and countdown (0141)", () => {
+  const galleryFile = async (status: "ready" | "pending", tenant = people.tenant) => {
+    const page = await getBioPage(db(), tenant === people.tenant ? people.owner : people.outsider, tenant), id = randomUUID();
+    await fixture.admin.query("insert into bio_files(id,tenant_id,page_id,key,kind,name,mime,size,checksum,status) values($1,$2,$3,$4,'gallery','g.png','image/png',10,$5,$6)",
+      [id, tenant, page.id, `workspaces/${tenant}/bio/${page.id}/files/${id}`, "e".repeat(64), status]);
+    return id;
+  };
+  const publicPicture = (handle: string, file: string) => fixture.admin.query("select public.bio_public_gallery($1, $2::uuid) r", [handle, file]).then((r) => r.rows[0].r as { key: string } | null);
+  it("serves only ready gallery pictures that a shown gallery block of the published page lists", async () => {
+    const ready = await galleryFile("ready"), pending = await galleryFile("pending"), unlisted = await galleryFile("ready"), foreign = await galleryFile("ready", people.other);
+    const current = await getBioPage(db(), people.owner, people.tenant); version = current.version;
+    const blocks: BioDefinition["blocks"] = [
+      { type: "gallery", id: "gallery1", hidden: false, tab: "home", title: "Our church", fileIds: [ready, pending, foreign] },
+      { type: "share", id: "share001", hidden: false, tab: "home", title: "Share" },
+      { type: "countdown", id: "count001", hidden: false, tab: "home", title: "Easter", at: "2027-03-28T09:00:00.000Z", url: "" },
+    ];
+    await save(people.owner, undefined, { ...current.draft, layout: "single", blocks });
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
+    const view = (await getPublicBio(db(), "grace-church"))!;
+    expect(view.tabs[0].blocks.find((b) => b.id === "gallery1")).toMatchObject({ type: "gallery", fileIds: [ready] });
+    expect(view.tabs[0].blocks.map((b) => b.type)).toEqual(["gallery", "share", "countdown"]);
+    expect((await publicPicture("grace-church", ready))?.key).toContain(ready);
+    for (const other of [pending, unlisted, foreign]) expect(await publicPicture("grace-church", other)).toBeNull();
+    // Hidden block: the picture is no longer served.
+    await save(people.owner, undefined, { ...current.draft, layout: "single", blocks: blocks.map((b) => b.type === "gallery" ? { ...b, hidden: true } : b) });
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
+    expect(await publicPicture("grace-church", ready)).toBeNull();
+    // Owner preview: the gallery picture by id through the owner's definer; a gallery picture is never "set" on the page.
+    const { withUser } = await import("../../src/server/tenancy");
+    const operate = (action: string, file: string | null, input: object) => withUser(db(), people.owner, async (tx) => (await tx.execute(sql`select public.bio_photo_operate(${people.tenant}::uuid, ${action}, ${file}::uuid, ${JSON.stringify(input)}::jsonb) r`)).rows[0].r as { outcome: string });
+    expect((await operate("serve", ready, { kind: "gallery" })).outcome).toBe("ok");
+    expect((await operate("serve", pending, { kind: "gallery" })).outcome).toBe("not_found");
+    expect((await operate("set", ready, { kind: "gallery", version })).outcome).toBe("invalid");
+    expect((await withUser(db(), people.member, async (tx) => (await tx.execute(sql`select public.bio_photo_operate(${people.tenant}::uuid, 'serve', ${ready}::uuid, ${JSON.stringify({ kind: "gallery" })}::jsonb) r`)).rows[0].r as { outcome: string })).outcome).toBe("not_found");
+    // At most 60 gallery pictures in use per page: listed by a block of the draft or the published copy, or still uploading (last hour).
+    const page = await getBioPage(db(), people.owner, people.tenant);
+    await fixture.admin.query("update bio_files set retired_at=now() where page_id=$1 and kind='gallery'", [page.id]);
+    const sixty: string[] = [];
+    for (let i = 0; i < 60; i++) sixty.push(await galleryFile("ready"));
+    const galleryBlock = (fileIds: string[]) => ({ type: "gallery" as const, id: "gallery2", hidden: false, tab: "home", title: "", fileIds });
+    const draftWith = (lists: string[][]) => ({ ...page.draft, layout: "single" as const, blocks: [...lists.map((ids, n) => ({ ...galleryBlock(ids), id: `gallery${n + 2}` })), { type: "share" as const, id: "share001", hidden: false, tab: "home", title: "Share" }] });
+    version = page.version;
+    await save(people.owner, undefined, draftWith([0, 1, 2, 3, 4].map((n) => sixty.slice(n * 12, n * 12 + 12))));
+    const newUpload = () => operate("create", randomUUID(), { kind: "gallery", name: "g.png", mime: "image/png", size: 10, checksum: "f".repeat(64) });
+    expect((await newUpload()).outcome).toBe("invalid");
+    // Removed from every block (and never published): they no longer count, so one more upload is accepted.
+    await save(people.owner, undefined, draftWith([[sixty[0]]]));
+    expect((await newUpload()).outcome).toBe("ok");
+    // Uploads still waiting for their upload or scan count for an hour.
+    await fixture.admin.query("update bio_files set retired_at=now() where page_id=$1 and kind='gallery' and status='ready' and id <> $2", [page.id, sixty[0]]);
+    for (let i = 0; i < 58; i++) await galleryFile("pending");
+    expect((await newUpload()).outcome).toBe("invalid");
+    await fixture.admin.query("update bio_files set created_at=now() - interval '2 hours' where page_id=$1 and kind='gallery' and status='pending'", [page.id]);
+    expect((await newUpload()).outcome).toBe("ok");
+  });
+  it("draws the QR code of a published page only", async () => {
+    const { bioPageQr } = await import("../../src/server/link-in-bio-qr");
+    const { bioPageUrl } = await import("../../src/server/link-in-bio-qr");
+    const env = { ...process.env, BETTER_AUTH_URL: "https://harvest.example.invalid" };
+    const svg = await bioPageQr(db(), "grace-church", "svg", env);
+    expect(svg?.type).toBe("image/svg+xml"); expect(String(svg?.body)).toContain("<svg");
+    expect((await bioPageQr(db(), "grace-church", "png", env))?.type).toBe("image/png");
+    expect(await bioPageQr(db(), "no-such-page", "svg", env)).toBeNull();
+    // The encoded address is the configured site's, never a request's Host header; without a site address there is no code.
+    expect(bioPageUrl("grace-church", env)).toBe("https://harvest.example.invalid/l/grace-church");
+    expect(await bioPageQr(db(), "grace-church", "svg", { ...env, BETTER_AUTH_URL: undefined })).toBeNull();
+    expect((await getPublicBio(db(), "grace-church"))!.handle).toBe("grace-church");
   });
 });

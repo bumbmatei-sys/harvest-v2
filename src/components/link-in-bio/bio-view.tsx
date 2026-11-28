@@ -14,6 +14,9 @@ import { BioContact } from "@/components/link-in-bio/blocks/bio-contact";
 import { BioFileList } from "@/components/link-in-bio/blocks/bio-file-list";
 import { BioLocation } from "@/components/link-in-bio/blocks/bio-location";
 import { BioTestimonials } from "@/components/link-in-bio/blocks/bio-testimonials";
+import { BioCountdown } from "@/components/link-in-bio/blocks/bio-countdown";
+import { BioGallery } from "@/components/link-in-bio/blocks/bio-gallery";
+import { BioShare } from "@/components/link-in-bio/blocks/bio-share";
 import { isLegacyTabId, messageNotice, type BioView, type BioViewBlock } from "@/lib/link-in-bio";
 
 const host = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; } };
@@ -36,7 +39,9 @@ function runs(blocks: BioViewBlock[]) {
  * one row of icons, main action), then the owner's tabs (swipeable on a phone, `SwipeTabs`) or a single page. Built from Harvest components and Tailwind; it sizes by its own container so the phone-framed preview and a real phone
  * stack the same way. `preview` makes every control inert (no navigation, no counting, no form posts) and takes the images from the editor.
  */
-export function BioPageView({ view, handle, preview = false, photoUrl = null, coverUrl = null }: { view: BioView; handle: string; preview?: boolean; photoUrl?: string | null; coverUrl?: string | null }) {
+export function BioPageView({ view, handle, preview = false, photoUrl = null, coverUrl = null, galleryUrls, shareUrl = "" }: { view: BioView; handle: string; preview?: boolean; shareUrl?: string; photoUrl?: string | null; coverUrl?: string | null;
+  /** The editor's signed previews of gallery pictures, by id (the public page uses its own redirect). */
+  galleryUrls?: Record<string, string | null> }) {
   const t = useTranslations("LinkInBio.public"), tn = useTranslations("LinkInBio");
   const [tab, setTab] = useState(view.tabs[0]?.id ?? "home");
   const tabName = (x: BioView["tabs"][number]) => x.label || (isLegacyTabId(x.id) ? tn(`tabs.${x.id}`) : "");
@@ -86,6 +91,9 @@ export function BioPageView({ view, handle, preview = false, photoUrl = null, co
         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-destructive px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-destructive-foreground" data-bio-live-badge><span className="size-1.5 rounded-full bg-destructive-foreground motion-safe:animate-pulse" aria-hidden="true" />{t("live")}</span>
         <span className="min-w-0 flex-1 break-words text-base font-medium">{item.title}</span><ExternalLink className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" /><span className="sr-only">{t("openLink")}</span></a>;
       case "testimonials": return <BioTestimonials items={item.items} />;
+      case "gallery": return <BioGallery title={item.title} fileIds={item.fileIds} preview={preview} src={(id) => preview ? galleryUrls?.[id] ?? null : `/l/${encodeURIComponent(handle)}/gallery/${id}`} />;
+      case "share": return <BioShare title={item.title} handle={handle} preview={preview} shareUrl={shareUrl} />;
+      case "countdown": return <BioCountdown title={item.title} at={item.at} url={item.url} inert={preview ? inert : undefined} />;
       default: return null;
     }
   }
