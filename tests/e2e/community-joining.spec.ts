@@ -58,9 +58,9 @@ test("discover, join with rules, invitations and my communities", async ({ page,
   try {
     member.page.on("pageerror", (error) => errors.push(error.message));
     await member.page.goto(`/discover?q=${encodeURIComponent("grace bible")}`);
-    await expect(member.page.getByRole("heading", { name: "Grace Bible Study", level: 2 })).toBeVisible();
+    await expect(member.page.getByRole("heading", { name: "Grace Bible Study", level: 3 })).toBeVisible();
     await shoot(member.page, "discover");
-    await member.page.getByRole("link", { name: "View Grace Bible Study" }).click();
+    await member.page.getByRole("link", { name: "Grace Bible Study", exact: true }).click();
     await expect(member.page).toHaveURL(new RegExp(`/communities/${studySlug}$`));
     await expect(member.page.getByRole("heading", { name: "Grace Bible Study", level: 1 })).toBeVisible();
     await shoot(member.page, "landing");

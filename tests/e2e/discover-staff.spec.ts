@@ -178,20 +178,20 @@ test("staff review queue: neutral 404, reviewer and admin powers, reports, stand
   // Ministry standing hides every listing of the ministry, and restoring brings them back.
   const publicPage = await browser.newPage();
   await publicPage.goto("/discover");
-  await expect(publicPage.getByRole("heading", { name: "Foundations of Prayer", level: 2 })).toBeVisible();
+  await expect(publicPage.getByRole("heading", { name: "Foundations of Prayer", level: 3 })).toBeVisible();
   await a.getByRole("button", { name: "Review Foundations of Prayer" }).click();
   await a.getByLabel("Reason", { exact: true }).last().fill("Under investigation.");
   await a.getByRole("dialog").getByRole("button", { name: "Suspend ministry" }).click();
   await a.getByRole("alertdialog").getByRole("button", { name: "Suspend ministry" }).click();
   await expect(a.getByRole("status").filter({ hasText: "Ministry suspended in Discover." })).toBeVisible();
   await publicPage.reload();
-  await expect(publicPage.getByRole("heading", { name: "Foundations of Prayer", level: 2 })).toHaveCount(0);
+  await expect(publicPage.getByRole("heading", { name: "Foundations of Prayer", level: 3 })).toHaveCount(0);
   await a.getByRole("button", { name: "Review Foundations of Prayer" }).click();
   await a.getByRole("dialog").getByRole("button", { name: "Restore ministry" }).click();
   await a.getByRole("alertdialog").getByRole("button", { name: "Confirm" }).click();
   await expect(a.getByRole("status").filter({ hasText: "Ministry restored in Discover." })).toBeVisible();
   await publicPage.reload();
-  await expect(publicPage.getByRole("heading", { name: "Foundations of Prayer", level: 2 })).toBeVisible();
+  await expect(publicPage.getByRole("heading", { name: "Foundations of Prayer", level: 3 })).toBeVisible();
   await publicPage.close();
   await boss.context.close();
   await admin.end();
