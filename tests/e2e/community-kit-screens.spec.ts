@@ -29,7 +29,7 @@ async function shoot(page: Page, name: string, url: string, ready: (page: Page) 
       if (existsSync(path)) continue; // resumable: the dev server may restart under memory pressure mid-run
       await page.setViewportSize({ width, height });
       for (let attempt = 1; ; attempt++) {
-        try { await page.goto(url); await ready(page); await prepare?.(page); break; }
+        try { await page.goto(url, { timeout: 300_000 }); await ready(page); await prepare?.(page); break; }
         catch (error) { if (attempt === 3) throw error; await page.waitForTimeout(15_000); }
       }
       await page.waitForTimeout(300);
@@ -40,7 +40,7 @@ async function shoot(page: Page, name: string, url: string, ready: (page: Page) 
 }
 
 test("community screens from the kit: screenshots", async ({ browser }) => {
-  test.setTimeout(3_000_000);
+  test.setTimeout(2_400_000);
   await mkdir(evidence, { recursive: true });
   const owner = await person(browser, "Grace Owens");
   const tenant = (await (await owner.request.post("/api/workspaces", { headers: { origin }, data: { name: "Grace Church", audience: "church" } })).json()).tenantId as string;
@@ -97,10 +97,27 @@ test("community screens from the kit: screenshots", async ({ browser }) => {
     await page.getByRole("button", { name: "Change email frequency" }).click();
     await expect(page.getByRole("dialog", { name: "Email frequency" })).toBeVisible();
   });
-  await shoot(owner, "categories-editor", `/workspaces/${tenant}/communities/${community.id}/edit`, async (page) => {
-    await page.getByRole("navigation", { name: "Community setup" }).getByRole("button", { name: /Channels/ }).click();
-    await expect(page.getByRole("list", { name: "Forum categories" }).getByRole("listitem")).toHaveCount(3);
-  });
   const visitor = await (await browser.newContext({ deviceScaleFactor: 2, reducedMotion: "reduce" })).newPage();
   await shoot(visitor, "unsubscribe", "/communities/unsubscribe", async (page) => { await expect(page.getByRole("heading", { name: "Stop emails from this community?" })).toBeVisible({ timeout: 60_000 }); });
+});
+
+// The owner editor on its own (the member scenes need a long data setup on the dev server).
+test("community screens from the kit: categories editor screenshots", async ({ browser }) => {
+  test.setTimeout(1_500_000);
+  await mkdir(evidence, { recursive: true });
+  const owner = await person(browser, "Grace Owens");
+  const tenant = (await (await owner.request.post("/api/workspaces", { headers: { origin }, data: { name: "Grace Church", audience: "church" } })).json()).tenantId as string;
+  const api = `/api/workspaces/${tenant}`;
+  const community = await (await owner.request.post(`${api}/communities`, { headers: { origin }, data: { name: "Bible Study", slug: `kit-ed-${randomUUID().slice(0, 8)}` } })).json();
+  for (const [name, hostsOnly] of [["Announcements", true], ["Prayer requests", false]] as const)
+    expect((await owner.request.post(`${api}/communities/${community.id}/categories`, { headers: { origin }, data: { name, hostsOnly } })).ok()).toBe(true);
+  await shoot(owner, "categories-editor", `/workspaces/${tenant}/communities/${community.id}/edit`, async (page) => {
+    // Phones show the steps behind a "Show all steps" button.
+    const collapsed = page.getByRole("button", { name: /Show all steps/ });
+    await expect(collapsed.or(page.getByRole("navigation", { name: "Community setup" })).first()).toBeVisible({ timeout: 300_000 });
+    if (await collapsed.isVisible()) await collapsed.click();
+    await page.getByRole("button", { name: /^Channels/ }).last().click();
+    if (await page.getByRole("dialog").isVisible()) await page.keyboard.press("Escape");
+    await expect(page.getByRole("list", { name: "Forum categories" }).getByRole("listitem")).toHaveCount(3, { timeout: 60_000 });
+  });
 });

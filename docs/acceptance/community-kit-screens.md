@@ -28,3 +28,10 @@ Founder approval of 27 Nov 2026: eleven Shadcn UI Kit items for the community me
 Screenshots (device scale 2, 390 and 1440 wide, light and dark): `docs/screenshots/community-kit/` — feed, post, classroom, products, categories-editor, notification-sheet, email-frequency, unsubscribe. Produced by `tests/e2e/community-kit-screens.spec.ts` with `COMMUNITY_KIT_SHOTS=1` (skipped otherwise).
 
 Selector changes in the existing specs (behaviour unchanged): the categories editor's emoji, move and edit actions are reached from the row menu (`community-forum.spec.ts`); the email frequency radios are in the "Email frequency" window opened from the sheet, and the neutral unsubscribe result is read from the window (`community-email-screens.spec.ts`).
+
+## Test results (27–28 Nov 2026, this branch)
+
+- `npx tsc --noEmit`: clean. `eslint` on the changed files: clean.
+- Unit: `ui-provenance`, `copy-rules`, `community-c23-hardening`, `community-email`, `community-email-token`, `blog`: 46 passed.
+- Integration: `community-forum`, `community-forum-db`, `community-shelf`, `community-shelf-upgrade`, `community-email`, `community-email-db`, `community-email-screens`, `community-notifications`, `community-notifications-db`, `community-c23-hardening`, `blog`, `worker-role`, `worker-role-owner`: 105 passed (`community-shelf` failed once in the parallel run with "Unknown Error: undefined" in its setup and passed on its own).
+- End to end: the community specs could not be completed in this environment. The webpack dev server restarts under its 3 GB memory threshold mid-run ("approaching the used memory threshold", "destination stream errored", ECONNRESET), and saves stay on "Saving…" past the 5-second expectations. The same specs fail in the same places on unchanged `main` code in this environment (checked by running `community-notifications` and `community-email-screens` with this branch's changes stashed), so the failures are environmental. The changed specs (`community-forum`, `community-email-screens`) need a CI run (GitHub Actions browser shards) before review. The screenshot spec passed piecewise (resumable) and produced all 32 images.
