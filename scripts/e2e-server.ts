@@ -26,7 +26,7 @@ if (process.env.HARVEST_E2E_MAILBOX) await writeFile(`${process.env.HARVEST_E2E_
 const bioKey=randomBytes(32).toString("hex");
 // Another port can be used when 3100 is busy: E2E_PORT here and in playwright.config.ts (the default stays 3100).
 const port = process.env.E2E_PORT ?? "3100";
-const env = { ...process.env,
+const env: NodeJS.ProcessEnv = { ...process.env,
   // Next still compiles and serves optimized assets in test mode. Runtime checks for
   // synthetic-only features must see test mode, and Next must ignore .env.local.
   ...(productionBuild ? { NODE_ENV: "test", E2E_SERVER: "production" } : {}),
