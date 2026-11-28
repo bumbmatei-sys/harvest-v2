@@ -1,0 +1,37 @@
+name: Production migration rehearsal (QA-4)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rehearse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: local-rehearsal-only
+          POSTGRES_DB: harvest_rehearsal
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      REHEARSAL_DATABASE_URL: postgresql://postgres:local-rehearsal-only@127.0.0.1:5432/harvest_rehearsal
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Run rehearsal
+        run: |
+          set -o pipefail
+          npx --no-install tsx scripts/rehearse-migrations.ts | tee migration-rehearsal.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: migration-rehearsal
+          path: migration-rehearsal.txt
