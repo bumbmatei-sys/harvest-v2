@@ -1,18 +1,18 @@
 "use client";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { CalendarClock, CircleAlert, CircleCheck, Send, TriangleAlert } from "lucide-react";
+import { Send } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { FormSection } from "@/components/form-section";
-import { StatusBadge } from "@/components/status-badge";
 import { useCrmRequest } from "@/components/crm/request";
+import { ReviewChecklist } from "@/components/newsletter/review-checklist";
+import { ReviewStatus, type StatusAction } from "@/components/newsletter/review-status";
+import { ReviewSummary } from "@/components/newsletter/review-summary";
+import { ScheduleTimePicker } from "@/components/newsletter/schedule-time-picker";
 import { useRecipientEstimate, type ListOption, type SenderOption, type When } from "@/components/newsletter/send-step";
 import type { InboxCheck } from "@/lib/email/inbox-check";
 import { formatScheduled, NEWSLETTER_SCHEDULE_HORIZON_MS, scheduleInputValue, zonedSchedule } from "@/lib/newsletter-schedule";
@@ -123,64 +123,59 @@ export function ReviewStep({ tenantId, campaignId, campaignName, lists, groups, 
   }
   async function test() { setTesting(true); try { await onSendTest(); } finally { setTesting(false); } }
 
-  const icon = (value: Item["level"]) => value === "pass" ? <CircleCheck className="size-4 shrink-0 text-primary" aria-hidden="true" />
-    : value === "warn" ? <TriangleAlert className="size-4 shrink-0 text-foreground" aria-hidden="true" /> : <CircleAlert className="size-4 shrink-0 text-destructive" aria-hidden="true" />;
-  const fixControl = (item: Item) => item.level === "pass" || !item.fix ? null : item.fix.href
-    ? <Link href={item.fix.href} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4" data-fix={item.id}>{t(`fix.${item.id}` as "fix.audience")}</Link>
-    : <Button type="button" variant="link" className="min-h-11 px-0" data-fix={item.id} onClick={() => onStep(item.fix!.step!)}>{t(`fix.${item.id}` as "fix.audience")}</Button>;
   const checkText = (item: Item) => item.id === "imageAlt" ? c(`imageAlt.${item.level === "pass" ? "pass" : "warn"}`, { count: checks.find((x) => x.id === "imageAlt")?.count ?? 0 })
     : t(`items.${item.id}.${item.level}` as "items.audience.pass", { count: checks.find((x) => x.id === item.id)?.count ?? 0 });
+  const scheduledParts = (iso: string) => {
+    try {
+      const at = new Date(iso);
+      return { date: new Intl.DateTimeFormat(locale, { timeZone: zone, weekday: "short", month: "short", day: "numeric", year: "numeric" }).format(at),
+        time: new Intl.DateTimeFormat(locale, { timeZone: zone, hour: "numeric", minute: "2-digit" }).format(at) };
+    } catch { return { date: iso.slice(0, 10), time: iso.slice(11, 16) }; }
+  };
+  const statusActions: StatusAction[] = [
+    ...(scheduled && !changing ? [{ id: "change" as const, label: t("changeTime"), onClick: () => setChanging(true) }] : []),
+    ...(scheduled ? [{ id: "cancel" as const, label: t("cancelSchedule"), onClick: () => setCancelOpen(true) }] : []),
+    ...(finished ? [{ id: "duplicate" as const, label: t("duplicate"), onClick: () => void duplicate(), disabled: working }] : []),
+  ];
+  const share = estimate?.selected ? Math.round((estimate.eligible / estimate.selected) * 100) : 0;
   const recipientText = !listIds.length ? t("noAudience") : failed ? t("countFailed") : !estimate ? t("counting") : t("count", { eligible: estimate.eligible, selected: estimate.selected });
 
   return <div className="space-y-6" data-review-step>
     <Alert data-sending-off><AlertTitle>{t("offTitle")}</AlertTitle><AlertDescription>{t("offBody")}</AlertDescription></Alert>
     {error && <Alert variant="destructive" role="alert" data-review-error><AlertDescription>{error}</AlertDescription></Alert>}
 
-    {(scheduled || finished) && <FormSection title={t("statusTitle")}>
-      <div className="space-y-3 rounded-lg border p-4" data-dispatch-state={dispatch.state}>
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge tone={scheduled ? "info" : dispatch.state === "cancelled" ? "neutral" : "warning"} label={s(dispatch.state as "draft")} dot />
-          {scheduled && dispatch.scheduledAt && <span className="text-sm font-medium" data-scheduled-at>{t("scheduledFor", { when: formatScheduled(dispatch.scheduledAt, zone, locale), zone })}</span>}
-        </div>
-        {scheduled && <p className="text-sm text-muted-foreground">{t("queued")}</p>}
-        {dispatch.state === "cancelled" && <p className="text-sm text-muted-foreground">{t("cancelledBody")}</p>}
-        {scheduled && changing && <div className="space-y-2">
-          <Label htmlFor="nl-new-at">{t("newTime")}</Label>
-          <Input id="nl-new-at" type="datetime-local" className="min-h-11 w-full sm:w-72" aria-describedby="nl-new-at-zone" value={newAt} onChange={(e) => setNewAt(e.target.value)} />
-          <p id="nl-new-at-zone" className="text-sm text-muted-foreground">{t("zone", { zone })}</p>
-        </div>}
+    {(scheduled || finished) && <ReviewStatus title={t("statusTitle")} state={dispatch.state} stateLabel={s(dispatch.state as "draft")}
+      tone={scheduled ? "live" : dispatch.state === "cancelled" ? "off" : "warn"} moreLabel={t("moreActions")}
+      description={scheduled ? t("queued") : dispatch.state === "cancelled" ? t("cancelledBody") : undefined}
+      stats={scheduled && dispatch.scheduledAt ? [{ key: "date", label: t("statusDate"), value: scheduledParts(dispatch.scheduledAt).date },
+        { key: "time", label: t("statusTime"), value: scheduledParts(dispatch.scheduledAt).time }, { key: "zone", label: t("statusZone"), value: zone }] : undefined}
+      recipients={scheduled && estimate && listIds.length ? { label: t("recipients"), value: t("statusOf", { eligible: estimate.eligible, selected: estimate.selected }),
+        percent: share, percentLabel: t("statusPercent", { percent: share }), progressLabel: t("recipientsProgress") } : undefined}
+      actions={statusActions}>
+      {scheduled && changing && <div className="space-y-3" data-change-time>
+        <ScheduleTimePicker id="nl-new-at" legend={t("newTime")} timeLabel={t("newTimeOfDay")} describedBy="nl-new-at-zone" timeZone={zone} value={newAt} onChange={setNewAt} />
+        <p id="nl-new-at-zone" className="text-sm text-muted-foreground">{t("zone", { zone })}</p>
         <div className="flex flex-wrap gap-2">
-          {scheduled && !changing && <Button type="button" variant="outline" className="min-h-11" onClick={() => setChanging(true)}><CalendarClock aria-hidden="true" />{t("changeTime")}</Button>}
-          {scheduled && changing && <>
-            <Button type="button" className="min-h-11" aria-disabled={working || undefined} onClick={() => void reschedule()}>{working && <Spinner decorative />}{t("saveTime")}</Button>
-            <Button type="button" variant="outline" className="min-h-11" onClick={() => setChanging(false)}>{t("keepTime")}</Button></>}
-          {scheduled && <Button type="button" variant="outline" className="min-h-11" onClick={() => setCancelOpen(true)}>{t("cancelSchedule")}</Button>}
-          {finished && <Button type="button" variant="outline" className="min-h-11" aria-disabled={working || undefined} onClick={() => void duplicate()}>{t("duplicate")}</Button>}
-        </div>
-      </div>
-    </FormSection>}
+          <Button type="button" className="min-h-11" aria-disabled={working || undefined} onClick={() => void reschedule()}>{working && <Spinner decorative />}{t("saveTime")}</Button>
+          <Button type="button" variant="outline" className="min-h-11" onClick={() => setChanging(false)}>{t("keepTime")}</Button></div>
+      </div>}
+    </ReviewStatus>}
 
-    <FormSection title={t("summary")}>
-      <dl className="grid gap-4 text-sm sm:grid-cols-2" data-review-summary>
-        <div className="space-y-1"><dt className="text-muted-foreground">{t("audience")}</dt><dd className="font-medium" data-summary="audience">{names.length ? names.join(", ") : t("noAudience")}</dd></div>
-        <div className="space-y-1"><dt className="text-muted-foreground">{t("recipients")}</dt><dd className="font-medium" data-summary="recipients" aria-live="polite">{recipientText}</dd></div>
-        <div className="space-y-1"><dt className="text-muted-foreground">{t("subject")}</dt><dd className="font-medium break-words" data-summary="subject">{subject.trim() || t("missing")}</dd></div>
-        <div className="space-y-1"><dt className="text-muted-foreground">{t("preheader")}</dt><dd className="font-medium break-words" data-summary="preheader">{preheader.trim() || t("missing")}</dd></div>
-        <div className="space-y-1"><dt className="text-muted-foreground">{t("from")}</dt><dd className="font-medium break-words" data-summary="from">{sender ? (sender.displayName ? t("fromValue", { name: sender.displayName, address: sender.address }) : sender.address) : t("missing")}</dd></div>
-        <div className="space-y-1"><dt className="text-muted-foreground">{t("replyTo")}</dt><dd className="font-medium break-words" data-summary="replyTo">{reply?.address ?? t("missing")}</dd></div>
-        <div className="space-y-1 sm:col-span-2"><dt className="text-muted-foreground">{t("when")}</dt><dd className="font-medium" data-summary="when">
-          {scheduled && dispatch.scheduledAt ? t("scheduledFor", { when: formatScheduled(dispatch.scheduledAt, zone, locale), zone })
-            : schedule ? t("scheduledFor", { when: formatScheduled(schedule.at, timeZone, locale), zone: timeZone }) : when.mode === "now" ? t("whenNow") : t("noTime")}</dd></div>
-      </dl>
-    </FormSection>
+    <ReviewSummary title={t("summary")} status={!scheduled && !finished ? { label: blocking.length ? t("notReady") : t("ready"), ready: blocking.length === 0 } : undefined} details={[
+      { key: "audience", label: t("audience"), value: names.length ? names.join(", ") : t("noAudience") },
+      { key: "recipients", label: t("recipients"), value: recipientText, live: true },
+      { key: "subject", label: t("subject"), value: subject.trim() || t("missing") },
+      { key: "preheader", label: t("preheader"), value: preheader.trim() || t("missing") },
+      { key: "from", label: t("from"), value: sender ? (sender.displayName ? t("fromValue", { name: sender.displayName, address: sender.address }) : sender.address) : t("missing") },
+      { key: "replyTo", label: t("replyTo"), value: reply?.address ?? t("missing") },
+      { key: "when", label: t("when"), value: scheduled && dispatch.scheduledAt ? t("scheduledFor", { when: formatScheduled(dispatch.scheduledAt, zone, locale), zone })
+        : schedule ? t("scheduledFor", { when: formatScheduled(schedule.at, timeZone, locale), zone: timeZone }) : when.mode === "now" ? t("whenNow") : t("noTime") },
+    ]} />
 
-    {!scheduled && !finished && <FormSection title={t("checklist")}>
-      <ul className="divide-y rounded-lg border" data-review-checklist>
-        {items.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 py-2 text-sm" data-item={item.id} data-level={item.level}>
-          <span className="flex min-h-11 min-w-0 items-center gap-2">{icon(item.level)}<span>{checkText(item)}</span></span>{fixControl(item)}</li>)}
-      </ul>
-      <p role="status" className="text-sm font-medium" data-blocking={blocking.length}>{blocking.length ? t("blocking", { count: blocking.length }) : t("noBlocking")}</p>
-    </FormSection>}
+    {!scheduled && !finished && <ReviewChecklist title={t("checklist")} blocking={blocking.length} progressLabel={t("checklistProgress")}
+      status={blocking.length ? t("blocking", { count: blocking.length }) : t("noBlocking")}
+      items={items.map((item) => ({ id: item.id, level: item.level, text: checkText(item),
+        fix: item.level === "pass" || !item.fix ? undefined : { label: t(`fix.${item.id}` as "fix.audience"), href: item.fix.href, onFix: item.fix.step ? () => onStep(item.fix!.step!) : undefined } }))} />}
 
     <FormSection title={t("test")}>
       <div className="flex flex-wrap items-center justify-between gap-3">

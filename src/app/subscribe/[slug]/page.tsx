@@ -12,5 +12,5 @@ export async function generateMetadata() {
 
 export default async function SubscribePage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { slug } = await params, query = await searchParams;
-  return <main id="main-content" className={query.embed === "1" ? "p-0" : "mx-auto w-full max-w-2xl px-4 py-8 sm:py-12"}><HostedSignup slug={slug} /></main>;
+  return <main id="main-content" className="w-full"><HostedSignup slug={slug} embed={query.embed === "1"} /></main>;
 }

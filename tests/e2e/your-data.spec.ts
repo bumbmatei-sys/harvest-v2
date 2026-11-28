@@ -4,9 +4,10 @@ import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";
+import { kitScale, kitShots } from "./helpers/kit-shots";
 
 // "Your data" (27 Nov): download my data from the profile page; delete my account (re-auth, sole-owner blocker, "Former member").
-test.use({ actionTimeout: 30000, reducedMotion: "reduce" });
+test.use({ actionTimeout: 30000, reducedMotion: "reduce", deviceScaleFactor: kitScale });
 const shots = process.env.YOUR_DATA_SHOTS ?? "test-results/your-data";
 
 async function check(page: Page, name: string) {
@@ -33,6 +34,7 @@ test("downloads my data from the profile page", async ({ page }) => {
   const button = page.getByRole("button", { name: "Download my data", exact: true });
   expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await check(page, "profile-your-data");
+  await kitShots(page, "your-data");
   const download = page.waitForEvent("download");
   await button.click();
   const file = await download;
@@ -101,6 +103,7 @@ test("deletes my account: sole-owner blocker, re-auth, typed confirmation, then 
     await expect(submit).toBeDisabled();
     expect((await submit.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await check(member, "delete-confirm");
+    await kitShots(member, "delete-account");
     await confirm.fill("DELETE");
     await submit.click();
     await expect(member.getByRole("status")).toHaveText("Your account was deleted.");

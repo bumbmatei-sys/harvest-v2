@@ -3,11 +3,12 @@ import { expect as baseExpect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";
+import { kitScale, kitShots } from "./helpers/kit-shots";
 
 const expect = baseExpect.configure({ timeout: 30000 });
 // Newsletter Review step: summary, blocking checklist, test result, schedule in the ministry's time zone, change time, cancel, duplicate.
 // Sending is off throughout: scheduling queues the email and nothing reaches a provider.
-test.use({ actionTimeout: 30000, reducedMotion: "reduce" });
+test.use({ actionTimeout: 30000, reducedMotion: "reduce", timezoneId: "UTC", deviceScaleFactor: kitScale });
 const evidence = "docs/screenshots/newsletter-review";
 const sizes = [["phone", 360, 800], ["tablet", 768, 1024], ["desktop", 1280, 900]] as const;
 const zone = "America/Chicago";
@@ -25,6 +26,14 @@ async function shoot(page: Page, name: string) {
   }
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1280, height: 900 });
+}
+/** Picks a `YYYY-MM-DDTHH:mm` value on a schedule picker: the day on its calendar (moving to next month when needed), then the time. */
+async function pick(page: Page, id: string, timeLabel: string, local: string) {
+  const picker = page.locator(`[data-schedule-picker="${id}"]`);
+  const day = picker.locator(`[data-day="${local.slice(0, 10)}"]:not([disabled])`);
+  if (!(await day.count())) await picker.getByRole("button", { name: "Go to next month" }).click();
+  await day.first().click();
+  await picker.getByLabel(timeLabel, { exact: true }).fill(local.slice(11));
 }
 /** Tomorrow at a wall-clock time in the ministry's zone, as a datetime-local value. */
 function tomorrowAt(time: string) {
@@ -89,7 +98,7 @@ test("newsletter review: checklist, schedule, change time and cancel with sendin
   await page.locator("#nl-replyToId").selectOption({ label: "replies@review.example.test" });
   await page.getByRole("radio", { name: "Pick a time" }).check();
   await expect(page.locator("[data-time-zone]")).toContainText(zone);
-  await page.getByLabel("Date and time").fill(tomorrowAt("09:00"));
+  await pick(page, "nl-at", "Time", tomorrowAt("09:00"));
   await expect(page.locator('[data-save-status="saved"]')).toBeVisible();
   await page.locator("[data-review-button]").click();
 
@@ -104,6 +113,7 @@ test("newsletter review: checklist, schedule, change time and cancel with sendin
   await page.locator("[data-review-step]").getByRole("button", { name: "Send me a test" }).click();
   await expect(page.locator('[data-test-result="sent"]')).toContainText("Test sent to the test inbox");
   await shoot(page, "ready");
+  await kitShots(page, "review-step");
 
   // Schedule: the server review is confirmed in a dialog, then the email is queued, not sent.
   await page.locator("[data-schedule-button]").click();
@@ -112,22 +122,26 @@ test("newsletter review: checklist, schedule, change time and cancel with sendin
   await expect(confirm).toContainText("Sending is off");
   await confirm.getByRole("button", { name: "Schedule" }).click();
   await expect(page.locator('[data-dispatch-state="scheduled"]')).toBeVisible();
-  await expect(page.locator("[data-scheduled-at]")).toContainText(`9:00 AM (${zone})`);
+  await expect(page.locator('[data-scheduled="time"]')).toHaveText("9:00 AM");
+  await expect(page.locator('[data-scheduled="zone"]')).toHaveText(zone);
+  await expect(page.locator('[data-summary="when"]')).toContainText(`9:00 AM (${zone})`);
   const scheduled = await (await page.request.get(`${api}/campaigns/${campaignId}`, { timeout: 120_000 })).json();
   expect(scheduled).toMatchObject({ state: "scheduled", timezone: zone });
   // A scheduled email is frozen: reloading opens Review, and Write shows why it cannot change.
   await page.reload();
   await expect(page.locator('[data-dispatch-state="scheduled"]')).toBeVisible();
   await shoot(page, "scheduled");
+  await kitShots(page, "review-scheduled");
   await steps.getByRole("button", { name: /^Write/ }).click();
   await expect(page.locator("[data-locked]")).toContainText("Cancel the schedule to make changes.");
   await steps.getByRole("button", { name: /^Review/ }).click();
 
   // Change the time, then cancel.
   await page.getByRole("button", { name: "Change time" }).click();
-  await page.getByLabel("New date and time").fill(tomorrowAt("18:30"));
+  await pick(page, "nl-new-at", "New time", tomorrowAt("18:30"));
   await page.getByRole("button", { name: "Save new time" }).click();
-  await expect(page.locator("[data-scheduled-at]")).toContainText(`6:30 PM (${zone})`);
+  await expect(page.locator('[data-scheduled="time"]')).toHaveText("6:30 PM");
+  await expect(page.locator('[data-summary="when"]')).toContainText(`6:30 PM (${zone})`);
   expect((await (await page.request.get(`${api}/campaigns/${campaignId}`, { timeout: 120_000 })).json()).version).toBe(scheduled.version + 1);
   await page.getByRole("button", { name: "Cancel schedule" }).click();
   await page.getByRole("alertdialog", { name: "Cancel this schedule?" }).getByRole("button", { name: "Cancel schedule" }).click();

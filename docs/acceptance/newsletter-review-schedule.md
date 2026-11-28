@@ -33,3 +33,11 @@ EditorShell (steps), FormSection, ConfirmDialog, StatusBadge, Alert, Input, Spin
 - Real sending, a scheduler or cron for the worker, live provider activation, webhooks: hard-off.
 - "Send now" (stays disabled), resend after cancel (duplicate instead), editing a scheduled email in place (cancel, then duplicate).
 - Production migration application.
+
+## Account and newsletter screens rebuilt from the UI kit (28 Nov 2026)
+
+Screens restarted from the real code of the founder-approved kit items (approved 27 Nov; `kitApprovals` "Account and newsletter screens" in `src/lib/ui-provenance.ts`, table and identical-line shares in `docs/ui-sources.md`): Your data card `profile-block11` with the download row `list-block13`; delete account `dashboard-modal13` (shown in place); Review summary `list-block4`, checklist `list-block30`, scheduled status `stat-card12`, send and change-time picker `date-picker-example1`; consent wording panel `dashboard-modal24`; public subscribe page `newsletter2`. Behaviour is unchanged: download POST, 429 message and file save; typed DELETE, re-sign-in, sole-owner alert and the deleted and kept lists; dispatch states, ConfirmDialog steps, the review token, time zone text and "Sending is off"; the wordingVersion badge, v1/v2 text and the clicks line; the public consent box and the 409 wording reload. "Sending is off", the test send row and the 409 reload stay Harvest-owned. The Send step and Change time now pick a day on the calendar plus a time (days before today or past the 60-day limit are disabled) instead of the browser's date and time field; the value sent is the same.
+
+E2E selectors updated (behaviour unchanged): the time is picked on `[data-schedule-picker]`; the scheduled time and zone are `[data-scheduled="time"]` and `[data-scheduled="zone"]` (the full time with zone stays in `[data-summary="when"]`). Evidence at 390 and 1440 wide, light and dark, device scale 2: `docs/screenshots/account-newsletter-kit/`.
+
+Run 28 Nov (webpack dev server, as ubuntu): `newsletter-review-schedule.spec.ts` 1/1 passed, with the dev heap raised locally (not committed) after a memory-threshold restart at the default 3 GB.

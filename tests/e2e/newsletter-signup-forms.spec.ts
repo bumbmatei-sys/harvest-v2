@@ -3,11 +3,12 @@ import { expect as baseExpect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";
+import { kitScale, kitShots } from "./helpers/kit-shots";
 
 const expect = baseExpect.configure({ timeout: 30000 });
 // Newsletter Sign-up forms: the shared forms builder with the newsletter preset, publish, share panel, the public page, double opt-in
 // through the fake sink, counts and the roles. Axe runs on the main screen only (one scene per width and scheme).
-test.use({ actionTimeout: 30000, reducedMotion: "reduce", permissions: ["clipboard-read", "clipboard-write"] });
+test.use({ actionTimeout: 30000, reducedMotion: "reduce", permissions: ["clipboard-read", "clipboard-write"], deviceScaleFactor: kitScale });
 const evidence = "docs/screenshots/newsletter-signup-forms";
 const sizes = [["phone", 360, 800], ["tablet", 768, 1024], ["desktop", 1280, 900]] as const;
 const headers = { origin };
@@ -85,6 +86,8 @@ test("sign-up forms: preset builder, publish, share, public page, double opt-in,
   await expect(settings.getByLabel("Weekly")).toBeChecked(); await expect(settings.getByLabel("Events")).toBeChecked();
   await expect(settings.getByLabel("Save to")).toHaveCount(0);
   await expect(settings.locator("[data-signup-wording]")).toContainText("newsletter-consent-v1");
+  await expect(settings.locator("[data-signup-wording]")).toContainText("I agree to receive the Grace Community Church newsletter by email");
+  await expect(settings.locator("[data-counted-wording]")).toContainText("This ministry counts link clicks in its emails, as totals only.");
   await settings.getByLabel("Ask for last name").uncheck();
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Build", exact: true }).click();
@@ -94,6 +97,7 @@ test("sign-up forms: preset builder, publish, share, public page, double opt-in,
   await settings.getByLabel("Events").uncheck();
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
   await shoot(page, "builder-settings");
+  await kitShots(page, "consent-panel");
   await settings.getByLabel("Events").check();
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
 
@@ -126,7 +130,7 @@ test("sign-up forms: preset builder, publish, share, public page, double opt-in,
   await shoot(page, "builder-share");
 
   // The public page (a visitor with no session): fill, consent, submit, then the message and the fake sink.
-  const visitor = await (await browser.newContext({ baseURL: origin, viewport: { width: 390, height: 800 }, reducedMotion: "reduce" })).newPage();
+  const visitor = await (await browser.newContext({ baseURL: origin, viewport: { width: 390, height: 800 }, reducedMotion: "reduce", deviceScaleFactor: kitScale })).newPage();
   await visitor.goto(`/subscribe/${slug}`);
   await expect(visitor.getByRole("heading", { name: "Join our newsletter" })).toBeVisible();
   const email = `visitor-${Date.now()}@example.test`;
@@ -136,6 +140,7 @@ test("sign-up forms: preset builder, publish, share, public page, double opt-in,
   await expect(consent).not.toBeChecked();
   await expect(visitor.locator("[data-fixed-notice]")).toHaveText("Your details go to Grace Community Church. You can ask them to delete them.");
   await shoot(visitor, "public-form");
+  await kitShots(visitor, "public-subscribe");
   await visitor.getByRole("button", { name: "Sign up" }).click();
   await expect(visitor.getByText("Please agree to continue.")).toBeVisible();
   await consent.check();

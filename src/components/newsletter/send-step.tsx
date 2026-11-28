@@ -5,11 +5,11 @@ import { useTranslations } from "next-intl";
 import { CircleAlert, CircleCheck, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { FormSection } from "@/components/form-section";
+import { ScheduleTimePicker } from "@/components/newsletter/schedule-time-picker";
 import { useCrmRequest } from "@/components/crm/request";
 import type { InboxCheck } from "@/lib/email/inbox-check";
 
@@ -74,7 +74,7 @@ export function SendStep({ tenantId, lists, groups, senders, listIds, segmentIds
       <RadioGroup value={when.mode} onValueChange={(v) => onWhen({ ...when, mode: v as "now" | "later" })} className="gap-1">
         <Label className="flex min-h-11 items-center gap-3 font-normal"><RadioGroupItem value="now" />{t("now")}</Label>
         <Label className="flex min-h-11 items-center gap-3 font-normal"><RadioGroupItem value="later" />{t("pickTime")}</Label></RadioGroup>
-      {when.mode === "later" && <div className="space-y-2"><Label htmlFor="nl-at">{t("time")}</Label><Input id="nl-at" type="datetime-local" className="min-h-11 w-full sm:w-72" aria-describedby="nl-at-zone" value={when.at} onChange={(e) => onWhen({ ...when, at: e.target.value })} />
+      {when.mode === "later" && <div className="space-y-2"><ScheduleTimePicker id="nl-at" legend={t("time")} timeLabel={t("timeOfDay")} describedBy="nl-at-zone" timeZone={timeZone} value={when.at} onChange={(at) => onWhen({ ...when, at })} />
         <p id="nl-at-zone" className="text-sm text-muted-foreground" data-time-zone>{t("zone", { zone: timeZone })}</p></div>}
     </FormSection>
     <FormSection title={t("summary")}>
