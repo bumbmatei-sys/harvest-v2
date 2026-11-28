@@ -163,12 +163,16 @@ BEGIN
   IF cardinality(seed) > 500 THEN seed := seed[1:500]; END IF;
   -- Start from a clean definer scope: no app.* flag the caller set earlier in the transaction reaches the reads below.
   PERFORM public.community_definer_reset();
+  PERFORM public.blog_scope_clear();
+  PERFORM public.account_self_reset();
   PERFORM set_config('app.discover_read', 'on', true);
   WITH visible AS (
     SELECT d.* FROM public.discover_listings d
       JOIN public.discover_controls c ON (c.tenant_id, c.resource_type, c.resource_id) = (d.tenant_id, d.resource_type, d.resource_id)
       LEFT JOIN public.discover_ministry_standing s ON s.tenant_id = d.tenant_id
     WHERE c.review_state = 'approved' AND c.reviewed_hash IS NOT NULL AND c.reviewed_hash = d.content_hash AND coalesce(s.suspended, false) = false
+      -- Courses and products also need the owner's opt-in and a still-published, listed or public catalogue item (same rule as discover_search, 0144).
+      AND (d.resource_type = 'community' OR (c.owner_opt_in AND public.catalog_discover_current(d.tenant_id, d.resource_id, d.resource_type, d.slug)))
   ), interests AS (SELECT DISTINCT v.category FROM visible v WHERE v.resource_id = ANY (seed) AND v.category IS NOT NULL),
   ranked AS (
     SELECT v.*, row_number() OVER (ORDER BY coalesce(v.category IN (SELECT i.category FROM interests i), false) DESC, v.updated_at DESC, v.resource_id DESC) AS rn

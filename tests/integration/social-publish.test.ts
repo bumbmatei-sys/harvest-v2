@@ -2,11 +2,11 @@ import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { testDatabase } from "../database";
-import { CANARY, depsFor, event, noNetwork, seedPeople, signedRequest, useTestKeys } from "./social-layer-fixture";
+import { CANARY, depsFor, event, linkFixtureAccount, noNetwork, seedPeople, signedRequest, useTestKeys } from "./social-layer-fixture";
 import { useKeyProvider } from "../../src/server/connect-key-provider";
 import { FakeProvider } from "../../src/server/social/fake-provider";
 import { socialPlatforms } from "../../src/lib/social/platforms";
-import { linkConnection, listConnections } from "../../src/server/social/service";
+import { listConnections } from "../../src/server/social/service";
 import { changeDraft, previewDraft, readDraft, saveDraft } from "../../src/server/social/drafts";
 import { changePostingSchedule, createPostingSchedule, listPostingSchedules } from "../../src/server/social/posting-schedules";
 import { listPlanner, listScheduleQueue, listUnscheduledDrafts } from "../../src/server/social/planner";
@@ -45,10 +45,7 @@ async function readyImage(tenant = p.tenant, owner = p.owner) {
 beforeAll(async () => {
   f = await testDatabase({ migrationOwner: true }); p = await seedPeople(f, "sp");
   useTestKeys(); fetchSpy = noNetwork();
-  for (const platform of socialPlatforms) {
-    const linked = await linkConnection(f.db, p.owner, p.tenant, { provider: "fake", accountRef: platform, credential: CANARY }, deps);
-    ids.set(platform, linked.connection.id);
-  }
+  for (const account of fake.accounts) ids.set(account.platform, await linkFixtureAccount(f.db, p.owner, p.tenant, account, fake));
 }, 60_000);
 afterEach(() => expect(fetchSpy).not.toHaveBeenCalled());
 afterAll(async () => { fetchSpy?.mockRestore(); useKeyProvider(null); await f?.close(); });

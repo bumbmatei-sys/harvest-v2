@@ -10,6 +10,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { DocEditorSurface, type SurfaceHandle } from "@/components/docs/doc-editor-surface";
@@ -22,6 +24,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { StickySaveBar } from "@/components/sticky-save-bar";
 import { WizardLayout } from "@/components/wizard-layout";
 import { BlogArticleCard } from "@/components/blog/blog-card";
+import { ExternalBlogSection } from "@/components/blog/external-blog-section";
 import { blogImageNode } from "@/components/blog/blog-image-node";
 import { SearchPreview } from "@/components/blog/search-preview";
 import { useFileUrl } from "@/components/blog/use-file-url";
@@ -36,8 +39,8 @@ import type { BlogOwnerPost, BlogOwnerSettings } from "@/server/blog";
 
 type Step = "write" | "settings" | "publish";
 const steps: Step[] = ["write", "settings", "publish"];
-type Fields = { title: string; slug: string; excerpt: string; seoTitle: string; seoDescription: string; coverFileId: string | null; shareFileId: string | null };
-const fieldsOf = (post: BlogOwnerPost): Fields => ({ title: post.title, slug: post.slug, excerpt: post.excerpt ?? "", seoTitle: post.seoTitle ?? "", seoDescription: post.seoDescription ?? "", coverFileId: post.coverFileId, shareFileId: post.shareFileId });
+type Fields = { title: string; slug: string; excerpt: string; seoTitle: string; seoDescription: string; coverFileId: string | null; shareFileId: string | null; harvestPage: boolean };
+const fieldsOf = (post: BlogOwnerPost): Fields => ({ title: post.title, slug: post.slug, excerpt: post.excerpt ?? "", seoTitle: post.seoTitle ?? "", seoDescription: post.seoDescription ?? "", coverFileId: post.coverFileId, shareFileId: post.shareFileId, harvestPage: post.harvestPage });
 const same = (a: Fields, b: Fields) => JSON.stringify(a) === JSON.stringify(b);
 const tone: Record<BlogStatus, StatusTone> = { draft: "pending", scheduled: "info", published: "success" };
 /** Slash items that make no sense in an article (pages, templates, @mentions, page outlines). */
@@ -80,7 +83,7 @@ export function BlogEditor({ tenantId, initial, origin }: { tenantId: string; in
     }
     const content = bodyDirty ? currentBody() : undefined;
     const result = await request<BlogOwnerPost>(api, { method: "PUT", body: { version: post.version, title: fields.title, slug, excerpt: fields.excerpt || null, seoTitle: fields.seoTitle || null,
-      seoDescription: fields.seoDescription || null, coverFileId: fields.coverFileId, shareFileId: fields.shareFileId, ...(content ? { body: content } : {}) } });
+      seoDescription: fields.seoDescription || null, coverFileId: fields.coverFileId, shareFileId: fields.shareFileId, harvestPage: fields.harvestPage, ...(content ? { body: content } : {}) } });
     if (!result.ok) { fail(result); return null; }
     const next = fieldsOf(result.data);
     setPost(result.data); setSaved(next); setFields(next); setBodyDirty(false); setBody(result.data.body);
@@ -113,13 +116,13 @@ export function BlogEditor({ tenantId, initial, origin }: { tenantId: string; in
   const publicHref = blogPath(settings.handle, post.slug);
   const canPublish = missing.length === 0 && !slugProblem;
   const actions = <>
-    {post.status === "published" && <Button asChild variant="outline" size="sm" className="min-h-11 max-sm:min-w-11 max-sm:px-0 lg:min-h-8"><Link href={publicHref} target="_blank" rel="noopener"><ExternalLink aria-hidden="true" /><span className="max-sm:sr-only">{t("openArticle")}</span></Link></Button>}
+    {post.status === "published" && post.harvestPage && <Button asChild variant="outline" size="sm" className="min-h-11 max-sm:min-w-11 max-sm:px-0 lg:min-h-8"><Link href={publicHref} target="_blank" rel="noopener"><ExternalLink aria-hidden="true" /><span className="max-sm:sr-only">{t("openArticle")}</span></Link></Button>}
     {post.status !== "published" && <Button type="button" size="sm" className="min-h-11 max-sm:min-w-11 max-sm:px-0 lg:min-h-8" disabled={busy || !canPublish} onClick={() => void act("publish")}><Send aria-hidden="true" /><span className="max-sm:sr-only">{t("publishNow")}</span></Button>}
   </>;
   const done = { write: Boolean(fields.title.trim()) && !missing.includes("body"), settings: !slugProblem, publish: post.status !== "draft" };
   const stepList = steps.map((id) => ({ id, label: t(`steps.${id}`), done: done[id], attention: id === "settings" && Boolean(slugProblem) }));
   const sidebar = { typeLabel: t("typeLabel"), status: { kind: post.status === "published" ? "live" as const : "draft" as const, label: t(`status.${post.status}`) }, back: { href: list, label: t("back") }, dirty,
-    openPage: post.status === "published" ? { href: publicHref, label: t("openArticle") } : undefined };
+    openPage: post.status === "published" && post.harvestPage ? { href: publicHref, label: t("openArticle") } : undefined };
 
   const cover = useFileUrl(tenantId, fields.coverFileId);
   const shownSlug = autoSlug ? "" : fields.slug, slugPrefix = `${blogPath(settings.handle)}/`;
@@ -180,6 +183,8 @@ export function BlogEditor({ tenantId, initial, origin }: { tenantId: string; in
         </FormSection>
       </>}
       {step === "publish" && <FormSection title={<span className="text-base font-semibold">{t("steps.publish")}</span>}>
+        <Label htmlFor="blog-harvest-page" className="flex min-h-11 w-fit items-center gap-3 font-normal" data-blog-harvest-page>
+          <Switch id="blog-harvest-page" checked={fields.harvestPage} onCheckedChange={(on) => set({ harvestPage: on })} />{t("harvestPage")}</Label>
         <div className="flex flex-wrap items-center gap-2 text-sm" data-blog-state>{status}
           {post.status === "scheduled" && post.publishAt && <span>{t("scheduleFor", { date: formatScheduled(post.publishAt, settings.timeZone) })}</span>}
           {post.status === "published" && post.publishedAt && <span>{t("publishedOn", { date: formatScheduled(post.publishedAt, settings.timeZone) })}</span>}</div>
@@ -195,9 +200,10 @@ export function BlogEditor({ tenantId, initial, origin }: { tenantId: string; in
           {post.status === "scheduled" && <div><Button type="button" variant="ghost" className="min-h-11" disabled={busy} onClick={() => void act("unschedule")}><X aria-hidden="true" />{t("unschedule")}</Button></div>}
         </>}
         {post.status === "published" && <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" className="min-h-11"><Link href={publicHref} target="_blank" rel="noopener"><ExternalLink aria-hidden="true" />{t("openArticle")}</Link></Button>
+          {post.harvestPage && <Button asChild variant="outline" className="min-h-11"><Link href={publicHref} target="_blank" rel="noopener"><ExternalLink aria-hidden="true" />{t("openArticle")}</Link></Button>}
           <Button type="button" variant="outline" className="min-h-11" disabled={busy} onClick={() => setDialog("unpublish")}><Undo2 aria-hidden="true" />{t("unpublish")}</Button></div>}
       </FormSection>}
+      {step === "publish" && <ExternalBlogSection tenantId={tenantId} post={post} timeZone={settings.timeZone} busy={busy} ensureSaved={save} />}
     </WizardLayout>}
     <StickySaveBar dirty={dirty} busy={busy && dirty} onSave={() => void act("save")} onDiscard={discard} saveLabel={t("save")} savingLabel={t("saving")} />
     <FilePicker open={dialog === "picture"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} title={t("choosePicture")} imagesOnly

@@ -445,6 +445,11 @@ describe("rework PR 2: new blocks (0140)", () => {
     expect((await getPublicBio(db(), "grace-church"))!.tabs[0].blocks.find((b) => b.id === "liveoff1")).toMatchObject({ type: "live", url: "https://example.org/live" });
     expect(await click("liveoff1", "203.0.113.91")).toBe(204);
     // Unpublishing an item takes it off the page at once, without republishing the page.
+    // A members-only item (visibility 'community') never shows on the public page; a public one does.
+    await fixture.admin.query("update catalog_items set visibility='community' where id=$1", [unlisted]);
+    expect(JSON.stringify(await getPublicBio(db(), "grace-church"))).not.toContain("Unlisted ebook");
+    await fixture.admin.query("update catalog_items set visibility='public' where id=$1", [unlisted]);
+    expect(JSON.stringify(await getPublicBio(db(), "grace-church"))).toContain("Unlisted ebook");
     await fixture.admin.query("update catalog_items set visibility='hidden' where id=$1", [listed]);
     expect(JSON.stringify(await getPublicBio(db(), "grace-church"))).not.toContain("Listed course");
   });

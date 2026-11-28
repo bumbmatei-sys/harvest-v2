@@ -8,10 +8,12 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { PostEngagement } from "@/components/forum/forum-actions";
+import { LinkedItemCards, PostDetailsByline, PostLocation, PostPhotos, type PostDetailsData } from "@/components/forum/post-details";
 import { memberInitials } from "@/lib/community-members";
 
 export type PostCardData = { id: string; title: string; excerpt: string; authorId: string | null; authorName: string | null; createdAt: Date; likes: number; comments: number;
-  liked: boolean; likesOff: boolean; coverFileId: string | null; hasVideo: boolean; held: boolean; pinned: boolean };
+  liked: boolean; likesOff: boolean; coverFileId: string | null; hasVideo: boolean; held: boolean; pinned: boolean;
+  /** Photos, location, feeling, tagged people and linked items (forum post details). */ postDetails?: PostDetailsData };
 
 type Translate = (key: "formerMember" | "unnamed") => string;
 /** The name shown for an author: their name, "Member" without one, "Former member" once the account is gone (author id cleared). */
@@ -31,7 +33,7 @@ export function PostCard({ slug, post, category, menu, meta, detail, footer, chi
   detail?: { body: ReactNode; likeDisabled: boolean; replyTarget?: string };
   footer?: ReactNode; children?: ReactNode }) {
   const t = useTranslations("CommunityForum"), format = useFormatter(), href = `/communities/${slug}/posts/${post.id}`;
-  const author = forumAuthorName(t, post.authorId, post.authorName), Title = detail ? "h2" : "h3";
+  const author = forumAuthorName(t, post.authorId, post.authorName), Title = detail ? "h2" : "h3", details = post.postDetails;
   return <article aria-label={post.title} className="min-w-0">
     <Card className={footer ? "gap-3 py-4 shadow-sm" : "gap-3 pt-4 pb-2 shadow-sm"}>
       <CardHeader className="px-4">
@@ -44,6 +46,7 @@ export function PostCard({ slug, post, category, menu, meta, detail, footer, chi
             <div className="flex items-center gap-1">
               <span className="truncate text-sm font-semibold">{author}</span>
             </div>
+            {details && <div className="text-muted-foreground text-xs"><PostDetailsByline slug={slug} details={details} /></div>}
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground text-xs">
               <span>{format.dateTime(post.createdAt, { dateStyle: "medium" })}</span>
               {category && <><span aria-hidden="true">{t("dot")}</span><span>{category.emoji ? `${category.emoji} ` : ""}{category.name}</span></>}
@@ -73,6 +76,9 @@ export function PostCard({ slug, post, category, menu, meta, detail, footer, chi
             <img src={`/api/communities/${slug}/files/${post.coverFileId}`} alt="" className="aspect-video w-full object-cover" />
           </div>
         )}
+        {details && details.photos.length > 0 && <PostPhotos slug={slug} photos={details.photos} limit={detail ? undefined : 4} href={detail ? undefined : href} />}
+        {details?.location && <PostLocation location={details.location} />}
+        {details && <LinkedItemCards items={details.linkedItems} />}
 
         {/* Post Actions */}
         <PostEngagement slug={slug} postId={post.id} title={post.title} likes={post.likes} liked={post.liked} likesOff={post.likesOff}

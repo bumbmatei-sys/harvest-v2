@@ -1,4 +1,11 @@
 {
+  "OwnershipTransfer": {
+    "ineligible_recipient": "Choose an active admin in this ministry.",
+    "pending_exists": "This ministry already has a pending ownership transfer.",
+    "expired": "This ownership offer has expired.",
+    "membership_changed": "A ministry membership changed. Ask the owner to send a new offer.",
+    "already_closed": "This ownership offer has already been closed."
+  },
   "Office": {
     "personalConnectionNotice": "Connect an account you use personally. Only you can access this connection in Harvest. Harvest fetches content when you open it and keeps connection details, activity records and references you choose to link. You can disconnect at any time. Connecting does not grant anyone permission to contact people.",
     "reviewRequired": "Review this message again before sending."
@@ -790,7 +797,7 @@
     "campaignNotFound": "Campaign not found",
     "dataExportLimited": "You can download your data 3 times an hour. Try again later.",
     "deleteAccountConfirm": "Type DELETE to confirm.",
-    "deleteAccountSoleOwner": "You are the only owner of a ministry. Contact Harvest support to transfer ownership first.",
+    "deleteAccountSoleOwner": "You are the only owner of a ministry. Offer ownership to a ministry admin and wait for them to accept before deleting your account.",
     "deleteAccountDisconnectFailed": "Could not disconnect your mail and calendar. Try again.",
     "blogHandleTaken": "Another ministry already uses this blog address.",
     "blogHandleInvalid": "Use 3 to 30 lower-case letters, numbers or single hyphens.",
@@ -3127,6 +3134,11 @@
       "questions": "Join questions",
       "admission": "How people join",
       "welcome": "Welcome message"
+    },
+    "forumPosting": "Who can create forum posts",
+    "forumPostingValues": {
+      "everyone": "Everyone",
+      "hosts": "Only hosts"
     }
   },
   "CommunityPage": {
@@ -3294,6 +3306,8 @@
     "decline": "Decline"
   },
   "CommunityForum": {
+    "linkUnavailable": "No longer available",
+    "formerMember": "Former member",
     "defaultCategory": "General",
     "videoTitle": "Video: {title}",
     "uploadErrors": {
@@ -3322,7 +3336,7 @@
     "commentsOff": "Turn off replies",
     "likesOff": "Turn off likes",
     "save": "Save",
-    "publish": "Publish",
+    "publish": "Post",
     "likeNamed": "Like {name}",
     "unlikeNamed": "Unlike {name}",
     "unpin": "Unpin",
@@ -3360,7 +3374,6 @@
     "older": "Older posts",
     "awaitingReview": "Awaiting review",
     "mutedUntil": "You can't post until {date}.",
-    "formerMember": "Former member",
     "moreActions": "More actions for {name}",
     "copyLink": "Copy link",
     "linkCopied": "Link copied",
@@ -3378,7 +3391,76 @@
     "shortcuts": "Add to your post",
     "shortcutPhoto": "Photo",
     "shortcutAttach": "Attach",
-    "dot": "·"
+    "dot": "·",
+    "close": "Close",
+    "toolbar": "Add to your post",
+    "toolPhoto": "Photo",
+    "toolLocation": "Location",
+    "toolFeeling": "Feeling",
+    "toolPeople": "Tag people",
+    "toolAttach": "Attach",
+    "shortcutEvent": "Event",
+    "photos": "Photos",
+    "addPhotos": "Add photos",
+    "removePhoto": "Remove photo {n}",
+    "photoLimit": "Up to 10 photos.",
+    "location": "Location",
+    "locationPlaceholder": "Add an address or place",
+    "openInMaps": "Open in maps",
+    "removeLocation": "Remove location",
+    "feeling": "Feeling",
+    "removeFeeling": "Remove feeling",
+    "feelings": {
+      "grateful": "grateful",
+      "hopeful": "hopeful",
+      "joyful": "joyful",
+      "encouraged": "encouraged",
+      "thoughtful": "thoughtful",
+      "sad": "sad",
+      "praying": "praying",
+      "celebrating": "celebrating",
+      "learning": "learning",
+      "serving": "serving"
+    },
+    "feelingLine": "feeling {feeling}",
+    "withPeople": "with <people></people>",
+    "people": "Tag people",
+    "searchPeople": "Search members",
+    "noPeople": "No members found",
+    "mentionLimit": "Up to 10 people.",
+    "removeMention": "Remove {name}",
+    "attachTitle": "Attach",
+    "attachKinds": {
+      "photo": "Photo",
+      "video": "Video link",
+      "file": "File",
+      "article": "Article",
+      "product": "Product",
+      "course": "Course",
+      "event": "Event",
+      "form": "Form"
+    },
+    "pickerTitle": "Choose {kind}",
+    "pickerKinds": {
+      "article": "article",
+      "product": "product",
+      "course": "course",
+      "event": "event",
+      "form": "form"
+    },
+    "pickerSearch": "Search",
+    "pickerEmpty": "Nothing to show",
+    "pickerMore": "Load more",
+    "pickerLoading": "Loading…",
+    "pickerDone": "Done",
+    "pickerBack": "Back",
+    "itemLimit": "Up to 5 linked items.",
+    "linkedItems": "Linked items",
+    "removeLinked": "Remove {name}",
+    "priceFree": "Free",
+    "unavailableItem": "Unavailable item",
+    "morePhotos": "+{count}",
+    "photoAlt": "Photo {n} of {total}"
   },
   "RichText": {
     "toolbar": "Formatting",
@@ -10308,7 +10390,6 @@
     }
   },
   "WaysToGive": {
-    "group": "Giving",
     "title": "Ways to give",
     "description": "Your ministry's own giving accounts, shown on your public pages.",
     "add": "Add method",
@@ -10320,10 +10401,6 @@
     "shown": "Shown",
     "hidden": "Hidden",
     "showLabel": "Show {label} on public pages",
-    "moveUp": "Move {label} up",
-    "moveDown": "Move {label} down",
-    "edit": "Edit {label}",
-    "remove": "Remove {label}",
     "removeTitle": "Remove this way to give?",
     "removeBody": "{label} will no longer appear on your public pages.",
     "removeConfirm": "Remove",
@@ -10434,7 +10511,8 @@
         "patreon": "Patreon",
         "ko_fi": "Ko-fi",
         "buy_me_a_coffee": "Buy Me a Coffee"
-      }
+      },
+      "methodName": "{platform}, {label}"
     },
     "rowSummary": "{kind} · {detail}",
     "hiddenByStaff": "Hidden by Harvest staff",
@@ -10458,7 +10536,8 @@
         "wrong_details": "Wrong or outdated details",
         "inappropriate": "Inappropriate content",
         "other": "Something else"
-      }
+      },
+      "question": "What is wrong with these giving details?"
     },
     "staff": {
       "title": "Ways to give reports",
@@ -10508,7 +10587,14 @@
       "reauth": "Sign in again to continue.",
       "signInAgain": "Sign in again",
       "openBadge": "{count, plural, one {# open report} other {# open reports}}"
-    }
+    },
+    "liveCount": "{live} of {total} shown on your public pages.",
+    "actionsFor": "Actions for {label}",
+    "editItem": "Edit",
+    "moveUpItem": "Move up",
+    "moveDownItem": "Move down",
+    "removeItem": "Remove",
+    "dialogDescription": "Shown on your public pages."
   },
   "Fundraising": {
     "title": "Fundraising campaigns",
@@ -10545,7 +10631,6 @@
       "status": "Status",
       "goal": "Goal",
       "raised": "Raised",
-      "progress": "Progress",
       "actions": "Actions"
     },
     "statuses": {
@@ -10598,7 +10683,12 @@
       "gifts": "{count, plural, one {# gift} other {# gifts}}",
       "pledges": "{count, plural, one {# pledge} other {# pledges}}",
       "raisedHidden": "Owners and admins see giving records.",
-      "ofGoal": "{percent}% of goal"
+      "ofGoal": "{percent}% of goal",
+      "ofLimit": "of {limit}",
+      "goalReached": "Goal reached",
+      "toGo": "{amount} to go",
+      "giftsLabel": "Gifts",
+      "raisedOfGoal": "{raised} · {percent}%"
     },
     "tabs": {
       "gifts": "Gifts",
@@ -10622,7 +10712,6 @@
       "date": "Date",
       "supporter": "Supporter",
       "amount": "Amount",
-      "method": "Method",
       "recorded": "Recorded",
       "actions": "Actions"
     },
@@ -10671,7 +10760,34 @@
     },
     "amountPlaceholder": "0.00",
     "reversalLabel": "Reversal · {reason}",
-    "pledgeOption": "{name} · {amount}"
+    "pledgeOption": "{name} · {amount}",
+    "actionsFor": "Actions for {title}",
+    "summary": {
+      "published": "Open",
+      "draft": "Drafts",
+      "closed": "Closed"
+    },
+    "filterByStatus": "Filter by status",
+    "clearFilter": "Clear filter",
+    "resetFilters": "Reset filters",
+    "noMatchesDescription": "Try another status or search term.",
+    "optional": "(optional)",
+    "pickDate": "Pick a date",
+    "sections": {
+      "details": "Details",
+      "goal": "Goal and currency",
+      "pledge": "Pledge",
+      "supporter": "Supporter",
+      "gift": "Gift",
+      "method": "Method and reference",
+      "correction": "Correction"
+    },
+    "showing": "Showing <strong>{first}-{last}</strong> of <strong>{total}</strong>",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "notSet": "Not set",
+    "recordsSummary": "{gifts}, {pledges}",
+    "characterCount": "{count}/{max}"
   },
   "CampaignEvents": {
     "title": "Events",
@@ -10709,7 +10825,16 @@
       "previewTitle": "Public page preview",
       "invalidSlug": "Use 3–48 lowercase letters, numbers or hyphens.",
       "reservedSlug": "That address is reserved. Choose another.",
-      "tooLong": "Use at most {max} characters."
+      "tooLong": "Use at most {max} characters.",
+      "coverPreview": "Cover image preview",
+      "intro": "Save the page to get its address.",
+      "liveHint": "Visitors can see this page now.",
+      "link": "Link",
+      "charactersLeft": "{count, plural, one {# character} other {# characters}} left",
+      "amount": "Amount raised",
+      "cover": "Cover",
+      "unsaved": "You have unsaved changes.",
+      "allSaved": "Everything is saved."
     },
     "public": {
       "by": "By {ministry}",
@@ -10717,12 +10842,14 @@
       "goal": "Goal",
       "ofGoal": "{percent}% of goal",
       "progressLabel": "Progress toward the goal",
-      "raisedOf": "{raised} of {goal}",
       "suppressed": "Progress shows once more gifts are recorded.",
       "recorded": "Gifts recorded by the ministry.",
       "notice": "Gifts go directly to {ministry}. Harvest doesn't process payments.",
       "theMinistry": "the ministry",
-      "coverAlt": "Cover image for {title}"
+      "coverAlt": "Cover image for {title}",
+      "ofGoalAmount": "of {goal}",
+      "toGo": "{amount} to go",
+      "goalReached": "Goal reached"
     },
     "cover": {
       "label": "Cover image",
@@ -10930,7 +11057,52 @@
     "pending": "…",
     "addCover": "Add cover",
     "changeCover": "Change cover",
-    "removeCover": "Remove cover"
+    "removeCover": "Remove cover",
+    "harvestPage": "Harvest blog page",
+    "external": {
+      "title": "Also publish to",
+      "empty": "No blogs connected",
+      "connect": "Connect a blog",
+      "timing": "Timing",
+      "at": "Date and time",
+      "on": "on {blog}",
+      "modes": {
+        "draft": "Draft",
+        "same_time": "Same time",
+        "own_time": "Own time"
+      },
+      "send": "Send",
+      "update": "Update on {blog}",
+      "check": "Check status",
+      "open": "Open copy",
+      "reconnect": "Reconnect needed",
+      "pickTime": "Choose a date and time",
+      "queued": "Queued for {blog}",
+      "checking": "Checking {blog}",
+      "status": {
+        "none": "Not sent",
+        "queued": "Queued",
+        "scheduled_on_blog": "Scheduled",
+        "published": "Published",
+        "draft_on_blog": "Draft",
+        "failed": "Failed",
+        "changed_on_blog": "Changed on blog"
+      },
+      "warnings": "Not carried over to {blog}",
+      "warning": {
+        "video_link": "Videos become links",
+        "code_block": "Code blocks become plain text",
+        "nested_image": "Pictures in lists and quotes are left out",
+        "image_unavailable": "A picture can't be sent",
+        "editor_block": "Some blocks are simplified",
+        "inline_style": "Some text styles are left out",
+        "wix_block_limit": "Very long blocks are left out",
+        "seo_unsupported": "Search title and description aren't sent",
+        "excerpt_optional": "The excerpt isn't sent",
+        "featured_image_preserved": "The blog keeps its current cover"
+      },
+      "planner": "{platform} copy"
+    }
   },
   "MyNotes": {
     "title": "My notes",
@@ -10963,8 +11135,8 @@
     "keptAudit": "Security records of actions taken with your account, without your name or email",
     "keptMinistry": "Contact records a ministry keeps about you. Ask the ministry to remove them.",
     "soleOwnerTitle": "Transfer your ministries first",
-    "soleOwnerBody": "You are the only owner of these ministries. Ownership can't be transferred in the app yet: contact Harvest support to make someone else an owner, then come back.",
-    "soleOwnerShort": "You are the only owner of a ministry. Contact Harvest support to transfer ownership first.",
+    "soleOwnerBody": "You are the only owner of these ministries. Offer ownership to an admin in each ministry. You can delete your account once they accept.",
+    "soleOwnerShort": "You are the only owner of a ministry. Offer ownership to a ministry admin and wait for them to accept before deleting your account.",
     "typeToConfirm": "Type {word} to confirm",
     "deleteAccount": "Delete my account",
     "deleting": "Deleting…",

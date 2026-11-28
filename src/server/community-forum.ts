@@ -2,7 +2,7 @@ import { and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
 import { communities, communityCategories, communityComments, communityFiles, communityLikes, communityMemberships, communityPosts, users } from "../db/schema";
-import { commentInput, forumSorts, postInput, type ForumSort } from "../lib/forum";
+import { commentInput, forumItemKinds, forumSorts, postInput, type ForumItemKind, type ForumPostDetailsInput, type ForumSort } from "../lib/forum";
 import { plainText, sanitizeRichText, type RichDoc } from "../lib/rich-text";
 import { videoEmbed } from "../lib/video-embed";
 import { defaultPrefs, type NotificationPrefs } from "../lib/notifications";
@@ -15,7 +15,7 @@ import { withUser } from "./tenancy";
 // PR 4b (C09/C10): the member forum. Reads run in withUser through community_can_read (RLS); every write goes
 // through a definer in migration 0038, which re-checks membership, roles, hosts-only categories and switches.
 export type ForumContext = { id: string; tenantId: string; slug: string; name: string; description: string | null; rulesList: string[]; role: string;
-  canModerate: boolean; chatEnabled: boolean; mutedUntil: Date | null; prefs: NotificationPrefs; notificationsSince: Date;
+  canModerate: boolean; forumPosting: "everyone" | "hosts"; canCreatePost: boolean; chatEnabled: boolean; mutedUntil: Date | null; prefs: NotificationPrefs; notificationsSince: Date;
   welcome: { message: string | null; introCategoryId: string | null; dismissed: boolean }; categories: { id: string; name: string; emoji: string | null; hostsOnly: boolean }[] };
 
 const notFound = () => new AccessError(404, message("Errors.communityNotFound"));
@@ -27,7 +27,7 @@ async function context(tx: Transaction, userId: string, slug: string): Promise<F
   if (!parsed.success) return null;
   // communities_member: visible only through the caller's active membership.
   const [row] = await tx.select({ id: communities.id, tenantId: communities.tenantId, slug: communities.slug, name: communities.name, description: communities.description,
-    rulesList: communities.rulesList, chatEnabled: communities.chatEnabled, status: communities.status, role: communityMemberships.role, mutedUntil: communityMemberships.mutedUntil,
+    rulesList: communities.rulesList, forumPosting: communities.forumPosting, chatEnabled: communities.chatEnabled, status: communities.status, role: communityMemberships.role, mutedUntil: communityMemberships.mutedUntil,
     welcomeMessage: communities.welcomeMessage, introCategoryId: communities.introCategoryId, joinedAt: communityMemberships.joinedAt, rowCreatedAt: communityMemberships.createdAt,
     notifyReplies: communityMemberships.notifyReplies, notifyLikes: communityMemberships.notifyLikes, notifyAnnouncements: communityMemberships.notifyAnnouncements,
     notificationsMuted: communityMemberships.notificationsMuted, emailFrequency: communityMemberships.emailFrequency, seenAt: communityMemberships.notificationsSeenAt, welcomeDismissedAt: communityMemberships.welcomeDismissedAt })
@@ -36,8 +36,11 @@ async function context(tx: Transaction, userId: string, slug: string): Promise<F
   if (!row || row.status !== "published" || !(await readable(tx, row.tenantId, row.id))) return null;
   const categories = await tx.select({ id: communityCategories.id, name: communityCategories.name, emoji: communityCategories.emoji, hostsOnly: communityCategories.hostsOnly })
     .from(communityCategories).where(eq(communityCategories.communityId, row.id)).orderBy(asc(communityCategories.position), asc(communityCategories.createdAt));
+  const canModerate = communityCan(row.role, "community:moderate");
+  const mutedUntil = row.mutedUntil && row.mutedUntil > new Date() ? row.mutedUntil : null;
   return { id: row.id, tenantId: row.tenantId, slug: row.slug, name: row.name, description: row.description, rulesList: row.rulesList, role: row.role,
-    canModerate: communityCan(row.role, "community:moderate"), chatEnabled: row.chatEnabled, mutedUntil: row.mutedUntil && row.mutedUntil > new Date() ? row.mutedUntil : null,
+    canModerate, forumPosting: row.forumPosting, canCreatePost: !mutedUntil && (canModerate || (row.forumPosting === "everyone" && categories.some((c) => !c.hostsOnly))),
+    chatEnabled: row.chatEnabled, mutedUntil,
     prefs: { ...defaultPrefs, replies: row.notifyReplies, likes: row.notifyLikes, announcements: row.notifyAnnouncements, muted: row.notificationsMuted, email: row.emailFrequency },
     notificationsSince: row.seenAt ?? row.joinedAt ?? row.rowCreatedAt,
     welcome: { message: row.welcomeMessage, introCategoryId: row.introCategoryId, dismissed: row.welcomeDismissedAt !== null }, categories };
@@ -47,8 +50,32 @@ async function context(tx: Transaction, userId: string, slug: string): Promise<F
 export { context as forumContextTx };
 export function forumContext(db: Database, userId: string, slug: string) { return withUser(db, userId, (tx) => context(tx, userId, slug)); }
 
+type ForumPhoto = { id: string; name: string; mime: string; size: number };
+export type ForumItemCard = { id: string; title: string; href: string; cover: string | null; price: "free" | null };
+export type ForumItemReference = { kind: ForumItemKind; id: string };
+type LinkedCard = ForumItemReference & (
+  ({ available: true } & ForumItemCard) | { available: false; title?: string }
+);
+export type ForumPostDetails = {
+  location: string | null;
+  feeling: ForumPostDetailsInput["feeling"];
+  photos: ForumPhoto[];
+  mentions: { userId: string; name: string }[];
+  linkedItems: LinkedCard[];
+};
+const noDetails: ForumPostDetails = { location: null, feeling: null, photos: [], mentions: [], linkedItems: [] };
+
+async function loadPostDetails(tx: Transaction, slug: string, ids: string[]) {
+  if (!ids.length) return new Map<string, { details: ForumPostDetails; former_member: boolean }>();
+  const { rows } = await tx.execute<{ post_id: string; details: ForumPostDetails; former_member: boolean }>(sql`
+    select * from public.community_forum_read_details(${slug}, ${"{" + ids.join(",") + "}"}::uuid[])`);
+  return new Map(rows.map(({ post_id, details, former_member }) => [post_id, { former_member, details: {
+    ...details, linkedItems: details.linkedItems.map((link) => link.available ? link : { ...link, title: message("CommunityForum.linkUnavailable") }),
+  } }]));
+}
+
 export type PostSummary = { id: string; title: string; excerpt: string; authorId: string | null; authorName: string | null; categoryId: string; pinned: boolean;
-  createdAt: Date; editedAt: Date | null; likes: number; comments: number; liked: boolean; likesOff: boolean; coverFileId: string | null; hasVideo: boolean; held: boolean };
+  createdAt: Date; editedAt: Date | null; likes: number; comments: number; liked: boolean; likesOff: boolean; coverFileId: string | null; hasVideo: boolean; held: boolean; postDetails?: ForumPostDetails };
 
 const likeCount = (target: "post" | "comment", idColumn: typeof communityPosts.id | typeof communityComments.id, since?: Date) =>
   sql<number>`(select count(*)::int from ${communityLikes} l where l.target_type = ${target} and l.target_id = ${idColumn}${since ? sql` and l.created_at >= ${since}` : sql``})`;
@@ -76,8 +103,13 @@ export async function listPosts(db: Database, userId: string, slug: string, raw:
       .orderBy(...(input.sort === "best" ? [desc(best), desc(communityPosts.createdAt)] : [desc(communityPosts.pinned), desc(communityPosts.createdAt)]))
       .limit(forumPageSize + 1).offset((input.page - 1) * forumPageSize);
     const hasMore = rows.length > forumPageSize;
-    return { context: ctx, sort: input.sort as ForumSort, page: input.page, hasMore, posts: rows.slice(0, forumPageSize).map(({ bodyText, videoUrl, ...row }): PostSummary => ({ ...row,
-      excerpt: bodyText.replace(/\s+/g, " ").slice(0, 220), hasVideo: Boolean(videoUrl) })) };
+    const page = rows.slice(0, forumPageSize);
+    const details = await loadPostDetails(tx, ctx.slug, page.map((row) => row.id));
+    return { context: ctx, sort: input.sort as ForumSort, page: input.page, hasMore, posts: page.map(({ bodyText, videoUrl, ...row }): PostSummary => {
+      const detail = details.get(row.id);
+      return { ...row, ...(detail?.former_member ? { authorId: null, authorName: null } : {}),
+        postDetails: detail?.details ?? noDetails, excerpt: bodyText.replace(/\s+/g, " ").slice(0, 220), hasVideo: Boolean(videoUrl) };
+    }) };
   });
 }
 
@@ -109,7 +141,12 @@ export async function getPost(db: Database, userId: string, slug: string, postId
       .orderBy(asc(communityComments.createdAt)).limit(500);
     // Rendered content is re-sanitized on every read: stored JSON is never trusted as markup.
     const body: RichDoc = sanitizeRichText(post.body) ?? { type: "doc", content: [{ type: "paragraph" }] };
-    return { context: ctx, post: { ...post, body, video: post.videoUrl ? videoEmbed(post.videoUrl) : null }, attachments, comments };
+    const detail = (await loadPostDetails(tx, ctx.slug, [post.id])).get(post.id);
+    const postDetails = detail?.details ?? noDetails;
+    const photos = new Set(postDetails.photos.map((photo) => photo.id));
+    return { context: ctx, post: { ...post, ...(detail?.former_member ? { authorId: null, authorName: null } : {}),
+      body, video: post.videoUrl ? videoEmbed(post.videoUrl) : null, postDetails },
+      attachments: attachments.filter((attachment) => !photos.has(attachment.id)), comments };
   });
 }
 
@@ -132,8 +169,22 @@ export async function savePost(db: Database, userId: string, slug: string, raw: 
   const video = input.videoUrl ? input.videoUrl.trim() : null;
   if (video && !videoEmbed(video)) throw new AccessError(400, message("Errors.forumVideoInvalid"));
   const attachments = `{${input.attachmentIds.join(",")}}`;
-  return forumDefiner(db, userId, sql`select public.community_post_save(${parsed}, ${id}::uuid, ${input.categoryId}::uuid, ${input.title}, ${JSON.stringify(body)}::jsonb,
-    ${plainText(body).slice(0, 20000)}, ${video}, ${input.coverFileId ?? null}::uuid, ${attachments}::uuid[], ${input.commentsOff}, ${input.likesOff}) as v`, ["ok", "held"]);
+  return forumDefiner(db, userId, sql`select public.community_post_save_details(${parsed}, ${id}::uuid, ${input.categoryId}::uuid, ${input.title}, ${JSON.stringify(body)}::jsonb,
+    ${plainText(body).slice(0, 20000)}, ${video}, ${input.coverFileId ?? null}::uuid, ${attachments}::uuid[], ${input.commentsOff}, ${input.likesOff},
+    ${input.postDetails ? JSON.stringify(input.postDetails) : null}::jsonb) as v`, ["ok", "held"]);
+}
+
+const pickerInput = z.object({ kind: z.enum(forumItemKinds), q: z.string().trim().max(100).default(""),
+  page: z.coerce.number().int().min(1).max(1000).default(1) }).strict();
+
+export function forumItemPicker(db: Database, userId: string, slug: string, raw: unknown) {
+  const input = pickerInput.parse(raw), parsed = communitySlug.parse(slug);
+  return withUser(db, userId, async (tx) => {
+    const { rows: [{ result }] } = await tx.execute<{ result: { outcome: string; items: ForumItemCard[] } }>(sql`
+      select public.community_forum_picker(${parsed}, ${input.kind}, ${input.q}, ${input.page}) as result`);
+    if (result.outcome !== "ok") throw refusal(result.outcome);
+    return { kind: input.kind, page: input.page, hasMore: result.items.length > 25, items: result.items.slice(0, 25) };
+  });
 }
 
 export function deletePost(db: Database, userId: string, slug: string, postId: string) {

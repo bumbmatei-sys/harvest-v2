@@ -1,5 +1,5 @@
 {
-  "id": "78f5b71d-b117-4c57-8ac3-ec6c455db05d",
+  "id": "4441d37a-dd62-4e6b-b0ec-ea56d01ec586",
   "prevId": "e9b98093-e068-417d-a9ce-30ad795fd3d2",
   "version": "7",
   "dialect": "postgresql",
@@ -14053,7 +14053,7 @@
       "checkConstraints": {
         "community_reaction_emoji": {
           "name": "community_reaction_emoji",
-          "value": "\"community_message_reactions\".\"emoji\" in ('\ud83d\udc4d','\u2764\ufe0f','\ud83d\ude4f','\ud83d\ude0a','\ud83c\udf89','\ud83d\udc4f','\ud83d\udca1','\ud83d\udd25','\ud83d\ude2e','\ud83d\ude22','\u2705','\ud83d\ude4c')"
+          "value": "\"community_message_reactions\".\"emoji\" in ('👍','❤️','🙏','😊','🎉','👏','💡','🔥','😮','😢','✅','🙌')"
         }
       },
       "isRLSEnabled": false
@@ -20973,7 +20973,13 @@
           "name": "task_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "ownership_offer_id": {
+          "name": "ownership_offer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "due_at": {
           "name": "due_at",
@@ -21110,6 +21116,19 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "crm_notifications_ownership_offer_id_workspace_ownership_offers_id_fk": {
+          "name": "crm_notifications_ownership_offer_id_workspace_ownership_offers_id_fk",
+          "tableFrom": "crm_notifications",
+          "tableTo": "workspace_ownership_offers",
+          "columnsFrom": [
+            "ownership_offer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "crm_notifications_tenant_id_task_id_crm_tasks_tenant_id_id_fk": {
           "name": "crm_notifications_tenant_id_task_id_crm_tasks_tenant_id_id_fk",
           "tableFrom": "crm_notifications",
@@ -21138,13 +21157,17 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "crm_notification_target": {
+          "name": "crm_notification_target",
+          "value": "num_nonnulls(\"crm_notifications\".\"task_id\", \"crm_notifications\".\"ownership_offer_id\") = 1 and (\"crm_notifications\".\"kind\" = 'ownership_transfer') = (\"crm_notifications\".\"ownership_offer_id\" is not null)"
+        },
         "crm_notification_kind": {
           "name": "crm_notification_kind",
-          "value": "\"crm_notifications\".\"kind\" in ('task_assigned', 'task_due', 'task_overdue')"
+          "value": "\"crm_notifications\".\"kind\" in ('task_assigned', 'task_due', 'task_overdue', 'ownership_transfer')"
         },
         "crm_notification_due_at": {
           "name": "crm_notification_due_at",
-          "value": "(\"crm_notifications\".\"kind\" = 'task_assigned') = (\"crm_notifications\".\"due_at\" is null)"
+          "value": "(\"crm_notifications\".\"kind\" in ('task_assigned', 'ownership_transfer')) = (\"crm_notifications\".\"due_at\" is null)"
         }
       },
       "isRLSEnabled": false
@@ -39909,6 +39932,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "revision": {
+          "name": "revision",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
         "can_manage_admins": {
           "name": "can_manage_admins",
           "type": "boolean",
@@ -40007,6 +40037,180 @@
       },
       "isRLSEnabled": false
     },
+    "public.workspace_ownership_grants": {
+      "name": "workspace_ownership_grants",
+      "schema": "",
+      "columns": {
+        "token": {
+          "name": "token",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_id": {
+          "name": "actor_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issued_at": {
+          "name": "issued_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workspace_ownership_offers": {
+      "name": "workspace_ownership_offers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_user_id": {
+          "name": "from_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "to_user_id": {
+          "name": "to_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_revision": {
+          "name": "from_revision",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "to_revision": {
+          "name": "to_revision",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "workspace_ownership_one_offer": {
+          "name": "workspace_ownership_one_offer",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"workspace_ownership_offers\".\"status\" = 'pending'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workspace_ownership_offers_tenant_id_workspaces_tenant_id_fk": {
+          "name": "workspace_ownership_offers_tenant_id_workspaces_tenant_id_fk",
+          "tableFrom": "workspace_ownership_offers",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "workspace_ownership_offers_from_user_id_users_id_fk": {
+          "name": "workspace_ownership_offers_from_user_id_users_id_fk",
+          "tableFrom": "workspace_ownership_offers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "from_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "workspace_ownership_offers_to_user_id_users_id_fk": {
+          "name": "workspace_ownership_offers_to_user_id_users_id_fk",
+          "tableFrom": "workspace_ownership_offers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "to_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workspace_ownership_distinct_members": {
+          "name": "workspace_ownership_distinct_members",
+          "value": "\"workspace_ownership_offers\".\"from_user_id\" <> \"workspace_ownership_offers\".\"to_user_id\""
+        },
+        "workspace_ownership_offer_status": {
+          "name": "workspace_ownership_offer_status",
+          "value": "\"workspace_ownership_offers\".\"status\" in ('pending','accepted','cancelled','declined','expired','membership_changed')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.workspaces": {
       "name": "workspaces",
       "schema": "",
@@ -40093,89 +40297,6 @@
         "workspace_audience": {
           "name": "workspace_audience",
           "value": "\"workspaces\".\"audience\" is null or \"workspaces\".\"audience\" in ('church', 'ministry_nonprofit', 'evangelist_missionary', 'creator')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.connect_community_join_counts": {
-      "name": "connect_community_join_counts",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "link_id": {
-          "name": "link_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "community_id": {
-          "name": "community_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "joins": {
-          "name": "joins",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "connect_community_join_counts_link_fk": {
-          "name": "connect_community_join_counts_link_fk",
-          "tableFrom": "connect_community_join_counts",
-          "tableTo": "campaign_response_links",
-          "columnsFrom": [
-            "tenant_id",
-            "link_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "connect_community_join_counts_community_fk": {
-          "name": "connect_community_join_counts_community_fk",
-          "tableFrom": "connect_community_join_counts",
-          "tableTo": "communities",
-          "columnsFrom": [
-            "tenant_id",
-            "community_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "connect_community_join_counts_tenant_id_link_id_community_id_pk": {
-          "name": "connect_community_join_counts_tenant_id_link_id_community_id_pk",
-          "columns": [
-            "tenant_id",
-            "link_id",
-            "community_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "connect_community_join_counts_joins": {
-          "name": "connect_community_join_counts_joins",
-          "value": "\"connect_community_join_counts\".\"joins\" >= 0"
         }
       },
       "isRLSEnabled": false
