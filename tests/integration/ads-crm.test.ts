@@ -177,6 +177,56 @@ it("syncs a shared saved view with hashes only, then clears it after a cross-cha
   }
 });
 
+it("commits the claim before the fake upload and recovers after the result transaction fails", async () => {
+  ads.audienceMinimum = 1;
+  const eligible = await person("Crash recovery", "crash-recovery@example.invalid");
+  await marketing(eligible, "granted");
+  const saved = await createView(f.db, p.owner, p.tenant, { objectType: "person", name: "Recovery", shared: true, state: fullState({}) });
+  const { audienceId } = await createCustomerAudience(f.db, p.owner, p.tenant, {
+    adAccountId: acct, savedViewId: saved.id, name: "Recovery", idempotencyKey: randomUUID(),
+  }, on);
+  const idempotencyKey = randomUUID();
+  const request = { adAccountId: acct, audienceId, idempotencyKey, confirm: true };
+  const send = () => uploadCrmAudience(f.db, p.owner, p.tenant, request, on);
+  const upload = ads.uploadAudienceMembers.bind(ads);
+  let remoteAccepted = false;
+  ads.allowSends = true;
+  const fake = vi.spyOn(ads, "uploadAudienceMembers").mockImplementation(async (credential, spec) => {
+    expect((await q("select status, attempt_id from ads_audience_uploads where idempotency_key=$1", [idempotencyKey])).rows)
+      .toEqual([{ status: "pending", attempt_id: spec.idempotencyKey }]);
+    await q("select id from contacts where tenant_id=$1 and id=$2 for update nowait", [p.tenant, eligible]);
+    const result = await upload(credential, spec);
+    remoteAccepted = true;
+    return result;
+  });
+  try {
+    await q(`create function test_reject_audience_result() returns trigger language plpgsql as $$
+      begin raise exception 'synthetic finalization failure'; end $$;
+      create trigger test_reject_audience_result before update of status on ads_audience_uploads
+        for each row when (new.status = 'sent') execute function test_reject_audience_result()`);
+    try {
+      await expect(send()).rejects.toThrow();
+      expect(remoteAccepted).toBe(true);
+      await expect(send()).rejects.toMatchObject({ details: { code: "AUDIENCE_UPLOAD_PENDING" } });
+      expect(fake).toHaveBeenCalledTimes(1);
+    } finally {
+      await q("drop trigger test_reject_audience_result on ads_audience_uploads; drop function test_reject_audience_result()");
+    }
+    const [pending] = (await q("select id, status, attempt_id from ads_audience_uploads where idempotency_key=$1", [idempotencyKey])).rows;
+    expect(pending.status).toBe("pending");
+    await q("update ads_audience_uploads set updated_at=now()-interval '2 minutes' where id=$1", [pending.id]);
+    await expect(send()).resolves.toMatchObject({ upload: { status: "sent" } });
+    const [finished] = (await q("select id, status, attempt_id from ads_audience_uploads where idempotency_key=$1", [idempotencyKey])).rows;
+    expect(finished).toMatchObject({ id: pending.id, status: "sent" });
+    expect(finished.attempt_id).not.toBe(pending.attempt_id);
+    await expect(send()).resolves.toMatchObject({ replayed: true });
+    expect(fake).toHaveBeenCalledTimes(2);
+  } finally {
+    fake.mockRestore();
+    ads.allowSends = false;
+  }
+});
+
 it("lets only owners and admins build or sync a CRM audience; a collaborator with Social access gets the neutral 404 in the server and the database", async () => {
   // Founder decision 28 Nov 2026.
   ads.audienceMinimum = 1;

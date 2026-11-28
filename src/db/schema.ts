@@ -1180,11 +1180,20 @@ export const connectIntakeReceipts = pgTable("connect_intake_receipts", {
 export const connectContactDecryptAudit = pgTable("connect_contact_decrypt_audit", {
   id: uuid("id").primaryKey().defaultRandom(),
   purpose: text("purpose").notNull(),
-  keyVersion: text("key_version").notNull(),
+  tenantId: uuid("tenant_id"),
+  recordId: uuid("record_id"),
+  actorKind: text("actor_kind"),
+  actorId: text("actor_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`clock_timestamp()`),
 }, t => [
   check("connect_contact_decrypt_audit_purpose_check", sql`${t.purpose} in ('invitation_request', 'invitation_claim', 'invitation_dispatch', 'legacy_rotation')`),
-  check("connect_contact_decrypt_audit_key_version_check", sql`${t.keyVersion} in ('legacy', 'v1', 'v2')`),
+  index("connect_contact_decrypt_audit_tenant_recent").on(t.tenantId, t.createdAt, t.id),
+  check("connect_contact_decrypt_audit_scope", sql`${t.tenantId} IS NOT NULL AND ${t.recordId} IS NOT NULL AND
+    CASE ${t.purpose}
+      WHEN 'invitation_request' THEN ${t.actorKind} IS NOT DISTINCT FROM 'receipt' AND ${t.actorId} IS NULL
+      WHEN 'invitation_claim' THEN ${t.actorKind} IS NOT DISTINCT FROM 'user' AND ${t.actorId} IS NOT NULL
+      ELSE ${t.actorKind} IS NOT DISTINCT FROM 'worker' AND ${t.actorId} IS NOT NULL
+    END`),
 ]);
 // Opaque, short-lived SOURCE/receipt quotas; no IP address or contact value is stored.
 export const connectIntakeLimits = pgTable("connect_intake_limits", {
@@ -3848,7 +3857,7 @@ export const discoverReviewEvents = pgTable("discover_review_events", {
 export const adsAudienceUploads = pgTable("ads_audience_uploads", {
   tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), audienceId: uuid("audience_id").notNull(), idempotencyKey: uuid("idempotency_key").notNull(),
   status: text("status").notNull().default("pending"), eligible: integer("eligible").notNull().default(0), excluded: jsonb("excluded").$type<Record<string, number>>().notNull().default({}), sent: integer("sent").notNull().default(0),
-  errorCode: text("error_code"), requestedBy: text("requested_by").notNull().references(() => users.id), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  attemptId: uuid("attempt_id"), errorCode: text("error_code"), requestedBy: text("requested_by").notNull().references(() => users.id), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   foreignKey({ name: "ads_audience_uploads_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
   foreignKey({ name: "ads_audience_uploads_audience_fk", columns: [t.tenantId, t.audienceId], foreignColumns: [adsAudiences.tenantId, adsAudiences.id] }),

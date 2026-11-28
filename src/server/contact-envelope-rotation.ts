@@ -12,7 +12,7 @@ export async function rotateStagedContacts(pool: Pool, env: KeyEnvironment, mode
   let cursor: StagedRow | undefined;
   let changed = 0, failed = 0, conflicted = 0;
   for (let batch = 0; mode === "run" && batch < 100; batch++) {
-    // The definer commits a counts-only audit of legacy values before they can be opened.
+    // The definer commits an audit of legacy opens before they can be opened.
     const { rows } = await pool.query<StagedRow>("select * from public.connect_contact_rotation_page($1, $2, $3, $4)",
       [cursor?.tenant_id, cursor?.response_id, version, batchSize]);
     for (const { tenant_id, response_id, envelope } of rows) {

@@ -153,11 +153,15 @@ export async function createCustomerAudience(db: Database, user: string, workspa
   });
 }
 
-/** Each new sync replaces the whole remote list. A below-minimum or unavailable view clears a previous upload before the generic refusal. */
+const claimLeaseMs = 60_000;
+
+/** Each sync replaces the fake provider's whole remote list, including clearing a list that drops below the minimum. */
 export async function uploadCrmAudience(db: Database, user: string, workspace: string, raw: unknown, deps: AdsDeps) {
   requireOn(deps);
   const input = parse(audienceUploadInput, raw);
-  const result = await withCrmAudience(db, user, workspace, deps, async (tx, tenant) => {
+  const claim = await withCrmAudience(db, user, workspace, deps, async (tx, tenant) => {
+    // The same request key can be submitted against different accounts. Serialize that check before taking account or audience locks.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`ads-audience-upload:${tenant}:${input.idempotencyKey}`}, 0))`);
     const ctx = await loadAccount(tx, tenant, input.adAccountId, true);
     const access = fakeAccess(ctx, deps);
     const [audience] = await tx.select().from(adsAudiences).where(and(eq(adsAudiences.tenantId, tenant), eq(adsAudiences.id, input.audienceId),
@@ -166,30 +170,50 @@ export async function uploadCrmAudience(db: Database, user: string, workspace: s
     if (prior && (prior.audienceId !== input.audienceId || prior.adAccountId !== input.adAccountId)) throw stale("KEY_MISMATCH");
     if (!audience) throw unavailableAudience();
     if (prior?.status === "sent") {
-      return prior.sent > 0 ? { upload: { status: prior.status, eligible: prior.eligible, sent: prior.sent, excluded: prior.excluded }, replayed: true } : null;
+      const upload = prior.sent > 0 ? { status: prior.status, eligible: prior.eligible, sent: prior.sent, excluded: prior.excluded } : null;
+      return { replay: true, upload } as const;
     }
+
+    const [pending] = await tx.select({ id: adsAudienceUploads.id, updatedAt: adsAudienceUploads.updatedAt }).from(adsAudienceUploads)
+      .where(and(eq(adsAudienceUploads.tenantId, tenant), eq(adsAudienceUploads.audienceId, audience.id), eq(adsAudienceUploads.status, "pending"))).limit(1);
+    if (pending && (pending.id !== prior?.id || pending.updatedAt.getTime() + claimLeaseMs > Date.now())) throw stale("AUDIENCE_UPLOAD_PENDING");
+
     const view = audience.crmSavedViewId ? await audienceView(tx, tenant, audience.crmSavedViewId) : undefined;
     const { members, eligible, excluded } = view ? await computeEligibility(tx, tenant, view, true) : { members: [], eligible: 0, excluded: {} };
-    const belowMinimum = eligible < access.minimum;
-    const values = { eligible, excluded, status: "pending" as const, errorCode: null, updatedAt: new Date() };
+    const attemptId = randomUUID();
+    const values = { eligible, excluded, status: "pending", attemptId, sent: 0, errorCode: null, updatedAt: sql`clock_timestamp()` };
     const [row] = prior
       ? await tx.update(adsAudienceUploads).set(values).where(and(eq(adsAudienceUploads.tenantId, tenant), eq(adsAudienceUploads.id, prior.id))).returning()
       : await tx.insert(adsAudienceUploads).values({ tenantId: tenant, adAccountId: input.adAccountId, audienceId: input.audienceId,
         idempotencyKey: input.idempotencyKey, requestedBy: user, ...values }).returning();
     await audit(tx, tenant, user, "audience_upload_requested", row.id, { eligible: String(eligible) });
-    let sent = 0;
-    let code: string | null = null;
-    try {
-      // A retry re-evaluates consent. A new provider key must apply that new snapshot even after an ambiguous attempt.
-      ({ received: sent } = await access.provider.uploadAudienceMembers(access.credential, { ...access.query, audienceRef: audience.externalRef,
-        idempotencyKey: randomUUID(), members: belowMinimum ? [] : members }));
-    } catch (error) { code = failureCode(error); }
-    const status = code === null ? "sent" : code === "UNAVAILABLE" ? "ambiguous" : "failed";
-    await tx.update(adsAudienceUploads).set({ status, sent, errorCode: code, updatedAt: new Date() })
-      .where(and(eq(adsAudienceUploads.tenantId, tenant), eq(adsAudienceUploads.id, row.id)));
-    await audit(tx, tenant, user, "audience_upload_outcome", row.id, { sent: String(sent) });
-    return belowMinimum ? null : { upload: { status, eligible, sent, excluded }, replayed: false };
+    return { replay: false, row, attemptId, access, audienceRef: audience.externalRef, members, belowMinimum: eligible < access.minimum } as const;
   });
-  if (!result) throw unavailableAudience();
-  return result;
+  if (claim.replay) {
+    if (!claim.upload) throw unavailableAudience();
+    return { upload: claim.upload, replayed: true };
+  }
+
+  // The claim and eligibility locks have committed. Recovery recomputes current consent and applies a full replacement
+  // with a fresh attempt key, even if this process stopped after the previous replacement was accepted.
+  let sent = 0;
+  let code: string | null = null;
+  try {
+    ({ received: sent } = await claim.access.provider.uploadAudienceMembers(claim.access.credential, {
+      ...claim.access.query, audienceRef: claim.audienceRef, idempotencyKey: claim.attemptId,
+      members: claim.belowMinimum ? [] : claim.members,
+    }));
+  } catch (error) { code = failureCode(error); }
+
+  const status = code === null ? "sent" : code === "UNAVAILABLE" ? "ambiguous" : "failed";
+  await withCrmAudience(db, user, workspace, deps, async (tx, tenant) => {
+    const [recorded] = await tx.update(adsAudienceUploads).set({ status, sent, errorCode: code, updatedAt: sql`clock_timestamp()` })
+      .where(and(eq(adsAudienceUploads.tenantId, tenant), eq(adsAudienceUploads.id, claim.row.id),
+        eq(adsAudienceUploads.attemptId, claim.attemptId), eq(adsAudienceUploads.status, "pending")))
+      .returning({ id: adsAudienceUploads.id });
+    if (!recorded) throw stale("AUDIENCE_UPLOAD_PENDING");
+    await audit(tx, tenant, user, "audience_upload_outcome", recorded.id, { sent: String(sent) });
+  });
+  if (claim.belowMinimum) throw unavailableAudience();
+  return { upload: { status, eligible: claim.row.eligible, sent, excluded: claim.row.excluded }, replayed: false };
 }

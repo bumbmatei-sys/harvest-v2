@@ -1,4 +1,7 @@
 import { rotateStagedContacts } from "../../src/server/contact-envelope-rotation";
+import { listContactDecryptAudit } from "../../src/server/connect-decrypt-audit";
+import { sql } from "drizzle-orm";
+import { withUser } from "../../src/server/tenancy";
 import { randomUUID } from "node:crypto";
 import { beforeAll,afterAll,expect,it,vi } from "vitest";
 vi.mock("server-only",()=>({}));
@@ -31,7 +34,7 @@ async function sent(s:Awaited<ReturnType<typeof source>>){
  return {token,flow:await prepareInvitation(f.db,{token}),row:r};
 }
 beforeAll(async()=>{
- f=await testDatabase();vi.stubEnv("NODE_ENV","test");vi.stubEnv("HARVEST_CONNECT_INTAKE","synthetic");vi.stubEnv("HARVEST_CONNECT_TEST_KEY","a".repeat(64));vi.stubEnv("DATABASE_URL",f.appURL);
+ f=await testDatabase({ migrationOwner: true });vi.stubEnv("NODE_ENV","test");vi.stubEnv("HARVEST_CONNECT_INTAKE","synthetic");vi.stubEnv("HARVEST_CONNECT_TEST_KEY","a".repeat(64));vi.stubEnv("DATABASE_URL",f.appURL);
  await f.db.insert(users).values([{id:"hc07-owner",name:"Owner",email:"owner@example.test",emailVerified:true},guest,other].map(u=>({...u,name:u.id})));
  tenant=(await createWorkspace(f.db,"hc07-owner","HC07 fixture")).tenantId;campaign=(await createCampaign(f.db,"hc07-owner",tenant,{name:"Synthetic campaign",type:"conference"},"hc07")).id;
 });
@@ -205,9 +208,25 @@ it("rewraps an HC-05 staging receipt and durably audits its authorized open", as
   await f.admin.query("update connect_invitations set issued_at=ARRAY[now()-interval '61 seconds'] where response_id=$1", [response_id]);
   expect(await requestInvitation(f.db, { receiptToken: keyed.input.receiptToken })).toEqual({ acknowledged: true });
   expect((await row(keyed.input.receiptToken)).generation).toBe(2);
-  const { rows } = await f.admin.query("select purpose, key_version from connect_contact_decrypt_audit where key_version='v2'");
-  expect(rows).toContainEqual({ purpose: "invitation_request", key_version: "v2" });
-  await expect(f.pool.query("select * from connect_contact_decrypt_audit")).rejects.toMatchObject({ code: "42501" });
+  const audit = await listContactDecryptAudit(f.db, "hc07-owner", tenant, null);
+  expect(audit.items).toContainEqual(expect.objectContaining({
+    tenantId: tenant, recordId: response_id, purpose: "invitation_request", actorKind: "receipt", actorId: null,
+  }));
+  expect(audit.items).toContainEqual(expect.objectContaining({ purpose: "invitation_dispatch", actorKind: "worker" }));
+  const rows = (await f.admin.query("select * from public.connect_contact_decrypt_audit")).rows;
+  expect(Object.keys(rows[0]).sort()).toEqual(["actor_id", "actor_kind", "created_at", "id", "purpose", "record_id", "tenant_id"]);
+  for (const privateValue of [keyed.input.email, before.ciphertext, before.wrappedKey, keyed.input.receiptToken]) {
+    expect(JSON.stringify(rows)).not.toContain(privateValue);
+  }
+  const outside = (await createWorkspace(f.db, other.id, "Other audit ministry")).tenantId;
+  await expect(listContactDecryptAudit(f.db, other.id, tenant, null)).rejects.toMatchObject({ status: 404 });
+  await expect(listContactDecryptAudit(f.db, other.id, outside, null)).resolves.toEqual({ items: [], next: null });
+  const forged = await withUser(f.db, other.id, async tx => {
+    await tx.execute(sql`select set_config('app.tenant_id', ${tenant}, true)`);
+    return tx.execute(sql`select * from public.connect_contact_decrypt_audit`);
+  });
+  expect(forged.rows).toEqual([]);
+  await expect(f.workerPool.query("select * from public.connect_contact_decrypt_audit")).rejects.toMatchObject({ code: "42501" });
  } finally {
   vi.stubEnv("CONTACT_KEK_V1", undefined);
   vi.stubEnv("CONTACT_KEK_V2", undefined);
