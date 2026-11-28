@@ -200,6 +200,7 @@ test("CRM-03: custom fields, saved views, filters, columns and keyboard grid edi
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(`${root}/crm/companies`);
+  await expect(page.getByRole("heading", { level: 1, name: /^Organizations\b/ })).toBeVisible();
   await both(page, "companies-list");
 
   // A viewer reads views and values but cannot save views, change values or definitions.

@@ -54,7 +54,8 @@ test("import and sync status shows lifecycle only, honest empty state, and passe
     await page.goto(`${root}/crm/imports/status`);
     for (const mode of ["light", "dark"] as const) {
       await setMode(page, mode);
-      await expect(page.getByText("Mapping")).toBeVisible();
+      const status = page.getByText("Mapping", { exact: true }).filter({ visible: true });
+      await expect(status).toHaveCount(1);
       expect(await page.locator("body").innerText()).not.toContain("synthetic-secret-name");
       await check(page, `list-${width}-${mode}`);
     }
