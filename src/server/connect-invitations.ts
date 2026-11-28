@@ -6,7 +6,7 @@ import { users } from "../db/schema";
 import type { Database, Transaction } from "../db/client";
 import { requireSyntheticIntake, withSyntheticIntake } from "./connect-intake-context";
 import { invitationRecipientHash, receiptHash, sealIntake, type SealedEnvelope } from "./connect-intake-crypto";
-import { decryptContactDetails } from "./connect-decrypt";
+import { decryptContactDetails, openAuditedStagedContact, type StagedContactEnvelope } from "./connect-decrypt";
 import { withUser } from "./tenancy";
 import { AccessError } from "./permissions";
 import { message } from "../i18n/messages";
@@ -29,14 +29,18 @@ export async function enqueueInvitation(tx:Transaction,hash:string,email:string,
 }
 export async function requestInvitation(db:Database,raw:unknown) {
  const input=invitationRequest.parse(raw);
- const outcome=await withSyntheticIntake(db,async tx=>{
-  const r=await tx.execute<{envelope:Envelope|null}>(sql`select public.connect_invitation_pending(${receiptHash(input.receiptToken)}) as envelope`);
-  const sealed=r.rows[0]?.envelope;if(!sealed)return "unavailable";
-  if("limited" in sealed)return "limited";
-  if(!sealed.binding.endsWith(`:${receiptHash(input.receiptToken)}`))return "unavailable";
-  const {email}=z.object({email:z.string().regex(/^[^@\s]+@example\.test$/i)}).parse(decryptContactDetails(sealed,sealed.binding,"invitation-request"));
-  return enqueueInvitation(tx,receiptHash(input.receiptToken),email,true);
+ const hash = receiptHash(input.receiptToken);
+ const sealed = await withSyntheticIntake(db, async tx => {
+   const result = await tx.execute<{ envelope: StagedContactEnvelope | { limited: true } | null }>(sql`select public.connect_invitation_pending(${hash}) as envelope`);
+   return result.rows[0]?.envelope;
  });
+ let outcome: string | undefined;
+ if (sealed && "limited" in sealed) outcome = "limited";
+ else if (sealed?.binding.endsWith(`:${hash}`)) {
+   const { email } = z.object({ email: z.string().regex(/^[^@\s]+@example\.(?:invalid|test)$/i) })
+     .parse(await openAuditedStagedContact(sealed, "invitation-request"));
+   outcome = await withSyntheticIntake(db, tx => enqueueInvitation(tx, hash, email, true));
+ }
  // Never disclose account/response existence or delivery success.
  if(outcome==="limited")return {limited:true} as const;
  return {acknowledged:true} as const;
@@ -55,8 +59,25 @@ export async function readInvitationFlow(db:Database,flow:string):Promise<Invita
   const r=await tx.execute<{flow:InvitationFlow|null}>(sql`select public.connect_invitation_flow(${receiptHash(flow)}) as flow`);return r.rows[0]?.flow??null;
  });
 }
+async function readClaimContact(db: Database, flowHash: string, userId: string) {
+ return withUser(db, userId, async tx => {
+  const [current] = await tx.select({ email: users.email, verified: users.emailVerified }).from(users).where(eq(users.id, userId));
+  if (!current?.verified) return null;
+  await tx.execute(sql`select set_config('app.connect_intake_mode','synthetic',true)`);
+  const f = await tx.execute<{ flow: InvitationFlow | null }>(sql`select public.connect_invitation_flow(${flowHash}) as flow`);
+  const info = f.rows[0]?.flow;
+  if (!info?.automatic) return null;
+  const proof = invitationRecipientHash(current.email, info.recipientBinding);
+  if (proof !== info.recipientHash) return null;
+  const result = await tx.execute<{envelope: StagedContactEnvelope | null}>(sql`select public.connect_claim_contact_open(${flowHash}, ${proof}) as envelope`);
+  return result.rows[0]?.envelope;
+ });
+}
 async function consumeInvitationOnce(db:Database,flow:string,user:{id:string;email:string;emailVerified:boolean},raw:unknown) {
  requireSyntheticIntake();secret.parse(flow);const {action}=invitationClaim.parse(raw);
+ const sealed = action === "confirm" ? await readClaimContact(db, receiptHash(flow), user.id) : null;
+ const payload = sealed ? z.object({ email: z.string(), preferredName: z.string().trim().max(80).optional() })
+   .parse(await openAuditedStagedContact(sealed, "invitation-claim")) : null;
  return withUser(db,user.id,async tx=>{
   const [current]=await tx.select({email:users.email,verified:users.emailVerified}).from(users).where(eq(users.id,user.id)).for("share");
   if(!current?.verified)throw unavailable();
@@ -77,10 +98,10 @@ async function consumeInvitationOnce(db:Database,flow:string,user:{id:string;ema
   const sourcePath=info.sourcePath;
   let preferredName:string|null=null;
   if(info.automatic&&action==="confirm"){
-   const envelope=await tx.execute<{envelope:Envelope|null}>(sql`select public.connect_claim_envelope(${receiptHash(flow)}) as envelope`);
-   const sealed=envelope.rows[0]?.envelope;if(!sealed)throw unavailable();
-   const payload=z.object({email:z.string(),preferredName:z.string().trim().max(80).optional()}).parse(decryptContactDetails(sealed,sealed.binding,"invitation-claim"));
-   if(payload.email.toLowerCase()!==current.email.toLowerCase())throw unavailable();
+   if (invitationRecipientHash(current.email, info.recipientBinding) !== info.recipientHash) {
+    throw new AccessError(409, message("Invitations.mismatch"), { reason: "mismatch" });
+   }
+   if (!payload || payload.email.toLowerCase() !== current.email.toLowerCase()) throw unavailable();
    preferredName=payload.preferredName??null;
   }
   const result=info.automatic
@@ -102,7 +123,7 @@ export async function dispatchInvitation(db:Database,send:InvitationSender,optio
   const r=await tx.execute<{ok:boolean}>(sql`select public.connect_invitation_dispatch(${job.id}::uuid,${lease}::uuid,${outcome},${backoff}) as ok`);return r.rows[0]?.ok;
  });
  try {
-  const payload=z.object({email:z.string().regex(/^[^@\s]+@example\.test$/i),token:secret}).strict().parse(decryptContactDetails(job.envelope,`invitation:${job.receiptHash}:${job.tokenHash}`,"invitation-dispatch"));
+  const payload=z.object({email:z.string().regex(/^[^@\s]+@example\.(?:invalid|test)$/i),token:secret}).strict().parse(decryptContactDetails(job.envelope,`invitation:${job.receiptHash}:${job.tokenHash}`,"invitation-dispatch"));
   if(job.tokenHash!==receiptHash(payload.token))throw new Error("INVALID_BINDING");
   if(!await dispatch("check"))return {status:"cancelled"} as const;
   // External I/O occurs after the reservation transaction commits. Generation key fences retries.

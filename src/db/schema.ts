@@ -1177,6 +1177,24 @@ export const connectIntakeReceipts = pgTable("connect_intake_receipts", {
   uniqueIndex("connect_intake_receipt_hash_idx").on(t.receiptHash),
   check("connect_intake_receipt_hash", sql`${t.receiptHash} ~ '^[a-f0-9]{64}$' and ${t.fingerprint} ~ '^[a-f0-9]{64}$'`),
   check("connect_intake_sealed", sql`jsonb_typeof(${t.sealedData}) = 'object' and octet_length(${t.sealedData}::text) <= 4096`)]);
+export const connectContactDecryptAudit = pgTable("connect_contact_decrypt_audit", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  purpose: text("purpose").notNull(),
+  tenantId: uuid("tenant_id"),
+  recordId: uuid("record_id"),
+  actorKind: text("actor_kind"),
+  actorId: text("actor_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`clock_timestamp()`),
+}, t => [
+  check("connect_contact_decrypt_audit_purpose_check", sql`${t.purpose} in ('invitation_request', 'invitation_claim', 'invitation_dispatch', 'legacy_rotation')`),
+  index("connect_contact_decrypt_audit_tenant_recent").on(t.tenantId, t.createdAt, t.id),
+  check("connect_contact_decrypt_audit_scope", sql`${t.tenantId} IS NOT NULL AND ${t.recordId} IS NOT NULL AND
+    CASE ${t.purpose}
+      WHEN 'invitation_request' THEN ${t.actorKind} IS NOT DISTINCT FROM 'receipt' AND ${t.actorId} IS NULL
+      WHEN 'invitation_claim' THEN ${t.actorKind} IS NOT DISTINCT FROM 'user' AND ${t.actorId} IS NOT NULL
+      ELSE ${t.actorKind} IS NOT DISTINCT FROM 'worker' AND ${t.actorId} IS NOT NULL
+    END`),
+]);
 // Opaque, short-lived SOURCE/receipt quotas; no IP address or contact value is stored.
 export const connectIntakeLimits = pgTable("connect_intake_limits", {
   key: text("key").primaryKey(), count: integer("count").notNull(),
@@ -3774,11 +3792,14 @@ export const adsFormPublications = pgTable("ads_form_publications", {
 ]);
 export const adsAudiences = pgTable("ads_audiences", {
   tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), externalRef: text("external_ref").notNull(),
+  crmSavedViewId: uuid("crm_saved_view_id"), crmManaged: boolean("crm_managed").notNull().default(false),
   kind: text("kind").notNull(), name: text("name").notNull(), sizeEstimate: bigint("size_estimate", { mode: "number" }), status: text("status").notNull().default("ready"),
   spec: jsonb("spec").$type<Record<string, unknown> | null>(), syncedAt: timestamp("synced_at", { withTimezone: true }),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   foreignKey({ name: "ads_audiences_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
+  foreignKey({ name: "ads_audiences_crm_view_fk", columns: [t.tenantId, t.crmSavedViewId], foreignColumns: [crmSavedViews.tenantId, crmSavedViews.id] }),
   uniqueIndex("ads_audiences_ref_idx").on(t.tenantId, t.adAccountId, t.externalRef),
+  check("ads_audiences_crm_view_kind", sql`(not ${t.crmManaged} or ${t.kind} = 'customer_list') and (${t.crmSavedViewId} is null or ${t.crmManaged})`),
   check("ads_audiences_shape", sql`${t.kind} in ('custom','lookalike','saved_targeting','website','engagement','customer_list') and length(${t.name}) between 1 and 200 and (${t.spec} is null or pg_column_size(${t.spec}) <= 16384)`),
 ]);
 export const adsRules = pgTable("ads_rules", {
@@ -3888,7 +3909,7 @@ export const discoverReviewEvents = pgTable("discover_review_events", {
 export const adsAudienceUploads = pgTable("ads_audience_uploads", {
   tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), audienceId: uuid("audience_id").notNull(), idempotencyKey: uuid("idempotency_key").notNull(),
   status: text("status").notNull().default("pending"), eligible: integer("eligible").notNull().default(0), excluded: jsonb("excluded").$type<Record<string, number>>().notNull().default({}), sent: integer("sent").notNull().default(0),
-  errorCode: text("error_code"), requestedBy: text("requested_by").notNull().references(() => users.id), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  attemptId: uuid("attempt_id"), errorCode: text("error_code"), requestedBy: text("requested_by").notNull().references(() => users.id), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   foreignKey({ name: "ads_audience_uploads_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
   foreignKey({ name: "ads_audience_uploads_audience_fk", columns: [t.tenantId, t.audienceId], foreignColumns: [adsAudiences.tenantId, adsAudiences.id] }),

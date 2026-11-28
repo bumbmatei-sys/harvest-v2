@@ -170,7 +170,7 @@ Explicit consent is already how the code works: purposes are separate, unchecked
 
 ## 6. Gate 5: protecting contact details (HC-DEC5)
 
-**Policy.** Contact details and sensitive answers are encrypted by the application before they are saved. Keys live in a managed key service, not in the app's settings. Keys are rotated. Only the parts of the app that must read the data can decrypt it, and every decryption is logged.
+**Policy.** Contact details and sensitive answers are encrypted by the application before they are saved. Key management uses Cloudflare secrets, manual rotation (founder decision 27 Nov). Only the parts of the app that must read the data can decrypt it, and every decryption is logged.
 
 **Lawful basis and reasoning.** Security of processing (Art. 32) and data protection by design (Art. 25). Database encryption at rest alone does not protect against a compromised application or a leaked database copy.
 
@@ -182,10 +182,10 @@ Explicit consent is already how the code works: purposes are separate, unchecked
 
 **Encryption and key-management plan.**
 1. **Algorithm.** AES-256-GCM envelopes with associated data binding each value to its row (already built).
-2. **Key service.** A managed key service in the EU, in the same region as the database (internal note: AWS KMS in `eu-central-1` is the natural fit, since the database runs in `aws-eu-central-1`; this is a proposal, not a selection).
-3. **Envelope keys.** The key service holds the master key. The app asks it to unwrap data keys; master keys never leave the service.
+2. **Key service.** Cloudflare secrets hold the versioned key-encryption keys.
+3. **Envelope keys.** The isolated application runtime reads the key-encryption key and uses Web Crypto to wrap a randomly generated data key per record.
 4. **Separate keys per purpose.** Intake, invitations, fingerprints, capabilities, prayer. A leak of one does not open the others.
-5. **Rotation.** Master keys rotate every 12 months. New data uses the new key; a bounded job re-encrypts old envelopes; the old key is retired when nothing uses it.
+5. **Rotation.** Rotate manually every 12 months. New data uses the latest key. A bounded job re-wraps stored data keys and the old key is retired after verification.
 6. **Protected search.** Fingerprints and lookup hashes need a dual-key lookup during rotation (design still open).
 7. **Audit.** Every decrypt writes a durable, insert-only audit row with counts and purpose only, never the value.
 8. **Recovery.** A written runbook for key loss and backup restore, rehearsed once before real data.
@@ -197,10 +197,10 @@ Explicit consent is already how the code works: purposes are separate, unchecked
 - One audited opener, fail-closed; rotation over an injectable store: `docs/acceptance/hc-dec5-keys.md`.
 - Source guard that only the audited wrapper imports the raw opener: `tests/unit/connect-crypto-guard.test.ts`.
 
-**Still to build.** Key service setup, durable audit table, production rotation store migration, acceptance of version 2 envelopes on the intake path, protected search design, recovery runbook and rehearsal, independent security review (all listed in `docs/acceptance/hc-dec5-keys.md` "Activation gates").
+**Still to build.** Hosted staging configuration, protected search, recovery rehearsal, the independent security review and rollout beyond HC-05 staging.
 
 **Text the founder approves (Gate 5).**
-> I approve Gate 5 as drafted: application-level AES-256-GCM encryption, a managed key service in the EU, separate keys per purpose, yearly rotation, audited decryption, a rehearsed recovery runbook and an independent security review before real addresses are stored. I understand this is an engineering best-practice draft, not legal advice.
+> I approve Gate 5 as drafted: application-level AES-256-GCM encryption, Cloudflare secrets with manual rotation (founder decision 27 Nov), separate keys per purpose, yearly rotation, audited decryption, a rehearsed recovery runbook and an independent security review before real addresses are stored. I understand this is an engineering best-practice draft, not legal advice.
 
 ## 7. Rights requests (all gates)
 

@@ -40,6 +40,8 @@ export interface AdsProvider {
   sendConversionEvents(cred: AdsCredential, batch: ConversionEventBatch): Promise<{ accepted: number }>;
   createCustomerListAudience(cred: AdsCredential, q: AdsQuery & { idempotencyKey: string; name: string }): Promise<RemoteAudience>;
   /** Uploads hashed customer-list members. Hard-off like every other send. */
+  minimumAudienceSize(network: import("../../lib/ads/ads").AdNetwork): number;
+  /** Atomically replace a list. An empty list removes every prior member without adding any. */
   uploadAudienceMembers(cred: AdsCredential, spec: AudienceUploadSpec): Promise<{ received: number }>;
   /** Constant-time check of the delivery signature against every accepted secret. */
   verifyWebhook(rawBody: string, signature: string | null, secrets: readonly string[]): boolean;

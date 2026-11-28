@@ -1065,6 +1065,27 @@
       "when": 1795852640836,
       "tag": "0154_product_landing",
       "breakpoints": true
+    },
+    {
+      "idx": 180,
+      "version": "7",
+      "when": 1795852640837,
+      "tag": "0180_saved_crm_ad_audiences",
+      "breakpoints": true
+    },
+    {
+      "idx": 182,
+      "version": "7",
+      "when": 1795852640838,
+      "tag": "0182_contact_key_envelopes",
+      "breakpoints": true
+    },
+    {
+      "idx": 210,
+      "version": "7",
+      "when": 1795854742894,
+      "tag": "0210_activation_hardening",
+      "breakpoints": true
     }
   ]
 }

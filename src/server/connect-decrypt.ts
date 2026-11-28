@@ -1,3 +1,4 @@
+import { openContactEnvelope, type ContactEnvelope } from "./contact-envelope";
 import { envelopeKeyId, openIntake, type SealedEnvelope } from "./connect-intake-crypto";
 
 // HC-DEC5: the single audited path for opening contact-detail envelopes.
@@ -30,4 +31,14 @@ export function decryptContactDetails(envelope: SealedEnvelope, binding: string,
   }
   try { auditSink({ ...base, outcome: "ok" }); } catch { throw new Error("DECRYPT_AUDIT_UNAVAILABLE"); }
   return value;
+}
+
+
+// These envelopes are retrieved only by the audited SQL capabilities. Their
+// transactions must commit before the application opens the ciphertext.
+export type StagedContactEnvelope = SealedEnvelope | ContactEnvelope;
+export async function openAuditedStagedContact(envelope: StagedContactEnvelope, purpose: Exclude<DecryptPurpose, "invitation-dispatch">) {
+  return envelope.version === 3
+    ? openContactEnvelope(envelope, envelope.binding)
+    : decryptContactDetails(envelope, envelope.binding, purpose);
 }

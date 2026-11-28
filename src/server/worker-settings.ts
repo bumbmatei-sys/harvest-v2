@@ -9,6 +9,8 @@ export interface WorkerBindings extends QaSignInBindings, SiteAddressEnvironment
   HARVEST_ENV?: string;
   BETTER_AUTH_SECRET?: string;
   FILE_GRANT_SECRET?: string;
+  CONTACT_KEK_V1?: string;
+  CONTACT_KEK_V2?: string;
   RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
   APP_DATABASE_NAME?: string;
@@ -34,13 +36,14 @@ export function readWorkerSettings(env: WorkerBindings) {
   let addresses: ReturnType<typeof readWorkerSiteAddresses>;
   try { addresses = readWorkerSiteAddresses(env, stage); } catch { throw invalid(); }
   let qaPreviewToken: string | null;
-  try { qaPreviewToken = qaPreviewTokenBinding(stage, env, [BETTER_AUTH_SECRET, FILE_GRANT_SECRET, RESEND_API_KEY]); } catch { throw invalid(); }
+  try { qaPreviewToken = qaPreviewTokenBinding(stage, env, [BETTER_AUTH_SECRET, FILE_GRANT_SECRET, RESEND_API_KEY, env.CONTACT_KEK_V1, env.CONTACT_KEK_V2].filter((value): value is string => Boolean(value))); } catch { throw invalid(); }
   // The binding URL names a generated database; withDb checks APP_DATABASE_NAME against current_database() on every connection.
   try { runtimeConnectionString(APP_HYPERDRIVE.connectionString, "app", "hyperdrive"); } catch { throw invalid(); }
 
   return {
     stage, addresses, origin: addresses.app, qaPreviewToken, authSecret: BETTER_AUTH_SECRET, grantSecret: FILE_GRANT_SECRET,
     hyperdrive: APP_HYPERDRIVE, databaseName: env.APP_DATABASE_NAME, bucket: FILES, mailKey: RESEND_API_KEY, mailFrom: EMAIL_FROM,
+    contactKeys: stage === "production" ? {} : { CONTACT_KEK_V1: env.CONTACT_KEK_V1, CONTACT_KEK_V2: env.CONTACT_KEK_V2 },
     features: { NODE_ENV: stage === "production" ? "production" : "development", HARVEST_COMMUNITIES: env.HARVEST_COMMUNITIES },
     requirePrivateScan: stage === "production" || (env.FILES_REQUIRE_SCAN_PRIVATE !== undefined && env.FILES_REQUIRE_SCAN_PRIVATE !== "false"),
   };
