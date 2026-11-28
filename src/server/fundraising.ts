@@ -110,15 +110,18 @@ async function budgetDefaults(tx: Transaction, tenantId: string, campaignId: str
  */
 export function campaignFundraising(db: Database, userId: string, workspace: string, campaign: string) {
   const campaignId = uuidInput.parse(campaign);
-  return withTenant(db, userId, uuidInput.parse(workspace), "fundraising:read", async (tx, tenantId, _role, access) => {
-    const [linked] = await tx.select({ id: fundraisingCampaigns.id }).from(fundraisingCampaigns)
-      .where(and(eq(fundraisingCampaigns.tenantId, tenantId), eq(fundraisingCampaigns.campaignId, campaignId), ne(fundraisingCampaigns.status, "archived")));
-    if (linked) {
-      const row = await campaignRow(tx, tenantId, linked.id);
-      return { fundraising: present(row, can(access, "giving:record") ? (await totalsFor(tx, tenantId, [row.id])).get(row.id)! : null), defaults: null };
-    }
-    return { fundraising: null, defaults: await budgetDefaults(tx, tenantId, campaignId) };
-  });
+  return withTenant(db, userId, uuidInput.parse(workspace), "fundraising:read",
+    (tx, tenantId, _role, access) => campaignFundraisingOf(tx, tenantId, campaignId, access));
+}
+
+export async function campaignFundraisingOf(tx: Transaction, tenantId: string, campaignId: string, access: string) {
+  const [linked] = await tx.select({ id: fundraisingCampaigns.id }).from(fundraisingCampaigns)
+    .where(and(eq(fundraisingCampaigns.tenantId, tenantId), eq(fundraisingCampaigns.campaignId, campaignId), ne(fundraisingCampaigns.status, "archived")));
+  if (linked) {
+    const row = await campaignRow(tx, tenantId, linked.id);
+    return { fundraising: present(row, can(access, "giving:record") ? (await totalsFor(tx, tenantId, [row.id])).get(row.id)! : null), defaults: null };
+  }
+  return { fundraising: null, defaults: await budgetDefaults(tx, tenantId, campaignId) };
 }
 
 export async function createFundraising(db: Database, userId: string, workspace: string, data: unknown, key: unknown) {

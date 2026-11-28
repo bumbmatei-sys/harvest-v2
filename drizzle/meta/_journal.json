@@ -1065,6 +1065,13 @@
       "when": 1795852640836,
       "tag": "0154_product_landing",
       "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "7",
+      "when": 1795852640837,
+      "tag": "0220_dashboard_data",
+      "breakpoints": true
     }
   ]
 }
