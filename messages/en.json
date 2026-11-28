@@ -6112,7 +6112,8 @@
       "firstLabel": "First name",
       "lastLabel": "Last name",
       "consent": "Consent wording",
-      "countedWording": "While link clicks are counted, sign-ups record {version}, which adds: {line}"
+      "countedWording": "While link clicks are counted, sign-ups record {version}, which adds: {line}",
+      "wordingShown": "Shown on the form"
     },
     "adForm": {
       "title": "Ad lead form",
@@ -7235,7 +7236,8 @@
       "openSender": "Open Sender",
       "setUpSender": "Set up a sender",
       "zone": "Times are in the ministry's time zone: {zone}.",
-      "continue": "Continue to review"
+      "continue": "Continue to review",
+      "timeOfDay": "Time"
     },
     "checks": {
       "subject": {
@@ -7448,7 +7450,18 @@
         "REVIEW_REQUIRED": "The review expired. Schedule again.",
         "NOT_RESCHEDULABLE": "This email can no longer be moved.",
         "notSaved": "Save the email before scheduling."
-      }
+      },
+      "newTimeOfDay": "New time",
+      "moreActions": "More actions",
+      "statusDate": "Date",
+      "statusTime": "Time",
+      "statusZone": "Time zone",
+      "statusOf": "{eligible} of {selected}",
+      "recipientsProgress": "Share of selected people who will receive it",
+      "checklistProgress": "Checks passed",
+      "ready": "Ready",
+      "notReady": "Not ready",
+      "statusPercent": "{percent}%"
     }
   },
   "NewsletterAudience": {
@@ -7796,7 +7809,8 @@
       "pageTitle": "Newsletter sign-up",
       "loading": "Loading",
       "busyTitle": "Too many requests. Try again in a minute.",
-      "unavailableTitle": "This sign-up form is not available."
+      "unavailableTitle": "This sign-up form is not available.",
+      "badge": "Newsletter"
     },
     "confirm": {
       "pageTitle": "Confirm sign-up",
@@ -11115,6 +11129,8 @@
     "reauth": "For your security, sign in again before deleting your account.",
     "signInAgain": "Sign in again",
     "removedConnections": "Your connected mail and calendar accounts (disconnected)",
-    "disconnectFailed": "Could not disconnect your mail and calendar. Try again."
+    "disconnectFailed": "Could not disconnect your mail and calendar. Try again.",
+    "fileTitle": "Your data file",
+    "fileFormat": "JSON"
   }
 }

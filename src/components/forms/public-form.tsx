@@ -24,9 +24,14 @@ export const buttonClass: Record<FormDefinition["settings"]["buttonColor"], stri
 };
 const wide: readonly FormBlock["type"][] = ["long", "info", "choice", "multi", "upload", "signature", "consent", "rating", "vote"];
 
+/** The form's cover band (nothing for "none"). */
+export function FormCover({ cover, className }: { cover: FormDefinition["cover"]; className?: string }) {
+  return cover === "none" ? null : <div className={cn("h-28 w-full rounded-xl sm:h-36", coverClass[cover], className)} data-form-cover />;
+}
+
 export function FormHeader({ form, answers }: { form: FormDefinition; answers: FormAnswers }) {
   return <header className="space-y-3">
-    {form.cover !== "none" && <div className={cn("h-28 w-full rounded-xl sm:h-36", coverClass[form.cover])} data-form-cover />}
+    <FormCover cover={form.cover} />
     {form.logoUrl && <img src={form.logoUrl} alt="" className="size-16 rounded-xl border object-cover" />}
     <h2 className="text-2xl font-semibold tracking-tight">{recall(form.title, form, answers)}</h2>
     {form.description && <p className="whitespace-pre-line text-sm text-muted-foreground">{recall(form.description, form, answers)}</p>}
@@ -37,8 +42,12 @@ export function FormHeader({ form, answers }: { form: FormDefinition; answers: F
  * The form a respondent sees: one or two columns, or one question per page (progress, Back, Next and Enter). Used by the Preview tab and the Settings
  * canvas today and by the hosted form later. `onSubmit` is optional: in the builder nothing is saved or sent, and the end page says so.
  */
-export function PublicForm({ form, ministryName, idPrefix = "pf", onSubmit, preview = true, className }: {
+export function PublicForm({ form, ministryName, idPrefix = "pf", onSubmit, preview = true, className, header = true, frameClassName }: {
   form: FormDefinition; ministryName?: string | null; idPrefix?: string; onSubmit?: (answers: FormAnswers) => void | Promise<void>; preview?: boolean; className?: string;
+  /** False when the host page shows the title and description itself (the public sign-up page). */
+  header?: boolean;
+  /** Replaces the default bordered frame classes (the ministry's background still applies). */
+  frameClassName?: string;
 }) {
   const t = useTranslations("CrmForms.public");
   const { settings } = form;
@@ -74,7 +83,7 @@ export function PublicForm({ form, ministryName, idPrefix = "pf", onSubmit, prev
   function again() { setAnswers({}); setErrors({}); setStep(-1); setDone(false); }
 
   const frame = (children: React.ReactNode) => <div className={cn(settings.theme === "dark" && "dark", "rounded-xl", className)}>
-    <div className={cn("rounded-xl border p-4 text-foreground sm:p-8", backgroundClass[settings.background])} data-public-form data-layout={settings.layout}>
+    <div className={cn(frameClassName ?? "rounded-xl border p-4 sm:p-8", "text-foreground", backgroundClass[settings.background])} data-public-form data-layout={settings.layout}>
       <div className="mx-auto w-full max-w-2xl space-y-6">{children}</div></div></div>;
 
   if (done) return frame(<div className="space-y-4" role="status" data-form-done>
@@ -87,7 +96,7 @@ export function PublicForm({ form, ministryName, idPrefix = "pf", onSubmit, prev
   if (paged) {
     const blocks = step >= 0 ? steps[step] ?? [] : [];
     return frame(<>
-      {step < 0 ? <div className="space-y-6" data-form-welcome><FormHeader form={form} answers={answers} />
+      {step < 0 ? <div className="space-y-6" data-form-welcome>{header && <FormHeader form={form} answers={answers} />}
         <Button type="button" className={submitClass} onClick={() => setStep(0)}>{settings.startLabel}</Button></div>
         : <form noValidate onSubmit={(event) => { event.preventDefault(); next(); }} className="space-y-6" data-form-step={step + 1}>
           <div className="space-y-2"><Progress value={((step + 1) / steps.length) * 100} aria-label={t("progress", { current: step + 1, total: steps.length })} />
@@ -102,7 +111,7 @@ export function PublicForm({ form, ministryName, idPrefix = "pf", onSubmit, prev
   }
 
   return frame(<form noValidate onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-6">
-    <FormHeader form={form} answers={answers} />
+    {header && <FormHeader form={form} answers={answers} />}
     <div className={cn("grid gap-5", settings.layout === "two" && "sm:grid-cols-2")}>
       {form.blocks.map((block) => <div key={block.id} className={cn("min-w-0", settings.layout === "two" && wide.includes(block.type) && "sm:col-span-2")}>
         <FormField block={block} value={answers[block.id]} onChange={(value) => set(block, value)} error={errors[block.id]} idPrefix={idPrefix} fixedNotice={block.type === "consent" ? fixedNotice : undefined} noticeText={!form.newsletter} /></div>)}

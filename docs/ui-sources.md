@@ -628,6 +628,24 @@ The founder approved eleven kit items for the Giving screens on **27 Nov 2026** 
 
 Harvest-owned, no kit item: the fundraiser header and its lifecycle actions (open, close, archive, each through `ConfirmDialog`) in `fundraising-detail.tsx`; small-group suppression and owner-only totals (server); no checkout or donation item (payment providers undecided). Copy says "ministry"; no vendor names in the interface beyond the ministry's own method types.
 
+### Account and newsletter screens (Your data, delete account, newsletter Review, consent wording, public subscribe; approved 27 Nov 2026)
+
+The founder approved nine kit items for these screens on **27 Nov 2026** (`src/lib/ui-provenance.ts`, `kitApprovals`, "Account and newsletter screens") under the 27 Nov rule: start from the real kit code. Each item's `files[].content` was fetched from `https://shadcnuikit.com/r/<name>.json` on 28 Nov 2026 into a scratch directory outside the repository (no registry file is committed), put into the Harvest component, and changed only for: catalogue copy (next-intl), theme tokens, 44px phone targets, real props and data, no vendor names or remote images, and full width where the page needs it. The kit's two dialogs (`dashboard-modal13`, `dashboard-modal24`) are shown in place, not as modals, so the delete lists and the consent wording stay readable on the page. No dependency was added. The registry entries state no tier; each is recorded as premium. Every file below starts with the "Derived from Shadcn UI Kit item" header.
+
+| Kit item | Harvest file | Identical lines (`scripts/ui-identical.sh` against the item's `index.tsx`) | Why the rest differs |
+| --- | --- | --- | --- |
+| `profile-block11` | `src/components/your-data.tsx` | 26 of 39 (66%) | Only the card and the Security tab's delete row are used; the download row is its own item. |
+| `list-block13` | `src/components/download-my-data.tsx` | 31 of 69 (44%) | One document row; the download logic (POST, 429 message, file save) is unchanged Harvest code. |
+| `dashboard-modal13` | `src/components/delete-account-form.tsx` | 19 of 85 (22%) | A 51-line demo against the full delete flow (lists, sole-owner alert, re-sign-in, typed DELETE), all kept. |
+| `list-block4` | `src/components/newsletter/review-summary.tsx` | 29 of 43 (67%) | Campaign rows instead of order rows; no copy buttons. |
+| `list-block30` | `src/components/newsletter/review-checklist.tsx` | 54 of 90 (60%) | Every failing check is highlighted with its fix; no line-through or reset link. |
+| `stat-card12` | `src/components/newsletter/review-status.tsx` | 83 of 144 (57%) | Scheduled date, time and zone as the figures; recipients bar; Change time, Cancel schedule, Duplicate. |
+| `date-picker-example1` | `src/components/newsletter/schedule-time-picker.tsx` | 8 of 49 (16%) | A 14-line demo; a time field, the ministry's zone and the 60-day limit are added. |
+| `dashboard-modal24` | `src/components/newsletter/consent-wording-panel.tsx` | 33 of 53 (62%) | No dialog shell, copy input or footer; the wording version badge stays. |
+| `newsletter2` | `src/components/newsletter/hosted-signup.tsx` | 14 of 88 (15%) | The form box is the shared `PublicForm` with the consent box; Harvest's load, submit and 409 wording reload are kept. |
+
+Harvest-owned, no kit item: "Sending is off", the test send row and the ConfirmDialog steps on Review (`review-step.tsx`), and the 409 wording reload on the public page. The consent wording panel is used only by newsletter sign-up forms: CRM forms do not show a frozen wording panel (their consent block is edited in the builder). `PublicForm` gains two opt-in props (`header`, `frameClassName`) so the public page can show the title beside the form, and the cover band becomes a small exported `FormCover` component used by both; its other callers are unchanged. Copy says "ministry"; no vendor names.
+
 ## Community forum redesign (27 Nov 2026)
 
 Founder instruction, 27 Nov 2026, on the community post page: "in the admin dashboard repo there is a social media page. Take the design from there. Do not recreate anything from scratch, take it from there." Source: the founder's premium kit repository `bumbmatei-sys/admin-dashboard` at commit `1631106`, `app/dashboard/(auth)/apps/social-media/` (no secrets copied or stored). Approval basis: that instruction (copying allowed with measured provenance under the standing kit rule). Recorded in `src/lib/ui-provenance.ts`: copied files in `adminDashboardProvenance`, modelled-on files in `adminDashboardReferences`. Shares measured with `scripts/ui-identical.sh` (non-blank, trimmed lines, longest common subsequence).

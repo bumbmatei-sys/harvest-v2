@@ -1,34 +1,42 @@
+/** Derived from Shadcn UI Kit item profile-block11 (premium), registry retrieved 2026-11-28, approved 2026-11-27 (Account and newsletter screens). Kit code; local changes: docs/ui-sources.md. */
 "use client";
-import { useState } from "react";
-import { Download } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
-import { useHydrated } from "@/hooks/use-hydrated";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 
-/** "Download my data": asks the export route for the person's own JSON file and saves it. */
-export function DownloadMyData() {
-  const t = useTranslations("YourData"), router = useRouter(), hydrated = useHydrated();
-  const [busy, setBusy] = useState(false), [error, setError] = useState(""), [done, setDone] = useState(false);
-  async function download() {
-    setBusy(true); setError(""); setDone(false);
-    try {
-      const response = await fetch("/api/account/data", { method: "POST" });
-      if (response.status === 401) { router.replace("/sign-in?personal=1"); return; }
-      if (!response.ok) { setError(t(response.status === 429 ? "limited" : "downloadFailed")); return; }
-      const name = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") ?? "")?.[1] ?? "harvest-data.json";
-      const url = URL.createObjectURL(await response.blob()), link = document.createElement("a");
-      link.href = url; link.download = name; document.body.append(link); link.click(); link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setDone(true);
-    } catch { setError(t("downloadFailed")); }
-    finally { setBusy(false); }
-  }
-  return <div className="space-y-3">
-    <Button type="button" variant="outline" className="min-h-11" onClick={() => void download()} disabled={!hydrated || busy}>
-      <Download aria-hidden="true" />{busy ? t("preparing") : t("download")}</Button>
-    {done && <p role="status" className="text-sm text-muted-foreground">{t("downloaded")}</p>}
-    {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
-  </div>;
+import Link from "next/link";
+import { useTranslations } from "next-intl";
+
+import { DownloadMyData } from "@/components/download-my-data";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+
+/** The "Your data" card on the personal profile: download my data, then the way to delete the account. */
+export function YourData() {
+  const t = useTranslations("YourData");
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle role="heading" aria-level={2}>{t("title")}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <DownloadMyData />
+        <Separator />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-destructive font-medium">{t("deleteLink")}</p>
+            <p className="text-muted-foreground text-xs">
+              {t("deleteHelp")}
+            </p>
+          </div>
+          <Button asChild variant="destructive" size="sm" className="min-h-11">
+            <Link href="/account/delete">{t("deleteLink")}</Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
