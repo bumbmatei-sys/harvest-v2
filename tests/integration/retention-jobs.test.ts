@@ -62,6 +62,27 @@ it("deletes expired audit and run-log rows, leaving younger rows untouched", asy
   expect((await f.admin.query("select id from public.retention_rule_runs where id in ($1,$2)", [old, fresh])).rows).toEqual([{ id: fresh }]);
 });
 
+it("keeps gift, payment and consent audit rows for 10 years and all others for 12 months", async () => {
+  // Founder decision 28 Nov 2026.
+  const ages = { m11: "11 months", m13: "13 months", y11: "11 years" } as const;
+  const actions = { gift: "giving.gift.confirm", payment: "ministry.payments.connect", consent: "contact.consent_record",
+    other: "crm.view_create", nearMiss: "contact.consent_record_extra" } as const;
+  const kept10y = new Set(["gift", "payment", "consent"]);
+  for (const table of ["audit_logs", "platform_staff_audit"]) {
+    const seeded: { id: string; expectKept: boolean }[] = [];
+    for (const [kind, action] of Object.entries(actions)) {
+      for (const [age, interval] of Object.entries(ages)) {
+        const id = randomUUID();
+        await f.admin.query(`insert into public.${table}(id, actor_id, action, created_at) values ($1,$2,$3,now()-$4::interval)`, [id, actor, action, interval]);
+        seeded.push({ id, expectKept: age === "m11" || (age === "m13" && kept10y.has(kind)) });
+      }
+    }
+    await rule("audit_logs");
+    const { rows } = await f.admin.query(`select id from public.${table} where id = any($1)`, [seeded.map(row => row.id)]);
+    expect(rows.map(row => row.id).sort()).toEqual(seeded.filter(row => row.expectKept).map(row => row.id).sort());
+  }
+});
+
 it("flags and clears inactive verified contacts without deleting their records", async () => {
   const inactive = randomUUID(), active = randomUUID(), unverified = randomUUID();
   await f.admin.query(`insert into contacts(tenant_id,id,name,updated_at) values

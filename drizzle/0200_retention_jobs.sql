@@ -211,6 +211,29 @@ CREATE FUNCTION public.retention_rule_batch(p_rule text, p_limit integer)
 RETURNS jsonb LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 DECLARE deleted integer := 0; anonymised integer := 0; flagged integer := 0; more integer := 0;
   outcome jsonb; relation text; time_field text;
+  -- Founder decision 28 Nov 2026: gift, payment and consent audit records are kept 10 years; every other
+  -- audit row (audit_logs and platform_staff_audit) is deleted after 12 months. The class is an explicit
+  -- allow-list derived from the actions the code writes; docs/acceptance/retention-jobs.md mirrors it.
+  kept_10y_exact constant text[] := ARRAY[
+    -- Consent history
+    'contact.consent_record',            -- CRM consent grants and withdrawals
+    'association.record',                -- verified Connect claim linked to a CRM person
+    'followup.case.withdraw',            -- follow-up consent withdrawal propagated to a case
+    'newsletter.signup.confirmed',       -- double opt-in confirmation
+    'newsletter.subscription.set',       -- list subscribe or unsubscribe with its consent reference
+    'newsletter.subscriber.create',      -- subscriber source record
+    'newsletter.subscriber.update',      -- suppression changes
+    'newsletter.withdrawal.propagated',  -- newsletter withdrawal applied to CRM consent
+    'community.email_unsubscribe',       -- community email withdrawal
+    'community.email_prefs'              -- community email consent preferences
+  ];
+  kept_10y_prefix constant text[] := ARRAY[
+    'giving.',                           -- gifts, corrections, pledges, ways to give, donor reads, giving standing and reports
+    'fundraising.',                      -- fundraising campaigns and give pages
+    'ministry.payments.',                -- ministry payment account connect, sync, disconnect and pricing
+    'connect.response.',                 -- Connect consent withdrawal, erasure and purge
+    'newsletter.unsubscribe.'            -- one-click unsubscribe (all lists or one list)
+  ];
 BEGIN
   CASE p_rule
   WHEN 'connect_responses','connect_tombstones' THEN
@@ -265,17 +288,28 @@ BEGIN
     outcome := public.community_chat_purge_dm(p_limit);
     deleted := (outcome->>'deleted')::integer + (outcome->>'conversations')::integer + (outcome->>'evidence')::integer;
     more := (outcome->>'expired')::integer + (outcome->>'reminded')::integer;
-  WHEN 'audit_logs','retention_run_logs' THEN
+  WHEN 'audit_logs' THEN
+    FOREACH relation IN ARRAY ARRAY['audit_logs','platform_staff_audit'] LOOP
+      EXECUTE format('WITH candidates AS (SELECT ctid FROM public.%1$I WHERE created_at <= now() - interval ''12 months''
+          AND (created_at <= now() - interval ''10 years''
+            OR NOT (action = ANY($2) OR EXISTS (SELECT FROM unnest($3) AS kept(prefix) WHERE starts_with(action, kept.prefix))))
+          ORDER BY created_at, ctid LIMIT $1 FOR UPDATE SKIP LOCKED)
+        DELETE FROM public.%1$I t USING candidates c WHERE t.ctid = c.ctid', relation)
+        USING p_limit, kept_10y_exact, kept_10y_prefix;
+      GET DIAGNOSTICS more = ROW_COUNT;
+      deleted := deleted + more;
+    END LOOP;
+    more := 0;
+  WHEN 'retention_run_logs' THEN
     FOR relation, time_field IN
       SELECT t.relation, t.time_field FROM (VALUES
-        ('audit_logs','audit_logs','created_at'), ('audit_logs','platform_staff_audit','created_at'),
-        ('retention_run_logs','retention_rule_runs','finished_at'), ('retention_run_logs','connect_retention_runs','finished_at'),
-        ('retention_run_logs','newsletter_retention_runs','ran_at'), ('retention_run_logs','community_chat_purge_runs','created_at')
-      ) AS t(rule,relation,time_field) WHERE t.rule = p_rule
+        ('retention_rule_runs','finished_at'), ('connect_retention_runs','finished_at'),
+        ('newsletter_retention_runs','ran_at'), ('community_chat_purge_runs','created_at')
+      ) AS t(relation,time_field)
     LOOP
-      EXECUTE format('WITH candidates AS (SELECT ctid FROM public.%1$I WHERE %2$I <= now() - $2 ORDER BY %2$I, ctid LIMIT $1 FOR UPDATE SKIP LOCKED)
+      EXECUTE format('WITH candidates AS (SELECT ctid FROM public.%1$I WHERE %2$I <= now() - interval ''90 days'' ORDER BY %2$I, ctid LIMIT $1 FOR UPDATE SKIP LOCKED)
         DELETE FROM public.%1$I t USING candidates c WHERE t.ctid = c.ctid', relation, time_field)
-        USING p_limit, CASE p_rule WHEN 'audit_logs' THEN interval '12 months' ELSE interval '90 days' END;
+        USING p_limit;
       GET DIAGNOSTICS more = ROW_COUNT;
       deleted := deleted + more;
     END LOOP;
