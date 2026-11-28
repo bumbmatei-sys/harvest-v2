@@ -19,6 +19,7 @@ export const PUBLIC_READ_WINDOW_MS = 60_000;
 /** Requests per visitor per minute. Discover listing, search and the Discover page share one budget. */
 export const publicReadLimits = {
   discover: 60,
+  "church-directory": 60,
   "community-page": 60,
   "community-beacon": 60,
   // Link in bio share dialog: the page's QR code (SVG to show, PNG to save).

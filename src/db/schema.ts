@@ -4641,3 +4641,10 @@ export const volunteerRosterGrants = pgTable("volunteer_roster_grants", {
   transaction: text("transaction").notNull(),
   tenantId: uuid("tenant_id").notNull(),
 });
+
+// Directory publication and verification are separate from profile publication.
+export const churchDirectoryEntries = pgTable("church_directory_entries", {
+  tenantId: uuid("tenant_id").primaryKey().references(() => workspaces.tenantId, { onDelete: "cascade" }),
+  optedIn: boolean("opted_in").notNull().default(false),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+});
