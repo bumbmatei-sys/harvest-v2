@@ -1,4 +1,11 @@
 {
+  "OwnershipTransfer": {
+    "ineligible_recipient": "Choose an active admin in this ministry.",
+    "pending_exists": "This ministry already has a pending ownership transfer.",
+    "expired": "This ownership offer has expired.",
+    "membership_changed": "A ministry membership changed. Ask the owner to send a new offer.",
+    "already_closed": "This ownership offer has already been closed."
+  },
   "Office": {
     "personalConnectionNotice": "Connect an account you use personally. Only you can access this connection in Harvest. Harvest fetches content when you open it and keeps connection details, activity records and references you choose to link. You can disconnect at any time. Connecting does not grant anyone permission to contact people.",
     "reviewRequired": "Review this message again before sending."
@@ -790,7 +797,7 @@
     "campaignNotFound": "Campaign not found",
     "dataExportLimited": "You can download your data 3 times an hour. Try again later.",
     "deleteAccountConfirm": "Type DELETE to confirm.",
-    "deleteAccountSoleOwner": "You are the only owner of a ministry. Contact Harvest support to transfer ownership first.",
+    "deleteAccountSoleOwner": "You are the only owner of a ministry. Offer ownership to a ministry admin and wait for them to accept before deleting your account.",
     "deleteAccountDisconnectFailed": "Could not disconnect your mail and calendar. Try again.",
     "blogHandleTaken": "Another ministry already uses this blog address.",
     "blogHandleInvalid": "Use 3 to 30 lower-case letters, numbers or single hyphens.",
@@ -3353,7 +3360,25 @@
     "older": "Older posts",
     "awaitingReview": "Awaiting review",
     "mutedUntil": "You can't post until {date}.",
-    "formerMember": "Former member"
+    "formerMember": "Former member",
+    "moreActions": "More actions for {name}",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied",
+    "copyFailed": "Couldn't copy the link",
+    "repliesNamed": "{count, plural, one {# reply} other {# replies}} on {name}",
+    "writeReply": "Write a reply",
+    "extras": "Add to post",
+    "tabCover": "Cover",
+    "tabVideo": "Video",
+    "tabFiles": "Files",
+    "edited": "Edited",
+    "likeCount": "{count, plural, one {# like} other {# likes}}",
+    "mindPrompt": "What's on your mind?",
+    "addPhoto": "Add a photo",
+    "shortcuts": "Add to your post",
+    "shortcutPhoto": "Photo",
+    "shortcutAttach": "Attach",
+    "dot": "·"
   },
   "RichText": {
     "toolbar": "Formatting",
@@ -8109,11 +8134,22 @@
     "linkCopied": "Link copied.",
     "profile": {
       "name": "Name",
-      "bio": "Short bio",
+      "bio": "Short bio (one line)",
       "bioCount": "{count} of {max}",
       "photoNote": "Photo",
-      "subtitle": "One-line subtitle",
-      "cover": "Cover image"
+      "cover": "Cover image",
+      "coverShow": "Show a cover",
+      "photoRow": "Profile photo",
+      "photoAlign": "Photo position",
+      "aligns": {
+        "center": "Centre",
+        "left": "Left"
+      },
+      "iconStyle": "Icon style",
+      "iconStyles": {
+        "outline": "Outline",
+        "color": "Colour"
+      }
     },
     "links": {
       "heading": "Links",
@@ -8146,7 +8182,7 @@
       "removeSocial": "Remove {network} icon",
       "maxLinks": "Up to {max} blocks.",
       "maxBlocks": "Up to {max} items.",
-      "tab": "Section"
+      "tab": "Tab"
     },
     "icons": {
       "globe": "Website",
@@ -8196,7 +8232,58 @@
       "messageTab": "Partnership",
       "giving": "Ways to give",
       "givingCount": "{count, plural, =0 {No methods shown yet.} one {# method shown.} other {# methods shown.}}",
-      "givingManage": "Manage ways to give"
+      "givingManage": "Manage ways to give",
+      "catalog": "Products and courses",
+      "files": "PDFs and ebooks",
+      "form": "Form",
+      "video": "Video",
+      "contact": "Contact",
+      "location": "Location",
+      "live": "Live now",
+      "testimonials": "Testimonials",
+      "sectionTitle": "Heading (optional)",
+      "items": "Items",
+      "noCatalog": "No products or courses yet.",
+      "noDownloads": "No download products yet.",
+      "noForms": "No published forms.",
+      "itemDraft": "Not public yet: visitors will not see it until it is published and not hidden.",
+      "formPick": "Form",
+      "buttonText": "Button text",
+      "videoUrl": "Video link (YouTube or VK)",
+      "videoTitle": "Title (optional)",
+      "videoProblem": "Paste a YouTube or VK video link.",
+      "email": "Email",
+      "phone": "Phone",
+      "whatsapp": "WhatsApp number",
+      "contactProblem": "Add at least one, in a valid format.",
+      "locationName": "Name (optional)",
+      "address": "Address",
+      "addressProblem": "Add the address.",
+      "liveTitle": "Label",
+      "liveUrl": "Live stream link (https)",
+      "liveOn": "Live now",
+      "liveOff": "Visitors see this only while it is on.",
+      "quote": "Quote",
+      "person": "Name",
+      "role": "Role (optional)",
+      "addTestimonial": "Add testimonial",
+      "removeTestimonial": "Remove testimonial {position}",
+      "testimonialProblem": "Add a quote and a name.",
+      "maxItems": "Up to {max}.",
+      "gallery": "Photo gallery",
+      "share": "Share and QR code",
+      "countdown": "Countdown",
+      "countdownTitle": "Label",
+      "countdownAt": "Date and time",
+      "countdownUrl": "Link once it starts (https, optional)",
+      "countdownProblem": "Use a valid date and a full https address.",
+      "galleryPhoto": "Photo {position}",
+      "galleryChecking": "Waiting for the safety check",
+      "galleryMoveUp": "Move photo {position} earlier",
+      "galleryRemove": "Remove photo {position}",
+      "galleryAdd": "Add photo",
+      "galleryUploading": "Uploading…",
+      "galleryProblem": "This photo could not be added. Use a JPG, PNG or WebP image up to 10 MB."
     },
     "design": {
       "heading": "Design",
@@ -8206,16 +8293,7 @@
         "light": "Light",
         "dark": "Dark"
       },
-      "buttons": "Main button",
-      "buttonStyles": {
-        "filled": "Filled",
-        "outline": "Outline"
-      },
-      "brandNote": "Uses your ministry's brand colours.",
-      "tabsHeading": "Sections",
-      "tabShow": "Show {tab}",
-      "tabMoveUp": "Move {tab} up",
-      "tabMoveDown": "Move {tab} down"
+      "brandNote": "Uses your ministry's brand colours."
     },
     "cover": {
       "label": "Photo",
@@ -8300,7 +8378,6 @@
       "messageReload": "The form expired. Reload the page to send again.",
       "notice": "Your details go to {ministry}. You can ask them to delete them.",
       "pageNotFound": "This page is not available.",
-      "ministry": "{ministry}",
       "newsletterPlaceholder": "The sign-up form appears here.",
       "networks": {
         "instagram": "Instagram",
@@ -8314,8 +8391,43 @@
         "podcast": "Podcast",
         "website": "Website"
       },
-      "details": "Details",
-      "tabs": "Page sections"
+      "tabs": "Page sections",
+      "filesLabel": "Files",
+      "view": "View",
+      "viewFile": "View {title}",
+      "contactLabel": "Contact",
+      "contactEmail": "Email",
+      "contactPhone": "Phone",
+      "contactWhatsapp": "WhatsApp",
+      "locationLabel": "Location",
+      "openInMaps": "Open in maps",
+      "testimonialsLabel": "Testimonials",
+      "live": "Live",
+      "liveLabel": "Live now",
+      "openForm": "Open form",
+      "catalogLabel": "Courses and products",
+      "videoLabel": "Video",
+      "galleryLabel": "Photos",
+      "galleryOpen": "Open photo {position} of {count}",
+      "galleryHint": "Swipe, or use the arrow keys or the buttons.",
+      "galleryPosition": "Photo {position} of {count}",
+      "galleryPrevious": "Previous photo",
+      "galleryNext": "Next photo",
+      "countdownStarted": "It has started.",
+      "countdownOpen": "Open",
+      "countdown": {
+        "days": "Days",
+        "hours": "Hours",
+        "minutes": "Minutes",
+        "seconds": "Seconds"
+      },
+      "shareHint": "Copy the link or save the QR code.",
+      "shareLink": "Page link",
+      "shareCopy": "Copy link",
+      "shareDevice": "Share",
+      "qrAlt": "QR code for this page",
+      "qrDownload": "Download QR code",
+      "qrTitle": "QR code for {name}"
     },
     "mode": {
       "unavailable": "Link in bio is not available in this environment."
@@ -8339,29 +8451,12 @@
         "reserved": "That address is reserved.",
         "taken": "That address is already taken."
       },
-      "prefix": "/l/"
+      "prefix": "/l/",
+      "checkPhoto": "Add a profile photo"
     },
     "tabs": {
       "home": "Home",
       "partnership": "Partnership"
-    },
-    "details": {
-      "heading": "Details",
-      "add": "Add detail",
-      "kind": "Detail",
-      "value": "Text",
-      "hide": "Hide {label}",
-      "show": "Show {label}",
-      "remove": "Remove {label}",
-      "kinds": {
-        "location": "Location",
-        "ministry": "Ministry or church",
-        "role": "Role",
-        "website": "Website",
-        "languages": "Languages"
-      },
-      "urlProblem": "Use a full https address.",
-      "requiredProblem": "Add the text."
     },
     "banner": {
       "label": "Cover image",
@@ -8401,6 +8496,26 @@
         "stale": "This page changed since you opened it. Reload, then try again."
       },
       "bannerLabel": "Cover image"
+    },
+    "tabsEditor": {
+      "heading": "Tabs",
+      "layout": "Page layout",
+      "layouts": {
+        "tabs": "Tabs",
+        "single": "Single page"
+      },
+      "name": "Name of tab {position}",
+      "nameProblem": "Add a name.",
+      "drag": "Drag {tab} to reorder",
+      "moveUp": "Move {tab} up",
+      "moveDown": "Move {tab} down",
+      "show": "Show {tab}",
+      "hide": "Hide {tab}",
+      "remove": "Remove {tab}",
+      "add": "Add tab",
+      "max": "Up to {max} tabs.",
+      "untitled": "Tab {position}",
+      "noTab": "Choose a tab"
     }
   },
   "NewsletterAutomations": {
@@ -10168,7 +10283,6 @@
     }
   },
   "WaysToGive": {
-    "group": "Giving",
     "title": "Ways to give",
     "description": "Your ministry's own giving accounts, shown on your public pages.",
     "add": "Add method",
@@ -10180,10 +10294,6 @@
     "shown": "Shown",
     "hidden": "Hidden",
     "showLabel": "Show {label} on public pages",
-    "moveUp": "Move {label} up",
-    "moveDown": "Move {label} down",
-    "edit": "Edit {label}",
-    "remove": "Remove {label}",
     "removeTitle": "Remove this way to give?",
     "removeBody": "{label} will no longer appear on your public pages.",
     "removeConfirm": "Remove",
@@ -10294,7 +10404,8 @@
         "patreon": "Patreon",
         "ko_fi": "Ko-fi",
         "buy_me_a_coffee": "Buy Me a Coffee"
-      }
+      },
+      "methodName": "{platform}, {label}"
     },
     "rowSummary": "{kind} · {detail}",
     "hiddenByStaff": "Hidden by Harvest staff",
@@ -10318,7 +10429,8 @@
         "wrong_details": "Wrong or outdated details",
         "inappropriate": "Inappropriate content",
         "other": "Something else"
-      }
+      },
+      "question": "What is wrong with these giving details?"
     },
     "staff": {
       "title": "Ways to give reports",
@@ -10368,7 +10480,14 @@
       "reauth": "Sign in again to continue.",
       "signInAgain": "Sign in again",
       "openBadge": "{count, plural, one {# open report} other {# open reports}}"
-    }
+    },
+    "liveCount": "{live} of {total} shown on your public pages.",
+    "actionsFor": "Actions for {label}",
+    "editItem": "Edit",
+    "moveUpItem": "Move up",
+    "moveDownItem": "Move down",
+    "removeItem": "Remove",
+    "dialogDescription": "Shown on your public pages."
   },
   "Fundraising": {
     "title": "Fundraising campaigns",
@@ -10405,7 +10524,6 @@
       "status": "Status",
       "goal": "Goal",
       "raised": "Raised",
-      "progress": "Progress",
       "actions": "Actions"
     },
     "statuses": {
@@ -10458,7 +10576,12 @@
       "gifts": "{count, plural, one {# gift} other {# gifts}}",
       "pledges": "{count, plural, one {# pledge} other {# pledges}}",
       "raisedHidden": "Owners and admins see giving records.",
-      "ofGoal": "{percent}% of goal"
+      "ofGoal": "{percent}% of goal",
+      "ofLimit": "of {limit}",
+      "goalReached": "Goal reached",
+      "toGo": "{amount} to go",
+      "giftsLabel": "Gifts",
+      "raisedOfGoal": "{raised} · {percent}%"
     },
     "tabs": {
       "gifts": "Gifts",
@@ -10482,7 +10605,6 @@
       "date": "Date",
       "supporter": "Supporter",
       "amount": "Amount",
-      "method": "Method",
       "recorded": "Recorded",
       "actions": "Actions"
     },
@@ -10531,7 +10653,34 @@
     },
     "amountPlaceholder": "0.00",
     "reversalLabel": "Reversal · {reason}",
-    "pledgeOption": "{name} · {amount}"
+    "pledgeOption": "{name} · {amount}",
+    "actionsFor": "Actions for {title}",
+    "summary": {
+      "published": "Open",
+      "draft": "Drafts",
+      "closed": "Closed"
+    },
+    "filterByStatus": "Filter by status",
+    "clearFilter": "Clear filter",
+    "resetFilters": "Reset filters",
+    "noMatchesDescription": "Try another status or search term.",
+    "optional": "(optional)",
+    "pickDate": "Pick a date",
+    "sections": {
+      "details": "Details",
+      "goal": "Goal and currency",
+      "pledge": "Pledge",
+      "supporter": "Supporter",
+      "gift": "Gift",
+      "method": "Method and reference",
+      "correction": "Correction"
+    },
+    "showing": "Showing <strong>{first}-{last}</strong> of <strong>{total}</strong>",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "notSet": "Not set",
+    "recordsSummary": "{gifts}, {pledges}",
+    "characterCount": "{count}/{max}"
   },
   "CampaignEvents": {
     "title": "Events",
@@ -10569,7 +10718,16 @@
       "previewTitle": "Public page preview",
       "invalidSlug": "Use 3–48 lowercase letters, numbers or hyphens.",
       "reservedSlug": "That address is reserved. Choose another.",
-      "tooLong": "Use at most {max} characters."
+      "tooLong": "Use at most {max} characters.",
+      "coverPreview": "Cover image preview",
+      "intro": "Save the page to get its address.",
+      "liveHint": "Visitors can see this page now.",
+      "link": "Link",
+      "charactersLeft": "{count, plural, one {# character} other {# characters}} left",
+      "amount": "Amount raised",
+      "cover": "Cover",
+      "unsaved": "You have unsaved changes.",
+      "allSaved": "Everything is saved."
     },
     "public": {
       "by": "By {ministry}",
@@ -10577,12 +10735,14 @@
       "goal": "Goal",
       "ofGoal": "{percent}% of goal",
       "progressLabel": "Progress toward the goal",
-      "raisedOf": "{raised} of {goal}",
       "suppressed": "Progress shows once more gifts are recorded.",
       "recorded": "Gifts recorded by the ministry.",
       "notice": "Gifts go directly to {ministry}. Harvest doesn't process payments.",
       "theMinistry": "the ministry",
-      "coverAlt": "Cover image for {title}"
+      "coverAlt": "Cover image for {title}",
+      "ofGoalAmount": "of {goal}",
+      "toGo": "{amount} to go",
+      "goalReached": "Goal reached"
     },
     "cover": {
       "label": "Cover image",
@@ -10868,8 +11028,8 @@
     "keptAudit": "Security records of actions taken with your account, without your name or email",
     "keptMinistry": "Contact records a ministry keeps about you. Ask the ministry to remove them.",
     "soleOwnerTitle": "Transfer your ministries first",
-    "soleOwnerBody": "You are the only owner of these ministries. Ownership can't be transferred in the app yet: contact Harvest support to make someone else an owner, then come back.",
-    "soleOwnerShort": "You are the only owner of a ministry. Contact Harvest support to transfer ownership first.",
+    "soleOwnerBody": "You are the only owner of these ministries. Offer ownership to an admin in each ministry. You can delete your account once they accept.",
+    "soleOwnerShort": "You are the only owner of a ministry. Offer ownership to a ministry admin and wait for them to accept before deleting your account.",
     "typeToConfirm": "Type {word} to confirm",
     "deleteAccount": "Delete my account",
     "deleting": "Deleting…",

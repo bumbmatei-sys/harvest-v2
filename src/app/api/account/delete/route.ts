@@ -1,12 +1,20 @@
+import { siteAddresses } from "@/lib/site-address";
 import { getDb } from "@/db/client";
 import { getAuth } from "@/server/auth-instance";
-import { deleteMyAccount } from "@/server/account-deletion";
-import { errorResponse, verifyOrigin } from "@/server/http";
+import { accountDeletionBlockers, deleteMyAccount } from "@/server/account-deletion";
+import { errorResponse, verifiedUser, verifyOrigin } from "@/server/http";
 import { message } from "@/i18n/messages";
 import { officeRouteDeps } from "@/server/office-gate";
 import { AccessError } from "@/server/permissions";
 import { readBoundedJson } from "@/server/request-json";
 import { createStorageDeleter } from "@/server/storage/s3-connection";
+
+export async function GET(request: Request) {
+  try {
+    const user = await verifiedUser(request);
+    return Response.json(await accountDeletionBlockers(getDb(), user), { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) { return errorResponse(error); }
+}
 
 /** "Delete my account": needs a sign-in within the last 15 minutes and the typed word. The session cookies are cleared on success. */
 export async function POST(request: Request) {
@@ -23,8 +31,13 @@ export async function POST(request: Request) {
     const result = await deleteMyAccount(getDb(), session.user.id, session.session.createdAt, body, deleter, new Date(), office && { provider: office.provider, credential: office.credential });
     const response = Response.json(result, { headers: { "Cache-Control": "private, no-store" } });
     // The sessions are already deleted; expire the browser's copies too.
+    const { cookieDomain } = siteAddresses();
     for (const name of (request.headers.get("cookie") ?? "").split(";").map((part) => part.split("=")[0].trim()).filter((name) => /session_(token|data)$/.test(name)))
-      response.headers.append("Set-Cookie", `${name}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${name.startsWith("__Secure-") ? "; Secure" : ""}`);
+      {
+        const expiry = `${name}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${name.startsWith("__Secure-") ? "; Secure" : ""}`;
+        response.headers.append("Set-Cookie", expiry);
+        if (cookieDomain) response.headers.append("Set-Cookie", `${expiry}; Domain=${cookieDomain}`);
+      }
     return response;
   } catch (error) {
     const response = errorResponse(error);

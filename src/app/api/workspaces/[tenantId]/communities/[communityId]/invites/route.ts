@@ -1,3 +1,4 @@
+import { appLink } from "@/lib/site-address";
 import { getDb } from "@/db/client";
 import { createInvite, listInvites } from "@/server/communities";
 import { communitiesEnabled } from "@/server/communities-mode";
@@ -17,6 +18,7 @@ export async function POST(request: Request, context: Params) {
   try {
     verifyOrigin(request);
     const user = await verifiedUser(request), { tenantId, communityId } = await context.params;
-    return Response.json(await createInvite(getDb(), user, tenantId, communityId, await request.json()), { status: 201, headers: { "Cache-Control": "private, no-store" } });
+    const invitation = await createInvite(getDb(), user, tenantId, communityId, await request.json());
+    return Response.json({ ...invitation, url: appLink(invitation.path) }, { status: 201, headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }
 }

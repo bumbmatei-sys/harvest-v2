@@ -1,3 +1,4 @@
+import { appOrigin } from "@/lib/site-address";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -20,5 +21,5 @@ export default async function BlogPage({ params }: { params: Promise<{ tenantId:
   if (!uuidInput.safeParse(tenantId).success) return <AccessState />;
   const blog = await getBlog(getDb(), session.user.id, tenantId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
   if (!blog) return <AccessState />;
-  return <BlogList tenantId={tenantId} initial={blog} />;
+  return <BlogList origin={appOrigin()} tenantId={tenantId} initial={blog} />;
 }

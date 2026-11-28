@@ -1,3 +1,4 @@
+import { newsletterUnavailableLink } from "../lib/site-address";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
@@ -21,7 +22,7 @@ const redirect = (location: string) => new Response(null, { status: 302, headers
  */
 export async function newsletterClickRedirect(db: Database, request: Request, count: boolean) {
   if (!newsletterEnabled()) return new Response(null, { status: 404, headers });
-  const fallback = new URL(clickUnavailablePath, request.url).href;
+  const fallback = newsletterUnavailableLink();
   const token = readClickToken(newsletterKey(), new URL(request.url).searchParams.get("t"));
   if (!token) return redirect(fallback);
   try {

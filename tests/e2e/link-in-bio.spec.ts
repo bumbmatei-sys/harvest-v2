@@ -5,38 +5,55 @@ import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";
 
 const expect = baseExpect.configure({ timeout: 20000 });
-// Link in bio: the editor (profile, links, blocks, design, publish, live preview, messages) and the public page, with axe at three widths in both schemes.
+// Link in bio: the editor (profile with cover, photo and icons; tabs; links and blocks; design; publish; live preview; messages) and the public page, with axe at
+// three widths in both schemes, 44px targets on a phone and a touch swipe between tabs. Founder screenshots of the rework go to FOUNDER_SHOTS when it is set.
 test.use({ actionTimeout: 20000, reducedMotion: "reduce" });
-const evidence = "docs/screenshots/link-in-bio";
+const evidence = process.env.FOUNDER_SHOTS ?? "docs/screenshots/link-in-bio";
 const sizes = [["phone", 360, 800], ["tablet", 768, 1024], ["desktop", 1280, 900]] as const;
 const post = (page: Page, url: string, data: unknown = {}) => page.request.post(url, { headers: { origin }, data });
 
+/** axe, retried when the dev server reloads the page mid-run (a late compile or a restart); a real violation is returned, never retried away. */
+async function axe(page: Page) {
+  for (let attempt = 0; ; attempt++) {
+    try { await settleForAxe(page); return (await new AxeBuilder({ page }).exclude("iframe").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations; }
+    catch (error) { if (attempt >= 6 || !/Execution context was destroyed|navigat|appendChild/i.test(String(error))) throw error; await page.waitForTimeout(2000); await page.waitForLoadState("load"); }
+  }
+}
 /** One scene per width and scheme: axe (WCAG 2.0 to 2.2 A and AA), no horizontal overflow, and a screenshot. */
 async function audit(page: Page, name: string, ready: string, prepare?: () => Promise<void>) {
   for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
-    await page.reload();
+    // The dev server may restart itself under memory pressure; a reset reload is retried.
+    await expect(async () => { await page.reload(); }).toPass({ timeout: 90_000 });
     await expect(page.locator(ready).first()).toBeVisible();
     await prepare?.();
     for (const [label, width, height] of sizes) {
       await page.setViewportSize({ width, height });
-      await settleForAxe(page);
-      const found = (await new AxeBuilder({ page }).exclude("iframe").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations;
+      const found = await axe(page);
       expect(found.map((v) => `${label}/${scheme} ${v.id}: ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(" | ")}`)).toEqual([]);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      // Allow a late layout pass (fonts, the tab carousel measuring itself) before judging sideways overflow; name the widest element when it fails.
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth ? "ok"
+        : [...document.querySelectorAll<HTMLElement>("body *")].filter((el) => el.getBoundingClientRect().right > innerWidth + 1).slice(-3).map((el) => `${el.tagName}.${el.className}`.slice(0, 120)).join(" | ")), { timeout: 10_000 }).toBe("ok");
+      if (width === 360) expect(await smallTargets(page), `${name} ${scheme}`).toEqual([]);
       await page.screenshot({ path: `${evidence}/${name}-${label}-${scheme}.png`, fullPage: true });
     }
   }
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1280, height: 900 });
 }
+/** Header controls, tabs, icons and block rows of a link in bio page (public or preview) must be at least 44 by 44 px on a phone. Panels out of view are skipped. */
+const smallTargets = (page: Page) => page.evaluate(() => {
+  const selector = ["[data-bio-page] header a", "[data-bio-page] header button", "[data-bio-page] [role=tab]", "[data-bio-socials] a", "[data-bio-block] > a", "li[data-bio-block] a"].join(", ");
+  return [...document.querySelectorAll<HTMLElement>(selector)].filter((el) => !el.closest("[inert]") && el.getClientRects().length > 0)
+    .filter((el) => { const r = el.getBoundingClientRect(); return r.height < 44 || r.width < 44; }).map((el) => `${el.tagName} ${el.textContent?.trim().slice(0, 30)} ${Math.round(el.getBoundingClientRect().width)}x${Math.round(el.getBoundingClientRect().height)}`);
+});
 /** A step of the editor: a sidebar step button with shell modes on, a stepper entry with them off. */
 const step = (page: Page, name: string) => { const label = new RegExp(`^${name}\\s+(Done|Current step|Needs attention|Not started|Completed|Upcoming)`);
   return page.getByRole("button", { name: label }).or(page.getByRole("link", { name: label })).or(page.getByRole("tab", { name: label })).first(); };
 const saved = (page: Page) => expect(page.locator('[data-save-state="saved"]:visible, [role="status"]:has-text("Draft saved.")').first()).toBeVisible();
 
 test("editor, public page, click counts, Message me and messages", async ({ page, browser }) => {
-  test.setTimeout(420000);
+  test.setTimeout(900000);
   // A unique address per attempt: a retry must not collide with the first attempt's published page.
   const handle = `grace-church-${Date.now().toString(36)}`;
   await mkdir(evidence, { recursive: true });
@@ -56,30 +73,56 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   await expect(page.locator("[data-bio-preview]")).toBeVisible();
 
   // Profile: name and bio feed the live preview.
+  await expect(page.locator("[data-bio-preview] [data-bio-initials]")).toHaveText("GC");
   await page.getByLabel("Name", { exact: true }).fill("Grace Church");
-  await page.getByLabel("One-line subtitle").fill("Pastor and church planter");
-  await page.getByLabel("Short bio").fill("Sundays at 10:00. Everyone is welcome.");
-  await expect(page.locator("[data-bio-preview]")).toContainText("Pastor and church planter");
+  // Header (founder decision 27 Nov): name, photo, one line of short bio and the icons; no subtitle, details list or main button.
+  await expect(page.getByLabel("One-line subtitle")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add detail" })).toHaveCount(0);
+  await page.getByLabel("Short bio (one line)").fill("Sundays at 10:00. Everyone is welcome.");
+  await expect(page.locator("[data-bio-preview] [data-bio-line]")).toHaveText("Sundays at 10:00. Everyone is welcome.");
   // Cover image through the scanned picker; the brand gradient shows until then.
   await expect(page.locator("[data-bio-preview] [data-bio-cover]")).toHaveAttribute("data-bio-cover", "gradient");
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
   await page.locator('[data-testid="cover-input"]').first().setInputFiles({ name: "cover.png", mimeType: "image/png", buffer: png });
-  await expect(page.getByText("Cover updated.").first()).toBeVisible();
+  await expect(page.getByText("Cover updated.").first()).toBeVisible({ timeout: 90_000 });
   await expect(page.locator("[data-bio-preview] [data-bio-cover]")).toHaveAttribute("data-bio-cover", "image");
-  // Details: only what the owner types; each row can be hidden.
-  await page.getByRole("button", { name: "Add detail" }).click();
-  await page.getByLabel("Text", { exact: true }).first().fill("Lisbon, Portugal");
-  await page.getByRole("button", { name: "Add detail" }).click();
-  await page.getByLabel("Text", { exact: true }).nth(1).fill("Secret ministry text");
-  await expect(page.locator("[data-bio-preview] [data-bio-details]")).toContainText("Secret ministry text");
-  await page.getByRole("button", { name: /^Hide Ministry or church/ }).click();
-  await expect(page.locator("[data-bio-preview] [data-bio-details]")).not.toContainText("Secret ministry text");
-  await expect(page.locator("[data-bio-preview] [data-bio-details]")).toContainText("Lisbon, Portugal");
+  // The cover can be switched off and on again; the uploaded image stays.
+  await page.getByRole("switch", { name: "Show a cover" }).click();
+  await expect(page.locator("[data-bio-preview] [data-bio-cover]")).toHaveCount(0);
+  await page.getByRole("switch", { name: "Show a cover" }).click();
+  await expect(page.locator("[data-bio-preview] [data-bio-cover]")).toHaveAttribute("data-bio-cover", "image");
+  // The profile photo (required to publish), placed left or centre.
+  await page.locator('[data-testid="cover-input"]').nth(1).setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: png });
+  await expect(page.getByText("Photo updated.").first()).toBeVisible({ timeout: 90_000 });
+  await expect(page.locator("[data-bio-preview] [data-bio-photo]")).toBeVisible();
+  await page.getByRole("radio", { name: "Left" }).click();
+  await expect(page.locator("[data-bio-preview] [data-bio-align]")).toHaveAttribute("data-bio-align", "left");
+  await page.getByRole("radio", { name: "Centre" }).click();
+  await expect(page.locator("[data-bio-preview] [data-bio-align]")).toHaveAttribute("data-bio-align", "center");
   await expect(page.locator("[data-bio-preview]")).toContainText("Sundays at 10:00");
-  await expect(page.locator("[data-bio-preview] [data-bio-initials]")).toHaveText("GC");
+  // Social and website icons: one style for the page.
+  await page.getByRole("button", { name: "Add social icon" }).click();
+  await page.getByLabel("Profile link (https)").fill("https://example.org/grace");
+  await page.getByRole("radio", { name: "Colour" }).click();
+  await expect(page.locator("[data-bio-preview] [data-bio-socials]")).toHaveAttribute("data-bio-icon-style", "color");
+  await expect(page.locator("[data-bio-preview] [data-bio-socials] [data-colored]")).toHaveCount(1);
 
-  // Links: add, validate, reorder with the buttons, hide.
+  // Tabs: the two first tabs, plus one the owner adds, names and moves by keyboard and by button.
   await step(page, "Links and blocks").click();
+  await page.getByRole("button", { name: "Add tab" }).click();
+  const tabRows = page.locator("[data-bio-tab-row]");
+  await expect(tabRows).toHaveCount(3);
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Add a name.")).toBeVisible();
+  await page.getByLabel("Name of tab 3").fill("Watch");
+  await page.getByRole("button", { name: "Drag Watch to reorder" }).focus();
+  await page.keyboard.press("Space"); await page.waitForTimeout(250); await page.keyboard.press("ArrowUp"); await page.waitForTimeout(250); await page.keyboard.press("Space");
+  await expect(tabRows.nth(1).getByRole("textbox")).toHaveValue("Watch");
+  await page.getByRole("button", { name: "Move Watch down" }).click();
+  await expect(tabRows.nth(2).getByRole("textbox")).toHaveValue("Watch");
+  await page.getByRole("button", { name: "Move Watch up" }).click();
+  await expect(tabRows.nth(1).getByRole("textbox")).toHaveValue("Watch");
+  // Links: add, validate, reorder with the buttons, hide.
   await expect(page.locator("[data-bio-empty]")).toBeVisible();
   await page.getByRole("button", { name: "Add link", exact: true }).click();
   await page.getByLabel("Label").first().fill("Give online");
@@ -96,13 +139,14 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   await expect(page.locator("[data-bio-preview]")).not.toContainText("Watch services");
   await page.getByRole("button", { name: "Show Watch services" }).click();
   await expect(page.locator("[data-bio-preview]")).toContainText("Watch services");
+  // The Watch services link goes on the Watch tab.
+  await page.locator('[data-bio-row]').first().getByLabel("Tab", { exact: true }).selectOption({ label: "Watch" });
+  await expect(page.locator("[data-bio-preview]").getByRole("tab", { name: "Watch" })).toBeVisible();
 
   // Message me block and a social icon.
   await page.getByRole("button", { name: "Add block" }).click();
   await page.getByRole("menuitem", { name: /Message me/ }).click();
   await expect(page.getByText("No email is sent to the visitor or to you.")).toBeVisible();
-  await page.getByRole("button", { name: "Add social icon" }).click();
-  await page.getByLabel("Profile link (https)").fill("https://example.org/grace");
   await page.getByRole("button", { name: "Save draft" }).click();
   await saved(page);
   await expect(page.getByText("Draft saved.")).toBeVisible();
@@ -117,7 +161,7 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   await saved(page);
   await audit(page, "editor", "[data-bio-preview]");
   await page.getByRole("button", { name: "Publish", exact: true }).first().click();
-  await expect(page.getByText("Published.", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Published.", { exact: true }).first()).toBeVisible({ timeout: 90_000 });
 
   // Public page: anonymous visitor, noindex-free published page, light and dark, three widths.
   // A unique visitor address: the per-visitor message limits must not be shared with other specs on the same server.
@@ -127,14 +171,31 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   await expect(pub.getByRole("heading", { name: "Grace Church", level: 1 })).toBeVisible();
   await expect(pub.getByRole("link", { name: /Give online/ })).toHaveAttribute("rel", "nofollow noopener noreferrer ugc");
   await expect(pub.getByRole("link", { name: /Give online/ })).toHaveAttribute("href", "https://example.org/give");
-  await expect(pub.locator("[data-bio-details]")).toContainText("Lisbon, Portugal");
-  await expect(pub.locator("body")).not.toContainText("Secret ministry text");
+  await expect(pub.locator("[data-bio-line]")).toHaveText("Sundays at 10:00. Everyone is welcome.");
+  await expect(pub.locator("[data-bio-primary]")).toHaveCount(0);
   await expect(pub.locator('[data-bio-cover="image"] img')).toHaveCount(1);
-  await expect(pub.getByRole("tab", { name: "Home" })).toBeVisible();
-  await expect(pub.getByRole("tab", { name: "Partnership" })).toBeVisible();
-  await expect(pub.locator("form[data-bio-message-form]")).toHaveCount(0);
+  await expect(pub.getByRole("tab")).toHaveText(["Home", "Watch", "Partnership"]);
+  await expect(pub.locator("[data-bio-socials] [data-colored]")).toHaveCount(1);
+  // Panels out of view are inert until their tab is chosen.
+  await expect(pub.locator('[data-swipe-tab="partnership"]')).toHaveAttribute("inert", "");
   await audit(pub, "public", "[data-bio-page]");
   await audit(pub, "public-partnership", "[data-bio-page]", async () => { await pub.getByRole("tab", { name: "Partnership" }).click(); await expect(pub.locator("form[data-bio-message-form]")).toBeVisible(); });
+
+  // On a touch phone a sideways swipe on the panel moves to the next tab.
+  const phoneContext = await browser.newContext({ baseURL: origin, reducedMotion: "reduce", hasTouch: true, isMobile: true, viewport: { width: 360, height: 800 } });
+  const phone = await phoneContext.newPage();
+  await phone.goto(`/l/${handle}`);
+  await expect(phone.getByRole("tab", { name: "Home" })).toHaveAttribute("aria-selected", "true");
+  const cdp = await phoneContext.newCDPSession(phone);
+  const box = (await phone.locator("[data-swipe-tabs]").boundingBox())!;
+  const y = Math.round(box.y + Math.min(40, box.height / 2)), from = Math.round(box.x + box.width - 20);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: from, y }] });
+  for (let i = 1; i <= 10; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: from - i * 28, y }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await expect(phone.getByRole("tab", { name: "Watch" })).toHaveAttribute("aria-selected", "true");
+  await expect(phone.locator('[data-swipe-tab="home"]')).toHaveAttribute("inert", "");
+  await phone.screenshot({ path: `${evidence}/public-swiped-phone-light.png`, fullPage: true });
+  await phoneContext.close();
 
   // Clicks are counted without leaving the page.
   await pub.reload();
@@ -142,8 +203,8 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   await pub.getByRole("link", { name: /Give online/ }).evaluate((a) => { a.addEventListener("click", (e) => e.preventDefault(), { capture: true }); (a as HTMLAnchorElement).click(); }).catch(() => undefined);
   await counted;
 
-  // The main button opens the Partnership tab at the message form.
-  await pub.locator("[data-bio-primary]").click();
+  // The Partnership tab holds the message form.
+  await pub.getByRole("tab", { name: "Partnership" }).click();
   await expect(pub.locator("form[data-bio-message-form]")).toBeVisible();
   await expect(pub.getByText("Your details go to Grace Community Church. You can ask them to delete them.")).toBeVisible();
   await expect(pub.getByRole("checkbox")).not.toBeChecked();
@@ -167,7 +228,8 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   // Owner: counts, messages list, handled, delete.
   await page.goto(editor);
   await page.getByRole("link", { name: /Messages/ }).click();
-  await expect(page.locator("[data-bio-message]")).toContainText("Could someone call me about baptism?");
+  await page.waitForURL(/\/link-in-bio\/messages$/, { timeout: 90_000 });
+  await expect(page.locator("[data-bio-message]")).toContainText("Could someone call me about baptism?", { timeout: 90_000 });
   await expect(page.locator("[data-bio-message]")).toContainText("ana@example.test");
   await audit(page, "messages", "[data-bio-messages]");
   await page.getByRole("button", { name: "Mark handled" }).click();
@@ -176,11 +238,29 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page.getByText("No messages yet")).toBeVisible();
 
+  // Single page: no tab bar, every visible block on one page.
+  await page.goto(editor);
+  await step(page, "Links and blocks").click();
+  await page.getByRole("radio", { name: "Single page" }).click();
+  await expect(page.locator("[data-bio-tab-row]")).toHaveCount(0);
+  await expect(page.locator("[data-bio-preview] [role=tablist]")).toHaveCount(0);
+  await page.getByRole("button", { name: "Publish changes", exact: true }).first().click();
+  await expect(page.getByText("Published.", { exact: true }).first()).toBeVisible({ timeout: 90_000 });
+  const single = await browser.newContext({ baseURL: origin, reducedMotion: "reduce" });
+  const flat = await single.newPage();
+  await expect(async () => { expect((await flat.goto(`/l/${handle}`))?.status()).toBe(200); }).toPass({ timeout: 90_000 });
+  await expect(flat.locator('[data-bio-layout="single"]')).toBeVisible();
+  await expect(flat.getByRole("tab")).toHaveCount(0);
+  await expect(flat.getByRole("link", { name: /Watch services/ })).toBeVisible();
+  await expect(flat.locator("form[data-bio-message-form]")).toBeVisible();
+  await audit(flat, "public-single", "[data-bio-page]");
+  await single.close();
+
   // Unpublish: the public address is an honest 404 and the draft is kept.
   await page.goto(editor);
   await page.getByRole("button", { name: "Unpublish", exact: true }).first().click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Unpublish", exact: true }).click();
-  await expect(page.getByText(/Unpublished\./)).toBeVisible();
+  await expect(page.getByText(/Unpublished\./)).toBeVisible({ timeout: 90_000 });
   expect((await page.request.get(`/l/${handle}`)).status()).toBe(404);
   expect((await page.request.get("/l/no-such-page")).status()).toBe(404);
   expect(errors).toEqual([]);

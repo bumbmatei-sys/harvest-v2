@@ -1,3 +1,4 @@
+import { appOrigin } from "@/lib/site-address";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -28,5 +29,5 @@ export default async function SignupFormsPage({ params }: { params: Promise<{ te
   if (!workspace) return <AccessState />;
   if (!can(workspace.role, "newsletter:manage")) return <Alert><AlertDescription>{t("viewOnly")}</AlertDescription></Alert>;
   const [forms, lists] = await Promise.all([listNewsletterSignupForms(db, session.user.id, tenantId), newsletterListChoices(db, session.user.id, tenantId)]);
-  return <SignupFormsList tenantId={tenantId} forms={forms} lists={lists} hostedAvailable={syntheticCrmFormsKey() !== null} />;
+  return <SignupFormsList origin={appOrigin()} tenantId={tenantId} forms={forms} lists={lists} hostedAvailable={syntheticCrmFormsKey() !== null} />;
 }

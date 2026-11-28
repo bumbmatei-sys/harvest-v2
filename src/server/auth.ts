@@ -19,7 +19,7 @@ import { authOtpHash, authOtpKey, otpPolicy } from "./auth-otp-hash";
 export { otpPolicy };
 export function makeAuth(db: Database, config: {
   secret: string; baseURL: string; ipAddressHeaders?: string[]; trustedProxies?: string[];
-  cookiePrefix?: string; mail?: Parameters<typeof sendSignInCode>[3];
+  cookiePrefix?: string; trustedOrigins?: string[]; cookieDomain?: string; mail?: Parameters<typeof sendSignInCode>[3];
 }) {
   const ipAddress = { ipAddressHeaders: config.ipAddressHeaders ?? ["x-forwarded-for"], trustedProxies: config.trustedProxies ?? [] };
   if (!ipAddress.ipAddressHeaders.length || findInvalidTrustedProxies(ipAddress.trustedProxies).length) {
@@ -28,10 +28,10 @@ export function makeAuth(db: Database, config: {
   const otpKey = authOtpKey(config.secret);
   const otpBehavior = authOtpHooks(db);
   const auth = betterAuth({
-    appName: "Harvest", secret: config.secret, baseURL: config.baseURL,
+    appName: "Harvest", secret: config.secret, baseURL: config.baseURL, trustedOrigins: config.trustedOrigins,
     database: drizzleAdapter(db, { provider: "pg", schema: authSchema, transaction: true }),
     emailAndPassword: { enabled: false },
-    advanced: { ipAddress, ...(config.cookiePrefix && { cookiePrefix: config.cookiePrefix }) },
+    advanced: { ipAddress, ...(config.cookieDomain && { crossSubDomainCookies: { enabled: true, domain: config.cookieDomain } }), ...(config.cookiePrefix && { cookiePrefix: config.cookiePrefix }) },
     session: { expiresIn: 60 * 60 * 24 * 7, cookieCache: { enabled: false } },
     rateLimit: { enabled: true, storage: "database", window: 60, max: 30,
       customRules: { "/email-otp/send-verification-otp": { window: 60, max: 3 }, "/sign-in/email-otp": { window: 60, max: 10 } } },

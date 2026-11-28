@@ -72,7 +72,8 @@ export async function analyticsIn(tx: Transaction, tenant: string, range: Range,
 }
 
 export function newsletterAnalytics(db: Database, actor: string, workspace: string, raw: unknown, campaignId?: string) {
-  return withNewsletter(db, actor, workspace, "newsletter:analytics", async (tx, tenant) => {
+  return withNewsletter(db, actor, workspace, "newsletter:analytics", async (tx, tenant, _role, access) => {
+    if (access !== "owner" && access !== "admin") throw unavailable();
     const range = queryInput.parse(raw);
     return analyticsIn(tx, tenant, range, campaignId ? id(campaignId) : null);
   });

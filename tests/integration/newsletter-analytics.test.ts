@@ -1,11 +1,15 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import type { PoolClient } from "pg";
+import { sql } from "drizzle-orm";
+import { withTenant } from "../../src/server/tenancy";
 import { users } from "../../src/db/schema";
 import { createContact, recordConsent } from "../../src/server/contacts";
 import { analyticsUnavailable, newsletterAnalyticsOverview, newsletterCampaignAnalytics } from "../../src/server/newsletter-campaigns/analytics-overview";
-import { createWorkspace } from "../../src/server/workspaces";
+import { changeMemberAccess } from "../../src/server/access";
+import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { periodRange } from "../../src/lib/newsletter-analytics";
+import { newsletterStatistics } from "../../src/server/newsletter-campaigns/statistics";
 import { testDatabase } from "../database";
 import { seedCampaign } from "../helpers/newsletter-analytics-seed";
 
@@ -121,4 +125,26 @@ it("never shows a visible total beside a withheld campaign row", async () => {
   const report = await overview(owner, tenant, 90);
   expect(report.campaigns.some((row) => row.counts === null)).toBe(true);
   expect(report.totals).toBeNull();
+});
+
+it("returns protected statistics by campaign and day to administrators", async () => {
+  const campaignId = await seedCampaign(client, { tenant, user: owner, name: "Statistics",
+    days: [{ day: daysAgo(1), accepted: 10, delivered: 9, unsubscribed: 5 }] });
+  const report = await newsletterStatistics(fixture.db, admin, tenant, { campaignId }, now);
+  expect(report).toMatchObject({ opensCollected: false, totals: { sends: 10, opens: null, unsubscribes: 5 } });
+  expect(report.days.find((day) => day.day === daysAgo(1))).toMatchObject({ sends: 10, opens: null, unsubscribes: 5 });
+  const tiny = await seedCampaign(client, { tenant, user: owner, name: "Small statistics",
+    days: [{ day: daysAgo(1), accepted: 2 }] });
+  expect(await newsletterStatistics(fixture.db, owner, tenant, { campaignId: tiny }, now))
+    .toMatchObject({ totals: { sends: null, unsubscribes: null } });
+  const collaborator = "ana-delegate";
+  await fixture.db.insert(users).values({ id: collaborator, name: "Delegate", email: "delegate@example.invalid" });
+  await putMember(fixture.db, owner, tenant, "delegate@example.invalid", "viewer");
+  await changeMemberAccess(fixture.db, owner, tenant, { userId: collaborator, role: "collaborator", grants: { newsletter: "manage" } });
+  await expect(withTenant(fixture.db, collaborator, tenant, "workspace:read", (tx) => tx.execute(
+    sql`select * from public.newsletter_analytics_groups(${tenant}::uuid,${campaignId}::uuid,${daysAgo(7)}::date,${daysAgo(-1)}::date)`))).rejects.toMatchObject({
+    cause: { code: "42501" },
+  });
+  await expect(newsletterStatistics(fixture.db, collaborator, tenant, { period: "7" }, now)).rejects.toMatchObject({ status: 404 });
+  await expect(newsletterStatistics(fixture.db, other, elsewhere, { campaignId }, now)).rejects.toMatchObject({ status: 404 });
 });

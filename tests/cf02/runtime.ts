@@ -1,3 +1,4 @@
+import { readSiteAddresses } from "../../src/lib/site-address";
 import { getDb } from "../../src/db/client";
 import { getAuth, withWorkerRequest } from "../../src/server/auth-instance";
 import { getRequestDb, withDb, type DatabaseEnvironment } from "../../src/db/request";
@@ -18,7 +19,7 @@ export function isolationRuntime(app: DatabaseEnvironment, worker: DatabaseEnvir
       const request = new Request(`${baseURL}/api/auth/get-session`, { headers, signal: requestSignal });
       return withWorkerRequest({
         APP_HYPERDRIVE: app.APP_HYPERDRIVE,
-        BETTER_AUTH_SECRET: secret, BETTER_AUTH_URL: baseURL,
+        BETTER_AUTH_SECRET: secret, addresses: readSiteAddresses({ BETTER_AUTH_URL: baseURL }),
       }, request, () => {
         if (getDb() !== getRequestDb()) throw new Error("Database escaped the request scope");
         if (getAuth() !== getAuth()) throw new Error("Auth instance changed within one request");

@@ -1,3 +1,4 @@
+import { acceptsLegacyCallback, legacyRedirect } from "@/lib/site-address";
 // CF-07: one Worker for the whole app. The explicit buffered API keeps its tested entry; every other request goes to the
 // OpenNext handler inside a request-scoped database and auth context that stays open until the response body has been
 // fully sent or cancelled, so streamed pages never touch a closed connection or another request's handle.
@@ -40,7 +41,7 @@ export function privatePage(response: Response) {
 function withScope(settings: WorkerSettings, request: Request, run: () => Promise<void>) {
   return withWorkerRequest({
     APP_HYPERDRIVE: settings.hyperdrive, database: settings.databaseName, BETTER_AUTH_SECRET: settings.authSecret,
-    BETTER_AUTH_URL: settings.origin, AUTH_IP_ADDRESS_HEADERS: "cf-connecting-ip", cookiePrefix: `harvest-${settings.stage}`,
+    addresses: settings.addresses, AUTH_IP_ADDRESS_HEADERS: "cf-connecting-ip", cookiePrefix: `harvest-${settings.stage}`,
     mail: { apiKey: settings.mailKey, from: settings.mailFrom },
   }, request, run);
 }
@@ -54,7 +55,9 @@ export function createAppWorker(pages: PageHandler) {
         console.error("worker_configuration_invalid");
         return new Response(null, { status: 503, headers: { "cache-control": "private, no-store" } });
       }
-      if (new URL(request.url).origin !== settings.origin) return new Response(null, { status: 421, headers: { "cache-control": "private, no-store" } });
+      const redirect = legacyRedirect(request, settings.addresses);
+      if (redirect) return redirect;
+      if (new URL(request.url).origin !== settings.origin && !acceptsLegacyCallback(request, settings.addresses)) return new Response(null, { status: 421, headers: { "cache-control": "private, no-store" } });
       let release!: () => void;
       const released = new Promise<void>((resolve) => { release = resolve; });
       return new Promise<Response>((resolve, reject) => {

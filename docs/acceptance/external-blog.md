@@ -1,6 +1,6 @@
 # External blog publishing server
 
-Working migration `0145_external_blog`. The server reuses the social connections, credential envelope, provider port, fake, and vendor adapter. The API, production transport, and remote image endpoint remain hard-off through the existing integration gate. The local worker runs only when explicitly invoked in a non-production environment against a loopback database with a worker login and the in-memory fake. No schedule or webhook was installed. All HC-02 activation gates remain **UNAPPROVED**.
+Migration `0151_external_blog`. The server reuses the social connections, credential envelope, provider port, fake, and vendor adapter. The API, production transport, and remote image endpoint remain hard-off through the existing integration gate. The local worker runs only when explicitly invoked in a non-production environment against a loopback database with a worker login and the in-memory fake. No schedule or webhook was installed. All HC-02 activation gates remain **UNAPPROVED**.
 
 ## Publish step API
 
