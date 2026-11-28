@@ -177,9 +177,9 @@ it("syncs a shared saved view with hashes only, then clears it after a cross-cha
   }
 });
 
-it("commits the claim before the fake upload and recovers after the result transaction fails", async () => {
+it.each(["same", "different"] as const)("recovers a committed claim with a %s key after its lease expires", async (key) => {
   ads.audienceMinimum = 1;
-  const eligible = await person("Crash recovery", "crash-recovery@example.invalid");
+  const eligible = await person("Crash recovery", `crash-recovery-${key}@example.invalid`);
   await marketing(eligible, "granted");
   const saved = await createView(f.db, p.owner, p.tenant, { objectType: "person", name: "Recovery", shared: true, state: fullState({}) });
   const { audienceId } = await createCustomerAudience(f.db, p.owner, p.tenant, {
@@ -187,12 +187,13 @@ it("commits the claim before the fake upload and recovers after the result trans
   }, on);
   const idempotencyKey = randomUUID();
   const request = { adAccountId: acct, audienceId, idempotencyKey, confirm: true };
-  const send = () => uploadCrmAudience(f.db, p.owner, p.tenant, request, on);
+  const replacementKey = key === "same" ? idempotencyKey : randomUUID();
+  const send = (requestKey = idempotencyKey) => uploadCrmAudience(f.db, p.owner, p.tenant, { ...request, idempotencyKey: requestKey }, on);
   const upload = ads.uploadAudienceMembers.bind(ads);
   let remoteAccepted = false;
   ads.allowSends = true;
   const fake = vi.spyOn(ads, "uploadAudienceMembers").mockImplementation(async (credential, spec) => {
-    expect((await q("select status, attempt_id from ads_audience_uploads where idempotency_key=$1", [idempotencyKey])).rows)
+    expect((await q("select status, attempt_id from ads_audience_uploads where audience_id=$1 and status='pending'", [audienceId])).rows)
       .toEqual([{ status: "pending", attempt_id: spec.idempotencyKey }]);
     await q("select id from contacts where tenant_id=$1 and id=$2 for update nowait", [p.tenant, eligible]);
     const result = await upload(credential, spec);
@@ -208,6 +209,7 @@ it("commits the claim before the fake upload and recovers after the result trans
       await expect(send()).rejects.toThrow();
       expect(remoteAccepted).toBe(true);
       await expect(send()).rejects.toMatchObject({ details: { code: "AUDIENCE_UPLOAD_PENDING" } });
+      await expect(send(replacementKey)).rejects.toMatchObject({ details: { code: "AUDIENCE_UPLOAD_PENDING" } });
       expect(fake).toHaveBeenCalledTimes(1);
     } finally {
       await q("drop trigger test_reject_audience_result on ads_audience_uploads; drop function test_reject_audience_result()");
@@ -215,11 +217,18 @@ it("commits the claim before the fake upload and recovers after the result trans
     const [pending] = (await q("select id, status, attempt_id from ads_audience_uploads where idempotency_key=$1", [idempotencyKey])).rows;
     expect(pending.status).toBe("pending");
     await q("update ads_audience_uploads set updated_at=now()-interval '2 minutes' where id=$1", [pending.id]);
-    await expect(send()).resolves.toMatchObject({ upload: { status: "sent" } });
-    const [finished] = (await q("select id, status, attempt_id from ads_audience_uploads where idempotency_key=$1", [idempotencyKey])).rows;
-    expect(finished).toMatchObject({ id: pending.id, status: "sent" });
+    await expect(send(replacementKey)).resolves.toMatchObject({ upload: { status: "sent" } });
+    const [finished] = (await q("select id, status, attempt_id from ads_audience_uploads where idempotency_key=$1", [replacementKey])).rows;
+    expect(finished.status).toBe("sent");
+    if (key === "same") {
+      expect(finished.id).toBe(pending.id);
+    } else {
+      expect(finished.id).not.toBe(pending.id);
+      expect((await q("select status, attempt_id, error_code from ads_audience_uploads where id=$1", [pending.id])).rows)
+        .toEqual([{ status: "ambiguous", attempt_id: pending.attempt_id, error_code: "UNAVAILABLE" }]);
+    }
     expect(finished.attempt_id).not.toBe(pending.attempt_id);
-    await expect(send()).resolves.toMatchObject({ replayed: true });
+    await expect(send(replacementKey)).resolves.toMatchObject({ replayed: true });
     expect(fake).toHaveBeenCalledTimes(2);
   } finally {
     fake.mockRestore();

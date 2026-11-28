@@ -166,17 +166,25 @@ export async function uploadCrmAudience(db: Database, user: string, workspace: s
     const access = fakeAccess(ctx, deps);
     const [audience] = await tx.select().from(adsAudiences).where(and(eq(adsAudiences.tenantId, tenant), eq(adsAudiences.id, input.audienceId),
       eq(adsAudiences.adAccountId, ctx.account.id), eq(adsAudiences.kind, "customer_list"), eq(adsAudiences.crmManaged, true))).for("update");
+    if (!audience) throw unavailableAudience();
+    // Outcome writers lock the upload row independently of the audience lock.
+    const [pending] = await tx.select({ id: adsAudienceUploads.id, updatedAt: adsAudienceUploads.updatedAt }).from(adsAudienceUploads)
+      .where(and(eq(adsAudienceUploads.tenantId, tenant), eq(adsAudienceUploads.audienceId, audience.id), eq(adsAudienceUploads.status, "pending")))
+      .limit(1).for("update");
     const [prior] = await tx.select().from(adsAudienceUploads).where(and(eq(adsAudienceUploads.tenantId, tenant), eq(adsAudienceUploads.idempotencyKey, input.idempotencyKey)));
     if (prior && (prior.audienceId !== input.audienceId || prior.adAccountId !== input.adAccountId)) throw stale("KEY_MISMATCH");
-    if (!audience) throw unavailableAudience();
     if (prior?.status === "sent") {
       const upload = prior.sent > 0 ? { status: prior.status, eligible: prior.eligible, sent: prior.sent, excluded: prior.excluded } : null;
       return { replay: true, upload } as const;
     }
 
-    const [pending] = await tx.select({ id: adsAudienceUploads.id, updatedAt: adsAudienceUploads.updatedAt }).from(adsAudienceUploads)
-      .where(and(eq(adsAudienceUploads.tenantId, tenant), eq(adsAudienceUploads.audienceId, audience.id), eq(adsAudienceUploads.status, "pending"))).limit(1);
-    if (pending && (pending.id !== prior?.id || pending.updatedAt.getTime() + claimLeaseMs > Date.now())) throw stale("AUDIENCE_UPLOAD_PENDING");
+    if (pending && pending.updatedAt.getTime() + claimLeaseMs > Date.now()) throw stale("AUDIENCE_UPLOAD_PENDING");
+    if (pending && pending.id !== prior?.id) {
+      // The expired attempt may have reached the provider. Close its claim without reassigning its key.
+      await tx.update(adsAudienceUploads).set({ status: "ambiguous", errorCode: "UNAVAILABLE", updatedAt: sql`clock_timestamp()` })
+        .where(and(eq(adsAudienceUploads.tenantId, tenant), eq(adsAudienceUploads.id, pending.id)));
+      await audit(tx, tenant, user, "audience_upload_outcome", pending.id, { sent: "0" });
+    }
 
     const view = audience.crmSavedViewId ? await audienceView(tx, tenant, audience.crmSavedViewId) : undefined;
     const { members, eligible, excluded } = view ? await computeEligibility(tx, tenant, view, true) : { members: [], eligible: 0, excluded: {} };
