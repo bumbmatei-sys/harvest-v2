@@ -20,6 +20,7 @@ afterAll(async () => { await f?.close(); });
 
 const communityTables = `select c.oid, c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public' and c.relkind in ('r', 'p') and (c.relname ~ '^(communit|discover_)'
+    or c.relname = 'church_network_links'
     or exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'community_id' and not a.attisdropped))`;
 const communityFunctions = `select p.oid, p.oid::regprocedure::text as sig, p.proname, p.prosecdef, p.proconfig, p.prosrc,
     p.prorettype = 'trigger'::regtype as is_trigger, pg_get_userbyid(p.proowner) as owner,
@@ -31,7 +32,7 @@ const isCommunity = (name: string) => /communit|^discover_|^dm_|^chat_/.test(nam
 
 // Application privileges per table (S select, I insert, U update, D delete). A change here is a reviewed decision.
 const appGrants: Record<string, string> = {
-  communities: "SIU", community_appeals: "S", community_applications: "SIU", community_categories: "SIUD", community_channel_members: "S",
+  church_network_links: "", communities: "SIU", community_appeals: "S", community_applications: "SIU", community_categories: "SIUD", community_channel_members: "S",
   community_channel_reads: "S", community_channels: "S", community_chat_purge_runs: "", community_chat_state: "S", community_comment_revisions: "S",
   community_comments: "SIU", community_daily_counts: "S", community_dm_blocks: "S", community_dm_conversations: "S", community_dm_messages: "S",
   community_dm_participants: "S", community_dm_report_evidence: "", community_email_deliveries: "", community_email_feedback: "", community_email_feedback_grants: "", community_email_suppressions: "", community_event_links: "", community_exits: "S",

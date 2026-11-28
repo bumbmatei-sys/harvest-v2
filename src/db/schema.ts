@@ -4641,3 +4641,22 @@ export const volunteerRosterGrants = pgTable("volunteer_roster_grants", {
   transaction: text("transaction").notNull(),
   tenantId: uuid("tenant_id").notNull(),
 });
+
+// An accepted link grants a parent only a count of active outreach campaigns.
+export const churchNetworkLinks = pgTable("church_network_links", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  parentId: uuid("parent_id").notNull().references(() => workspaces.tenantId, { onDelete: "cascade" }),
+  childId: uuid("child_id").notNull().references(() => workspaces.tenantId, { onDelete: "cascade" }),
+  requestedBy: text("requested_by").notNull(),
+  requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  acceptedBy: text("accepted_by"),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  unlinkedBy: text("unlinked_by"),
+  unlinkedAt: timestamp("unlinked_at", { withTimezone: true }),
+}, (t) => [
+  uniqueIndex("church_network_current_pair").on(t.parentId, t.childId).where(sql`${t.unlinkedAt} IS NULL`),
+  index("church_network_child").on(t.childId),
+  check("church_network_distinct_ministries", sql`${t.parentId} <> ${t.childId}`),
+  check("church_network_audit_pairs", sql`(${t.acceptedBy} IS NULL) = (${t.acceptedAt} IS NULL)
+    AND (${t.unlinkedBy} IS NULL) = (${t.unlinkedAt} IS NULL)`),
+]);
