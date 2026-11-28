@@ -195,8 +195,7 @@ export function CommunityEditor({ initial, members, invites, applications, categ
           {questionsOn && <CardContent><QuestionListEditor questions={fields.joinQuestions} onChange={(next) => set("joinQuestions", next)} disabled={!writable} /></CardContent>}</Card>
       </>}
       {step === "channels" && <>
-        <Card><CardHeader><CardTitle><h3 className="text-base font-semibold">{t("forumCategories")}</h3></CardTitle></CardHeader>
-          <CardContent><ForumCategoriesEditor endpoint={endpoint} initial={categories} writable={writable} /></CardContent></Card>
+        <ForumCategoriesEditor endpoint={endpoint} initial={categories} writable={writable} title={t("forumCategories")} />
         <Card><CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3"><CardTitle><h3 className="text-base font-semibold">{t("chatChannels")}</h3></CardTitle>
           {!chat && <Badge variant="secondary">{t("comingSoon")}</Badge>}</CardHeader>
           {chat && <CardContent><ChatChannelsEditor slug={data.slug} initial={chat} members={members} /></CardContent>}</Card>

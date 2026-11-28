@@ -1,15 +1,28 @@
+/** Derived from Shadcn UI Kit item dashboard-modal12 (premium), registry retrieved 2026-11-27, approved 2026-11-27 (Community screens). Kit code; local changes: docs/ui-sources.md. */
 "use client";
+
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { MailCheckIcon, MailXIcon } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Spinner } from "@/components/ui/spinner";
 import { request } from "@/hooks/use-request";
 import { unsubscribeTokenFromHash } from "@/lib/community-unsubscribe";
 import { notify } from "@/lib/toast";
 
 /**
- * C15c: asks before switching a community's email off. The token is taken from the fragment once and the fragment is then
- * removed from the address bar. Whatever the token, the result is the same neutral message, as the route's answer is.
+ * C15c: asks before switching a community's email off, as the kit's confirmation window, which is the whole page here (it cannot be
+ * dismissed). The token is taken from the fragment once and the fragment is then removed from the address bar. Whatever the token,
+ * the result is the same neutral message, as the route's answer is.
  */
 export function UnsubscribeConfirm() {
   const t = useTranslations("CommunityUnsubscribe");
@@ -28,11 +41,29 @@ export function UnsubscribeConfirm() {
     if (result && !result.ok && result.status === 0) { notify.error(result.error); return; }
     token.current = null; setDone(true);
   }
-  return <Card className="w-full">
-    <CardHeader aria-live="polite">
-      <CardTitle><h1 className="text-2xl font-semibold tracking-tight">{done ? t("doneTitle") : t("title")}</h1></CardTitle>
-      <CardDescription className="text-base">{done ? t("doneBody") : t("body")}</CardDescription>
-    </CardHeader>
-    {!done && <CardFooter><Button className="min-h-11" disabled={busy} onClick={() => void confirm()}>{t("confirm")}</Button></CardFooter>}
-  </Card>;
+  const Icon = done ? MailCheckIcon : MailXIcon;
+
+  return (
+    <Dialog open>
+      <DialogContent showCloseButton={false} onEscapeKeyDown={(event) => event.preventDefault()} onInteractOutside={(event) => event.preventDefault()}>
+        <DialogHeader className="items-center text-center" aria-live="polite">
+          <span className="bg-muted mb-2 flex size-10 items-center justify-center rounded-full">
+            <Icon
+              className={done ? "text-success size-5" : "text-muted-foreground size-5"}
+              aria-hidden="true"
+            />
+          </span>
+          <DialogTitle>{done ? t("doneTitle") : t("title")}</DialogTitle>
+          <DialogDescription>
+            {done ? t("doneBody") : t("body")}
+          </DialogDescription>
+        </DialogHeader>
+        {!done && <DialogFooter>
+          <Button className="min-h-11 w-full" disabled={busy} onClick={() => void confirm()}>
+            {busy && <Spinner decorative size="sm" />}{t("confirm")}
+          </Button>
+        </DialogFooter>}
+      </DialogContent>
+    </Dialog>
+  );
 }

@@ -41,8 +41,8 @@ function useAction() {
 }
 
 /** The kit's like and comment buttons, with their counts inline as on a social post. Liking calls the forum's like route; share and save are not offered. */
-export function PostEngagement({ slug, postId, title, likes, liked, likesOff, likeDisabled, replies, repliesHref, replyTarget }: { slug: string; postId: string; title: string;
-  likes: number; liked: boolean; likesOff: boolean; likeDisabled: boolean; replies: number; repliesHref?: string; replyTarget?: string }) {
+export function PostEngagement({ slug, postId, title, likes, liked, likesOff, likeDisabled, replies, repliesHref, replyTarget, className }: { slug: string; postId: string; title: string;
+  likes: number; liked: boolean; likesOff: boolean; likeDisabled: boolean; replies: number; repliesHref?: string; replyTarget?: string; /** Replaces the row's divider and spacing. */ className?: string }) {
   const t = useTranslations("CommunityForum"), request = useCrmRequest();
   const [state, setState] = useState({ likes, liked }), [busy, setBusy] = useState(false);
 
@@ -55,7 +55,7 @@ export function PostEngagement({ slug, postId, title, likes, liked, likesOff, li
 
   const canLike = !likesOff && !likeDisabled;
   const action = "text-muted-foreground hover:text-foreground h-11 gap-1.5 rounded-full px-3 lg:h-9";
-  return <div className="flex items-center gap-1 border-t pt-1 [&>:first-child]:-ms-3">
+  return <div className={cn("flex items-center gap-1", className ?? "border-t pt-1 [&>:first-child]:-ms-3")}>
     {canLike && <Button
       variant="ghost"
       className={action}

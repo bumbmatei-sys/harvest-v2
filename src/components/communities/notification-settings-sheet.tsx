@@ -1,36 +1,68 @@
+/** Derived from Shadcn UI Kit item list-block3 (premium), registry retrieved 2026-11-27, approved 2026-11-27 (Community screens). Kit code; local changes: docs/ui-sources.md. */
 "use client";
+
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import {
+  BellOff,
+  Heart,
+  Mail,
+  Megaphone,
+  MessageSquareText,
+} from "lucide-react";
+
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { FieldLegend, FieldSet } from "@/components/ui/field";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item";
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
+import { EmailFrequencyDialog } from "@/components/communities/email-frequency-dialog";
 import { useRequest } from "@/hooks/use-request";
-import { emailFrequencies, notificationPrefs, type EmailFrequency, type NotificationPrefs } from "@/lib/notifications";
+import { notificationPrefs, type NotificationPrefs } from "@/lib/notifications";
 import { notify } from "@/lib/toast";
 
+const channels = [
+  { id: "replies", icon: MessageSquareText },
+  { id: "likes", icon: Heart },
+  { id: "announcements", icon: Megaphone },
+  { id: "muted", icon: BellOff },
+] as const;
+
 /**
- * C15a: the member's notification switches for one community, in a side sheet. Muting silences everything in the app.
- * C15c: how often the community may email them. The switches and the email choice are saved through their own routes,
- * and only what changed is sent.
+ * C15a: the member's notification switches for one community, in a side sheet, as the kit's switch list. Muting silences everything
+ * in the app. C15c: the Email row opens the email frequency window, which saves through its own route; Save here sends the switches
+ * only when they changed.
  */
 export function NotificationSettingsSheet({ slug, prefs, open, onOpenChange }: { slug: string; prefs: NotificationPrefs; open: boolean; onOpenChange: (open: boolean) => void }) {
   const t = useTranslations("CommunityNotifications"), request = useRequest(), router = useRouter();
   const [draft, setDraft] = useState(prefs), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const activeCount = draft.muted ? 0 : notificationPrefs.filter((key) => draft[key]).length;
   async function save() {
-    setBusy(true); setError("");
+    setError("");
     const switchesChanged = draft.muted !== prefs.muted || notificationPrefs.some((key) => draft[key] !== prefs[key]);
-    const switches = switchesChanged ? await request(`/api/communities/${slug}/notifications/preferences`, { method: "PUT",
-      body: { replies: draft.replies, likes: draft.likes, announcements: draft.announcements, muted: draft.muted } }) : null;
-    const email = (!switches || switches.ok) && draft.email !== prefs.email
-      ? await request(`/api/communities/${slug}/notifications/email`, { method: "PUT", body: { frequency: draft.email } }) : null;
-    setBusy(false);
-    const failed = [switches, email].find((result) => result && !result.ok);
-    if (failed && !failed.ok) { setError(failed.error); notify.error(failed.error, { id: "community-notification-settings" }); if (switches?.ok) router.refresh(); return; }
+    if (switchesChanged) {
+      setBusy(true);
+      const switches = await request(`/api/communities/${slug}/notifications/preferences`, { method: "PUT",
+        body: { replies: draft.replies, likes: draft.likes, announcements: draft.announcements, muted: draft.muted } });
+      setBusy(false);
+      if (!switches.ok) { setError(switches.error); notify.error(switches.error, { id: "community-notification-settings" }); return; }
+    }
     notify.success(t("savedToast"), { id: "community-notification-settings" });
     onOpenChange(false); router.refresh();
   }
@@ -39,20 +71,67 @@ export function NotificationSettingsSheet({ slug, prefs, open, onOpenChange }: {
       <SheetHeader><SheetTitle>{t("settingsTitle")}</SheetTitle></SheetHeader>
       <div className="space-y-2 px-4">
         {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
-        {notificationPrefs.map((key) => <Label key={key} htmlFor={`notify-${key}`} className="flex min-h-11 items-center justify-between gap-3 font-normal">{t(`prefs.${key}`)}
-          <Switch id={`notify-${key}`} checked={draft[key]} disabled={draft.muted} onCheckedChange={(on) => setDraft((d) => ({ ...d, [key]: on }))} /></Label>)}
-        <Label htmlFor="notify-muted" className="flex min-h-11 items-center justify-between gap-3 border-t pt-2 font-normal">{t("prefs.muted")}
-          <Switch id="notify-muted" checked={draft.muted} onCheckedChange={(on) => setDraft((d) => ({ ...d, muted: on }))} /></Label>
-        <div className="border-t pt-3"><FieldSet className="gap-2">
-          <FieldLegend variant="label">{t("email.title")}</FieldLegend>
-          <RadioGroup value={draft.email} onValueChange={(value) => setDraft((d) => ({ ...d, email: value as EmailFrequency }))} className="gap-1">
-            {emailFrequencies.map((value) => <Label key={value} htmlFor={`email-${value}`} className="flex min-h-11 items-start gap-3 rounded-md py-2 font-normal">
-              <RadioGroupItem id={`email-${value}`} value={value} aria-describedby={`email-${value}-hint`} className="mt-0.5" />
-              <span className="grid gap-0.5"><span>{t(`email.${value}`)}</span>
-                <span id={`email-${value}-hint`} aria-hidden="true" className="text-xs text-muted-foreground">{t(`email.${value}Hint`)}</span></span>
-            </Label>)}
-          </RadioGroup>
-        </FieldSet></div>
+        <Card className="w-full gap-2">
+          <CardHeader>
+            <CardTitle>{t("inApp")}</CardTitle>
+            <CardDescription className="text-xs">
+              {t("activeSummary", { active: activeCount, count: notificationPrefs.length })}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ItemGroup className="gap-0 has-data-[size=sm]:gap-0">
+              {channels.map((channel) => (
+                <Item
+                  key={channel.id}
+                  size="sm"
+                  variant="outline"
+                  className="min-h-11 rounded-none border-x-0 border-t-0 px-0 last:border-b-0"
+                  asChild
+                >
+                  <label htmlFor={`notify-${channel.id}`} className="cursor-pointer">
+                    <ItemMedia className="bg-muted text-muted-foreground size-8 rounded-md border">
+                      <channel.icon className="size-4" aria-hidden="true" />
+                    </ItemMedia>
+                    <ItemContent className="gap-0.5">
+                      <ItemTitle>{t(`prefs.${channel.id}`)}</ItemTitle>
+                    </ItemContent>
+                    <ItemActions>
+                      <Switch
+                        id={`notify-${channel.id}`}
+                        checked={draft[channel.id]}
+                        disabled={channel.id !== "muted" && draft.muted}
+                        onCheckedChange={(checked) =>
+                          setDraft((current) => ({
+                            ...current,
+                            [channel.id]: checked,
+                          }))
+                        }
+                      />
+                    </ItemActions>
+                  </label>
+                </Item>
+              ))}
+              <Item
+                size="sm"
+                variant="outline"
+                className="min-h-11 rounded-none border-x-0 border-t-0 px-0 last:border-b-0"
+              >
+                <ItemMedia className="bg-muted text-muted-foreground size-8 rounded-md border">
+                  <Mail className="size-4" aria-hidden="true" />
+                </ItemMedia>
+                <ItemContent className="gap-0.5">
+                  <ItemTitle>{t("email.title")}</ItemTitle>
+                  <ItemDescription className="text-xs">
+                    {t(`email.${prefs.email}`)}
+                  </ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <EmailFrequencyDialog slug={slug} value={prefs.email} />
+                </ItemActions>
+              </Item>
+            </ItemGroup>
+          </CardContent>
+        </Card>
       </div>
       <SheetFooter><Button className="min-h-11" disabled={busy} onClick={() => void save()}>{t("save")}</Button></SheetFooter>
     </SheetContent>
