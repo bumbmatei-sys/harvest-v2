@@ -1,6 +1,6 @@
 {
-  "id": "75af3370-c445-47e1-8bfd-a618d07715f1",
-  "prevId": "beb5b5b7-5aab-407e-88b6-be64d516a1ee",
+  "id": "8df6215e-ef89-4461-8aaa-2226ee6038a5",
+  "prevId": "3b468b07-3629-4465-9e32-5ed3870f10f3",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -9877,13 +9877,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "forum_posting": {
-          "name": "forum_posting",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'everyone'"
-        },
         "chat_enabled": {
           "name": "chat_enabled",
           "type": "boolean",
@@ -9951,50 +9944,50 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "communities_tenant_id_workspaces_tenant_id_fk": {
           "name": "communities_tenant_id_workspaces_tenant_id_fk",
           "tableFrom": "communities",
-          "tableTo": "workspaces",
           "columnsFrom": [
             "tenant_id"
           ],
+          "tableTo": "workspaces",
           "columnsTo": [
             "tenant_id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "communities_intro_category_id_community_categories_id_fk": {
           "name": "communities_intro_category_id_community_categories_id_fk",
           "tableFrom": "communities",
-          "tableTo": "community_categories",
           "columnsFrom": [
             "intro_category_id"
           ],
+          "tableTo": "community_categories",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         },
         "communities_created_by_users_id_fk": {
           "name": "communities_created_by_users_id_fk",
           "tableFrom": "communities",
-          "tableTo": "users",
           "columnsFrom": [
             "created_by"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {
@@ -10009,10 +10002,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "community_forum_posting": {
-          "name": "community_forum_posting",
-          "value": "\"communities\".\"forum_posting\" in ('everyone', 'hosts')"
-        },
         "community_dm_policy": {
           "name": "community_dm_policy",
           "value": "\"communities\".\"dm_policy\" in ('channels_only','members')"
@@ -14064,7 +14053,7 @@
       "checkConstraints": {
         "community_reaction_emoji": {
           "name": "community_reaction_emoji",
-          "value": "\"community_message_reactions\".\"emoji\" in ('\ud83d\udc4d','\u2764\ufe0f','\ud83d\ude4f','\ud83d\ude0a','\ud83c\udf89','\ud83d\udc4f','\ud83d\udca1','\ud83d\udd25','\ud83d\ude2e','\ud83d\ude22','\u2705','\ud83d\ude4c')"
+          "value": "\"community_message_reactions\".\"emoji\" in ('👍','❤️','🙏','😊','🎉','👏','💡','🔥','😮','😢','✅','🙌')"
         }
       },
       "isRLSEnabled": false
@@ -40107,85 +40096,14 @@
         }
       },
       "isRLSEnabled": false
-    },
-    "public.community_post_details": {
-      "name": "community_post_details",
-      "schema": "",
-      "columns": {
-        "post_id": {
-          "name": "post_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "community_id": {
-          "name": "community_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "details": {
-          "name": "details",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "community_post_details_post_id_community_posts_id_fk": {
-          "name": "community_post_details_post_id_community_posts_id_fk",
-          "tableFrom": "community_post_details",
-          "tableTo": "community_posts",
-          "columnsFrom": [
-            "post_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "community_post_details_tenant_id_community_id_communities_tenant_id_id_fk": {
-          "name": "community_post_details_tenant_id_community_id_communities_tenant_id_id_fk",
-          "tableFrom": "community_post_details",
-          "tableTo": "communities",
-          "columnsFrom": [
-            "tenant_id",
-            "community_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "community_post_details_object": {
-          "name": "community_post_details_object",
-          "value": "jsonb_typeof(\"community_post_details\".\"details\") = 'object'"
-        }
-      },
-      "isRLSEnabled": false
     }
   },
   "enums": {},
   "schemas": {},
+  "views": {},
   "sequences": {},
   "roles": {},
   "policies": {},
-  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},

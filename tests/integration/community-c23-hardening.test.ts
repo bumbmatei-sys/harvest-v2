@@ -34,11 +34,14 @@ const appGrants: Record<string, string> = {
   communities: "SIU", community_appeals: "S", community_applications: "SIU", community_categories: "SIUD", community_channel_members: "S",
   community_channel_reads: "S", community_channels: "S", community_chat_purge_runs: "", community_chat_state: "S", community_comment_revisions: "S",
   community_comments: "SIU", community_daily_counts: "S", community_dm_blocks: "S", community_dm_conversations: "S", community_dm_messages: "S",
-  community_dm_participants: "S", community_dm_report_evidence: "", community_email_deliveries: "", community_event_links: "", community_exits: "S",
+  community_dm_participants: "S", community_dm_report_evidence: "", community_email_deliveries: "", community_email_feedback: "", community_email_feedback_grants: "", community_email_suppressions: "", community_event_links: "", community_exits: "S",
   community_files: "SIU", community_invites: "SIU", community_likes: "SIU", community_live_events: "S", community_member_profiles: "",
   community_memberships: "SIU", community_message_reactions: "S", community_messages: "S", community_moderation_actions: "S",
   community_notifications: "SI", community_post_details: "", community_post_revisions: "S", community_posts: "SIU", community_product_links: "SIUD", community_reports: "S",
-  community_warnings: "S", discover_controls: "SIU", discover_listings: "SIUD", discover_ministry_standing: "", discover_reports: "", discover_review_events: "",
+  community_warnings: "S", // Points and challenges (C19): no app grants; reached only through the community_points definer.
+  community_challenge_members: "", community_challenges: "", community_point_attendance: "", community_point_settings: "",
+  community_points_hidden_members: "",
+  discover_controls: "SIU", discover_listings: "SIUD", discover_ministry_standing: "", discover_reports: "", discover_review_events: "",
 };
 
 // Reviewed definers that do not clear every app.* flag on entry. Each sets only its own single-purpose flag, keys every read on
@@ -55,7 +58,7 @@ const scopedFlagDefiners: Record<string, string> = {
 
 // Worker-only definers (harvest_worker, 0044 and later). A new one is a reviewed decision.
 const workerDefiners = ["community_chat_purge_channels", "community_chat_purge_dm", "community_chat_purge_health", "community_chat_purge_record_failure",
-  "community_email_claim", "community_email_complete", "community_email_enqueue", "community_purge_applications", "community_purge_notifications",
+  "community_email_apply_feedback", "community_email_check_suppression", "community_email_claim", "community_email_complete", "community_email_enqueue", "community_purge_applications", "community_purge_notifications",
   "discover_platform_decide", "discover_platform_queue", "discover_platform_reports", "discover_platform_resolve_report", "discover_platform_standing"];
 
 describe("catalog", () => {

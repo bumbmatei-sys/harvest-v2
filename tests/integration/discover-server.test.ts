@@ -197,8 +197,9 @@ it("paginates with a bounded cursor", async () => {
   await q("delete from discover_listings where resource_type='product'");
   const rows = Array.from({ length: 26 }, (_, i) => ({ id: randomUUID(), n: `Bulk ${String(i).padStart(2, "0")}` }));
   for (const r of rows) {
+    await q("insert into catalog_items (tenant_id,id,kind,slug,title,state,visibility) values ($1,$2,'download',$3,$4,'published','listed')", [a, r.id, r.n.toLowerCase().replace(" ", "-"), r.n]);
     await q("insert into discover_listings(resource_type,resource_id,tenant_id,slug,name,host_name,pricing,admission,search_text,is_free,content_hash,audience) values ('product',$1,$2,$3,$4,'Grace Church','free','{}',$5,true,$6,'church')", [r.id, a, r.n.toLowerCase().replace(" ", "-"), r.n, r.n.toLowerCase(), r.id]);
-    await q("insert into discover_controls(tenant_id,resource_type,resource_id,review_state,reviewed_by,reviewed_hash,current_hash) values ($1,'product',$2,'approved','x',$3,$3)", [a, r.id, r.id]);
+    await q("insert into discover_controls(tenant_id,resource_type,resource_id,review_state,reviewed_by,reviewed_hash,current_hash,owner_opt_in) values ($1,'product',$2,'approved','x',$3,$3,true)", [a, r.id, r.id]);
   }
   const page1 = await search({ type: "product", sort: "name" });
   expect(page1.items).toHaveLength(24); expect(page1.next).not.toBeNull();

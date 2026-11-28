@@ -30,8 +30,9 @@ it("claims, completes and resolves as a restricted owner, and the triggers and t
     // Tenant isolation and the role check survive FORCE RLS.
     await expect(f.workerPool.query("select * from social_posts")).rejects.toMatchObject({ code: "42501" });
     await expect(f.pool.query("select public.social_publish_claim(1, 60)")).rejects.toMatchObject({ code: "42501" });
-    const { rows: policies } = await f.admin.query("select polname, polroles::regrole[]::text as roles from pg_policy p join pg_class c on c.oid = p.polrelid where c.relname in ('social_connections','social_posts') order by 1");
-    expect(policies.map((r) => r.polname)).toEqual(["social_connections_admin", "social_connections_definer", "social_posts_admin", "social_posts_definer"]);
+    const { rows: policies } = await f.admin.query("select polname, polcmd, polroles::regrole[]::text as roles from pg_policy p join pg_class c on c.oid = p.polrelid where c.relname in ('social_connections','social_posts') order by 1");
+    expect(policies.map((r) => r.polname)).toEqual(["blog_external_connection_owner", "social_connections_admin", "social_connections_definer", "social_posts_admin", "social_posts_definer"]);
+    expect(policies[0]).toMatchObject({ polcmd: "r", roles: `{${f.migrationOwner}}` });
     expect(policies.filter((r) => r.polname.endsWith("_definer")).every((r) => r.roles.includes(f.migrationOwner!))).toBe(true);
   } finally { useKeyProvider(null); await f.close(); }
 }, 60_000);

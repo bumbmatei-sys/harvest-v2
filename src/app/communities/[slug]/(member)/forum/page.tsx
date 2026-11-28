@@ -1,4 +1,5 @@
 /** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/social-media/page.tsx; code written for Harvest, no kit code copied. Centred feed of post cards (max-w-2xl) on a sunken page surface; categories as chips above the feed and the composer card at the top in place of the kit left column; the stories row and right-hand suggestions are not used. */
+import { communityPostLink } from "@/lib/site-address";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
@@ -66,7 +67,7 @@ export default async function ForumPage({ params, searchParams }: Props) {
       {context.mutedUntil && <Alert><AlertDescription>{t("mutedUntil", { date: format.dateTime(context.mutedUntil, { dateStyle: "medium", timeStyle: "short" }) })}</AlertDescription></Alert>}
       {posts.length === 0 ? <EmptyState icon={MessageSquare} title={t("empty")} />
         : <ul className="space-y-4">{posts.map((post) => <li key={post.id}><PostCard slug={context.slug} post={post} category={categoryName(post.categoryId)}
-          menu={<PostMenu slug={context.slug} post={{ id: post.id, title: post.title, pinned: post.pinned, held: post.held }} isAuthor={post.authorId === session.user.id} canModerate={context.canModerate} />} /></li>)}</ul>}
+          menu={<PostMenu slug={context.slug} copyHref={communityPostLink(context.slug, post.id)} post={{ id: post.id, title: post.title, pinned: post.pinned, held: post.held }} isAuthor={post.authorId === session.user.id} canModerate={context.canModerate} />} /></li>)}</ul>}
       {(page > 1 || hasMore) && <nav aria-label={t("pages")} className="flex justify-between gap-2 pt-2">
         {page > 1 ? <Button variant="outline" className="min-h-11 bg-card" asChild><Link href={href({ page: page - 1 })} prefetch={false}>{t("newer")}</Link></Button> : <span />}
         {hasMore && <Button variant="outline" className="min-h-11 bg-card" asChild><Link href={href({ page: page + 1 })} prefetch={false}>{t("older")}</Link></Button>}

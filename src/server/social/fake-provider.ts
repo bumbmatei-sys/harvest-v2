@@ -1,3 +1,4 @@
+import type { ExternalArticleInput, ExternalBlog, ExternalBlogPlatform, ExternalBlogTarget, RemoteBlogArticle } from "../../lib/external-blog";
 import type { AnalyticsDayRange, AnalyticsPost, AnalyticsQuery, AnalyticsSlot } from "./analytics-contract";
 import type { AccountMetric, Metrics } from "../../lib/social/analytics";
 import type { AutoDmEvent, AutoDmEvidence } from "./auto-dm-contract";
@@ -47,6 +48,72 @@ export class FakeProvider implements SocialProvider, SocialSender {
   replyEligibility = new Map<string, InboxReplyEligibility>();
   private readonly replyResults = new Map<string, SendResult>();
   ambiguousNextReply = false;
+  blogs = new Map<string, ExternalBlog[]>();
+  blogArticles = new Map<string, RemoteBlogArticle>();
+  blogCreateTimeout = false;
+  private readonly blogKeys = new Map<string, string>();
+
+  blogConnectProfiles = new Map<string, SocialAccount>();
+  async startBlogConnect(cred: SocialCredential, request: { attemptId: string; platform: ExternalBlogPlatform }) {
+    this.enter("startBlogConnect", cred, request.attemptId);
+    return { profileRef: request.attemptId, url: `https://sign-in.example.invalid/${request.attemptId}` };
+  }
+  async findBlogConnection(cred: SocialCredential, profileRef: string, platform: ExternalBlogPlatform) {
+    this.enter("findBlogConnection", cred);
+    const account = this.blogConnectProfiles.get(profileRef);
+    return account?.platform === platform ? account : null;
+  }
+
+  async listBlogs(_cred: SocialCredential, accountRef: string) {
+    this.enter("listBlogs", _cred);
+    return structuredClone(this.blogs.get(accountRef) ?? []);
+  }
+  private blogKey(target: ExternalBlogTarget, id: string) {
+    return JSON.stringify([target.accountRef, target.blogRef, id]);
+  }
+  async findBlogArticle(cred: SocialCredential, target: ExternalBlogTarget, handle: string) {
+    this.enter("findBlogArticle", cred);
+    for (const item of this.blogArticles.values()) {
+      if (this.blogArticles.get(this.blogKey(target, item.id)) === item && item.handle === handle) return this.getBlogArticle(cred, target, item.id);
+    }
+    return null;
+  }
+  async getBlogArticle(_cred: SocialCredential, target: ExternalBlogTarget, articleId: string) {
+    this.enter("getBlogArticle", _cred);
+    const item = this.blogArticles.get(this.blogKey(target, articleId));
+    if (!item) throw new SocialProviderError("NOT_FOUND");
+    return structuredClone(item);
+  }
+  private saveBlogArticle(target: ExternalBlogTarget, id: string, input: ExternalArticleInput, prior?: RemoteBlogArticle) {
+    const handle = input.handle ?? prior?.handle ?? id;
+    const scheduledAt = input.isPublished === false ? null : input.publishDate ?? null;
+    const published = input.isPublished === true && !scheduledAt;
+    const item: RemoteBlogArticle = {
+      id, handle, title: input.title, bodyHtml: input.bodyHtml, excerpt: input.excerpt ?? null, tags: input.tags ?? [],
+      image: input.image ? { url: input.image.url, altText: input.image.altText ?? null } : prior?.image ?? null,
+      url: published ? `https://blog.example.invalid/${handle}` : null, published, scheduledAt,
+    };
+    this.blogArticles.set(this.blogKey(target, id), item);
+    return structuredClone(item);
+  }
+  async createBlogArticle(cred: SocialCredential, target: ExternalBlogTarget, input: ExternalArticleInput, key: string) {
+    this.calls.push({ method: "createBlogArticle", key });
+    const priorId = this.blogKeys.get(key);
+    if (priorId) return this.getBlogArticle(cred, target, priorId);
+    const id = `article-${this.blogArticles.size + 1}`;
+    const item = this.saveBlogArticle(target, id, input);
+    this.blogKeys.set(key, id);
+    if (this.blogCreateTimeout) {
+      this.blogCreateTimeout = false;
+      throw new SocialProviderError("UNAVAILABLE");
+    }
+    return item;
+  }
+  async updateBlogArticle(cred: SocialCredential, target: ExternalBlogTarget, id: string, input: ExternalArticleInput) {
+    this.enter("updateBlogArticle", cred);
+    return this.saveBlogArticle(target, id, input, await this.getBlogArticle(cred, target, id));
+  }
+
   health = new Map<string, SocialAccountHealth>();
   constructor(private readonly options: FakeOptions = {}) {
     this.validSecret = options.validSecret ?? "fake-credential";

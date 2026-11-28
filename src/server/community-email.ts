@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { sql } from "drizzle-orm";
 import type { Database } from "../db/client";
 import { renderEmail, type EmailJob } from "../lib/community-email";
@@ -33,8 +34,14 @@ export async function runCommunityEmail(pool: Queryable, sender: CommunityMailSe
     for (const job of claimed.jobs) {
       let error: string | null = null;
       try {
+        const recipient = job.to.trim().toLowerCase();
+        const digest = createHmac("sha256", options.secret).update("community-email:" + job.tenantId + ":" + recipient).digest("hex");
+        const mask = "***@" + recipient.slice(recipient.lastIndexOf("@") + 1);
+        const { rows: [{ decision }] } = await pool.query<{ decision: string }>(
+          "select public.community_email_check_suppression($1, $2, $3) as decision", [job.id, digest, mask]);
+        if (decision !== "ready") continue;
         const mail = renderEmail(job, { origin: options.origin, secret: options.secret, now: options.now });
-        try { await sender({ to: job.to, ...mail, idempotencyKey: job.idempotencyKey, signal: AbortSignal.timeout(SEND_TIMEOUT_MS) }); }
+        try { await sender({ to: job.to, ...mail, idempotencyKey: job.idempotencyKey, deliveryId: job.id, signal: AbortSignal.timeout(SEND_TIMEOUT_MS) }); }
         catch { error = "send_failed"; }
       } catch { error = "render_failed"; }
       await pool.query("select public.community_email_complete($1::uuid, $2, $3)", [job.id, error ? "failed" : "sent", error]);

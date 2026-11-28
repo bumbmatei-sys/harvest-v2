@@ -87,21 +87,21 @@ export function PostEngagement({ slug, postId, title, likes, liked, likesOff, li
 }
 
 /** The kit's "..." menu on a post: copy link for everyone, edit and delete for the author, pin and remove for hosts, report for other members. */
-export function PostMenu({ slug, post, isAuthor, canModerate, edit, detail = false }: { slug: string; post: { id: string; title: string; pinned: boolean; held: boolean };
+export function PostMenu({ slug, copyHref, post, isAuthor, canModerate, edit, detail = false }: { slug: string; copyHref: string; post: { id: string; title: string; pinned: boolean; held: boolean };
   isAuthor: boolean; canModerate: boolean; /** Author edit, offered on the post page only. */ edit?: { categories: ComposerCategory[]; initial: ComposerInitial; author: string; people?: ComposerPerson[] };
   /** On the post page: deleting or removing the post returns to the forum. */ detail?: boolean }) {
   const t = useTranslations("CommunityForum"), tr = useTranslations("Report"), { busy, run, router } = useAction();
   const [dialog, setDialog] = useState<"edit" | "report" | null>(null), trigger = useRef<HTMLButtonElement>(null);
   // The report and edit windows open from the menu with no trigger of their own: return focus to the menu button when they close.
   const closeDialog = () => { setDialog(null); requestAnimationFrame(() => trigger.current?.focus()); };
-  const href = `/communities/${slug}/posts/${post.id}`, after = detail ? () => router.push(`/communities/${slug}/forum`) : undefined;
+  const after = detail ? () => router.push(`/communities/${slug}/forum`) : undefined;
   const act = async (call: (request: Request) => ReturnType<Request>, done?: () => void) => {
     const failed = { message: "" };
     const ok = await run(async (request) => { const result = await call(request); if (!result.ok) failed.message = result.error; return result; }, done);
     if (!ok) notify.error(failed.message);
   };
   const copyLink = async () => {
-    try { await navigator.clipboard.writeText(new URL(href, window.location.origin).toString()); notify.success(t("linkCopied")); } catch { notify.error(t("copyFailed")); }
+    try { await navigator.clipboard.writeText(copyHref); notify.success(t("linkCopied")); } catch { notify.error(t("copyFailed")); }
   };
   const canReport = !isAuthor && !post.held;
   return <>

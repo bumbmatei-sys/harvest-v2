@@ -1,3 +1,4 @@
+import { communityUnsubscribeLinks } from "./site-address";
 import { message, type MessageKey } from "../i18n/messages";
 import type { Locale } from "../i18n/locale";
 import { notificationHref, summaryKey, type NotificationTarget, type NotificationKind } from "./notifications";
@@ -53,14 +54,11 @@ export function renderEmail(job: EmailJob, opts: { origin: string; secret: strin
   const parts = [message("CommunityEmail.greeting", { name: safeTitle(job.name) || message("CommunityNotifications.someone", undefined, locale) }, locale), "",
     message(job.kind === "instant" ? "CommunityEmail.instantIntro" : "CommunityEmail.digestIntro", { community }, locale), "", ...lines, ""];
   if (job.hasMembership) {
-    const link = new URL("/communities/unsubscribe", origin);
-    link.hash = `token=${signUnsubscribe(opts.secret, { tenantId: job.tenantId, communityId: job.communityId, userId: job.recipientId }, opts.now)}`;
-    // The one-click POST target carries the token in its query, as RFC 8058 requires a single URL.
-    const post = new URL("/api/communities/unsubscribe", origin);
-    post.searchParams.set("token", link.hash.slice("#token=".length));
-    headers["List-Unsubscribe"] = `<${post.href}>`;
+    const token = signUnsubscribe(opts.secret, { tenantId: job.tenantId, communityId: job.communityId, userId: job.recipientId }, opts.now);
+    const { form, oneClick } = communityUnsubscribeLinks(token, origin);
+    headers["List-Unsubscribe"] = `<${oneClick}>`;
     headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
-    parts.push(message("CommunityEmail.unsubscribe", { community, url: link.href }, locale));
+    parts.push(message("CommunityEmail.unsubscribe", { community, url: form }, locale));
   } else parts.push(message("CommunityEmail.oneTime", undefined, locale));
   return { subject, text: `${parts.join("\n")}\n`, headers };
 }

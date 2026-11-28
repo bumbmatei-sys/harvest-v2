@@ -27,7 +27,7 @@ const tone: Record<BlogStatus, StatusTone> = { draft: "pending", scheduled: "inf
 type Pending = { kind: "delete" | "unpublish"; row: BlogListRow } | null;
 
 /** The ministry's articles: status tabs with counts, a search over titles and addresses, and Edit plus a menu (View, Copy link, Unschedule, Unpublish, Delete). */
-export function BlogList({ tenantId, initial }: { tenantId: string; initial: { settings: BlogOwnerSettings; posts: BlogListRow[] } }) {
+export function BlogList({ origin, tenantId, initial }: { origin: string; tenantId: string; initial: { settings: BlogOwnerSettings; posts: BlogListRow[] } }) {
   const t = useTranslations("Blog"), format = useFormatter(), request = useRequest(), router = useRouter();
   const [settings, setSettings] = useState(initial.settings), [rows, setRows] = useState(initial.posts);
   const [tab, setTab] = useState<Tab>("all"), [query, setQuery] = useState(""), [creating, setCreating] = useState(false), [error, setError] = useState("");
@@ -62,7 +62,7 @@ export function BlogList({ tenantId, initial }: { tenantId: string; initial: { s
     setRows((list) => list.filter((r) => r.id !== row.id)); notify.success(t("deleted"));
     return true;
   }
-  const copy = async (row: BlogListRow) => { try { await navigator.clipboard.writeText(new URL(blogPath(settings.handle, row.slug), location.origin).href); notify.success(t("linkCopied")); } catch { /* the browser refused; nothing to do */ } };
+  const copy = async (row: BlogListRow) => { try { await navigator.clipboard.writeText(new URL(blogPath(settings.handle, row.slug), origin).href); notify.success(t("linkCopied")); } catch { /* the browser refused; nothing to do */ } };
   const when = (row: BlogListRow) => row.status === "scheduled" && row.publishAt ? formatScheduled(row.publishAt, settings.timeZone)
     : row.status === "published" && row.publishedAt ? format.dateTime(new Date(row.publishedAt), { dateStyle: "medium" })
     : t("when.draft", { date: format.dateTime(new Date(row.updatedAt), { dateStyle: "medium" }) });

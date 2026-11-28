@@ -92,6 +92,7 @@ export const blogPostInput = z.object({
   excerpt: optionalText(blogLimits.excerpt), seoTitle: optionalText(blogLimits.seoTitle), seoDescription: optionalText(blogLimits.seoDescription),
   coverFileId: z.uuid().nullable().optional(), shareFileId: z.uuid().nullable().optional(),
   body: z.unknown().optional(),
+  harvestPage: z.boolean().optional(),
 }).strict();
 export type BlogPostInput = z.input<typeof blogPostInput>;
 export const blogSettingsInput = z.object({

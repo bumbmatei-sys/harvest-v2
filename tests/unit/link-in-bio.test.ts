@@ -2,8 +2,8 @@ import { vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { bioBlockSchema, bioDefinitionSchema, bioLimits, bioReservedHandles, emptyBioDefinition, fieldIssues, handleProblem, messageNotice, moveItem, newBlockId,
-  publishIssues, safeHttpsUrl, suggestHandle, bioMessageSchema } from "../../src/lib/link-in-bio";
+import { bioBlockSchema, bioDefinitionSchema, bioLimits, bioReservedHandles, blockShown, emptyBioDefinition, fieldIssues, handleProblem, isLegacyTabId, messageNotice, moveItem, newBlockId,
+  publishIssues, shownTabs, oneLine, bioClickTypes, mapsHref, telHref, whatsappHref, safeHttpsUrl, suggestHandle, bioMessageSchema } from "../../src/lib/link-in-bio";
 import { BIO_MESSAGES_PRODUCTION_ENABLED, bioMessagesKey, linkInBioEnabled } from "../../src/server/link-in-bio-mode";
 import { bioVisitorKey } from "../../src/server/link-in-bio-public";
 import { issueBioProof } from "../../src/server/link-in-bio";
@@ -65,13 +65,155 @@ describe("definition", () => {
   it("reports per-field problems and publish blockers", () => {
     const draft = { ...base, blocks: [{ ...(link() as object), url: "nope" }] } as unknown as ReturnType<typeof emptyBioDefinition>;
     expect(fieldIssues(draft)).toEqual({ abcd1234: "url" });
-    expect(publishIssues({ ...emptyBioDefinition(""), blocks: [] })).toEqual(["name", "empty"]);
-    expect(publishIssues(bioDefinitionSchema.parse({ ...base, blocks: [link({ hidden: true })] }))).toEqual(["empty"]);
+    expect(publishIssues({ ...emptyBioDefinition(""), blocks: [] }, { hasPhoto: true })).toEqual(["name", "empty"]);
+    expect(publishIssues(bioDefinitionSchema.parse({ ...base, blocks: [link({ hidden: true })] }), { hasPhoto: true })).toEqual(["empty"]);
+    // The profile photo is required (founder decision 25 Nov).
+    expect(publishIssues(bioDefinitionSchema.parse(base), { hasPhoto: false })).toEqual(["photo"]);
+    expect(publishIssues(bioDefinitionSchema.parse(base), { hasPhoto: true })).toEqual([]);
   });
   it("moves items like the drag and the buttons do", () => {
     expect(moveItem(["a", "b", "c"], 0, 2)).toEqual(["b", "c", "a"]); expect(moveItem(["a", "b"], 0, 5)).toEqual(["a", "b"]);
     const values = [0, 0, 0, 0, 0, 0, 0, 0, 0.5]; let n = 0;
     expect(newBlockId(["aaaaaaaa"], () => values[n++ % 9] ?? 0.5)).not.toBe("aaaaaaaa");
+  });
+});
+
+describe("header and tabs (rework, 25 Nov)", () => {
+  const base = { ...emptyBioDefinition("Grace Church"), blocks: [link()] };
+  const tab = (id: string, label = "", hidden = false) => ({ id, label, hidden });
+  it("fills the new fields of a page saved before the rework", () => {
+    const old = { kind: "bio-v1", name: "Grace", subtitle: "", bio: "", details: [], tabs: [{ id: "home", hidden: false }, { id: "partnership", hidden: false }], scheme: "auto", buttons: "filled", socials: [], blocks: [link()] };
+    const parsed = bioDefinitionSchema.parse(old);
+    expect(parsed).toMatchObject({ layout: "tabs", cover: true, photoAlign: "center", iconStyle: "outline" });
+    expect(parsed.tabs).toEqual([tab("home"), tab("partnership")]);
+    expect(fieldIssues(parsed)).toEqual({});
+  });
+  it("takes up to six tabs with eight-character or original ids, unique and named", () => {
+    const six = ["home", "abcdefgh", "ijklmnop", "qrstuvwx", "yz012345", "6789abcd"].map((id) => tab(id, "Tab"));
+    expect(bioDefinitionSchema.safeParse({ ...base, tabs: six }).success).toBe(true);
+    expect(bioDefinitionSchema.safeParse({ ...base, tabs: [...six, tab("zzzzzzzz", "Seven")] }).success).toBe(false);
+    for (const bad of ["Home", "abc", "has space", "ABCDEFGH", "toolongid"]) expect(bioDefinitionSchema.safeParse({ ...base, tabs: [tab(bad, "x")] }).success).toBe(false);
+    expect(bioDefinitionSchema.safeParse({ ...base, tabs: [tab("home"), tab("home")] }).success).toBe(false);
+    expect(bioDefinitionSchema.safeParse({ ...base, tabs: [tab("abcdefgh", "x".repeat(bioLimits.tabLabel + 1))] }).success).toBe(false);
+    expect(bioDefinitionSchema.safeParse({ ...base, tabs: [tab("abcdefgh", "<b>")] }).success).toBe(false);
+    expect(bioDefinitionSchema.safeParse({ ...base, blocks: [link({ tab: "Bad tab" })] }).success).toBe(false);
+    // A tab the owner added needs a name; the two original tabs keep their default names.
+    const parsed = bioDefinitionSchema.parse({ ...base, tabs: [tab("home"), tab("abcdefgh", "  ")] });
+    expect(fieldIssues(parsed)).toEqual({ "tab:abcdefgh": "required" });
+    expect(fieldIssues({ ...parsed, layout: "single" })).toEqual({});
+  });
+  it("keeps one line of short bio, takes a subtitle as that line, and drops the details list (founder decision 27 Nov)", () => {
+    expect(bioDefinitionSchema.parse({ ...base, bio: "  Line one \n line two " })).toMatchObject({ bio: "Line one", subtitle: "", details: [] });
+    expect(bioDefinitionSchema.parse({ ...base, bio: "", subtitle: "Church planter" }).bio).toBe("Church planter");
+    expect(bioDefinitionSchema.parse({ ...base, bio: "x".repeat(400) }).bio).toHaveLength(bioLimits.bioLine);
+    expect(bioDefinitionSchema.parse({ ...base, details: [{ id: "dddddd01", kind: "location", value: "Lisbon", hidden: false }] }).details).toEqual([]);
+    expect(oneLine("\n\n  a  \nb")).toBe("a");
+  });
+  it("accepts only the known layout, photo position and icon style", () => {
+    for (const [key, ok, bad] of [["layout", "single", "grid"], ["photoAlign", "left", "right"], ["iconStyle", "color", "mono"], ["cover", false, "no"]] as const) {
+      expect(bioDefinitionSchema.safeParse({ ...base, [key]: ok }).success).toBe(true);
+      expect(bioDefinitionSchema.safeParse({ ...base, [key]: bad }).success).toBe(false);
+    }
+  });
+  it("shows a block only on a shown tab, or always in the single-page layout", () => {
+    const definition = bioDefinitionSchema.parse({ ...base, tabs: [tab("home"), tab("abcdefgh", "Give", true)] });
+    const onHidden = link({ id: "bbbbbbbb", tab: "abcdefgh" }) as { hidden: boolean; tab: string }, onMissing = link({ id: "cccccccc", tab: "zzzzzzzz" }) as { hidden: boolean; tab: string };
+    expect(blockShown(definition, link() as { hidden: boolean; tab: string })).toBe(true);
+    expect(blockShown(definition, onHidden)).toBe(false);
+    expect(blockShown(definition, onMissing)).toBe(false);
+    expect(blockShown({ ...definition, layout: "single" }, onHidden)).toBe(true);
+    expect(blockShown({ ...definition, layout: "single" }, { ...onHidden, hidden: true })).toBe(false);
+    const blocks = [link({ id: "aaaaaaaa" }), onHidden, onMissing].map((b) => b as { id: string; hidden: boolean; tab: string });
+    expect(shownTabs(definition, blocks).map((t) => [t.id, t.blocks.map((b) => b.id)])).toEqual([["home", ["aaaaaaaa"]]]);
+    expect(shownTabs({ ...definition, layout: "single" }, blocks).map((t) => [t.label, t.blocks.map((b) => b.id)])).toEqual([["", ["aaaaaaaa", "bbbbbbbb", "cccccccc"]]]);
+    expect(isLegacyTabId("home")).toBe(true); expect(isLegacyTabId("abcdefgh")).toBe(false);
+  });
+  it("keeps the database's block rule in step with the application's", () => {
+    const sql = readFileSync("drizzle/0139_bio_tabs_layout.sql", "utf8");
+    expect(sql).toMatch(/coalesce\(p_published->>'layout', 'tabs'\) = 'single'/);
+    expect(sql).toMatch(/p_kind = 'cover' AND \(page\.published->>'cover'\) = 'false'/);
+    expect(sql.split("\n").filter((line) => !line.startsWith("--")).join("\n")).not.toMatch(/SECURITY DEFINER/);
+  });
+});
+
+describe("new block types (rework PR 2)", () => {
+  const base = { ...emptyBioDefinition("Grace Church"), blocks: [link()] };
+  const parse = (block: Record<string, unknown>) => bioDefinitionSchema.safeParse({ ...base, blocks: [{ id: "bbbbbbbb", hidden: false, tab: "home", ...block }] });
+  const item = "11111111-1111-4111-8111-111111111111", other = "22222222-2222-4222-8222-222222222222";
+  it("takes products and courses, and PDFs and ebooks, as lists of the ministry's item ids", () => {
+    expect(parse({ type: "catalog", title: "", itemIds: [item, other] }).success).toBe(true);
+    expect(parse({ type: "catalog", title: "", itemIds: [] }).success).toBe(false);
+    expect(parse({ type: "catalog", title: "", itemIds: [item, item] }).success).toBe(false);
+    expect(parse({ type: "catalog", title: "", itemIds: Array.from({ length: bioLimits.catalogItems + 1 }, (_, i) => `11111111-1111-4111-8111-${String(i).padStart(12, "0")}`) }).success).toBe(false);
+    expect(parse({ type: "files", title: "Ebooks", itemIds: ["not-a-uuid"] }).success).toBe(false);
+  });
+  it("stores a video as provider and id only, from the course lessons' parser", () => {
+    expect(parse({ type: "video", title: "", provider: "youtube", videoId: "dQw4w9WgXcQ" }).success).toBe(true);
+    expect(parse({ type: "video", title: "", provider: "vk", videoId: "-1_2" }).success).toBe(true);
+    expect(parse({ type: "video", title: "", provider: "youtube", videoId: "" }).success).toBe(false);
+    expect(parse({ type: "video", title: "", provider: "vimeo", videoId: "123" }).success).toBe(false);
+    expect(parse({ type: "video", title: "", provider: "youtube", videoId: "dQw4w9WgXcQ", url: "https://youtu.be/x" }).success).toBe(false);
+    const draft = { ...base, blocks: [{ type: "video" as const, id: "bbbbbbbb", hidden: false, tab: "home", title: "", provider: "youtube" as const, videoId: "" }] };
+    expect(fieldIssues(draft)).toEqual({ bbbbbbbb: "url" });
+  });
+  it("needs at least one valid contact channel", () => {
+    expect(parse({ type: "contact", email: "hello@example.invalid", phone: "", whatsapp: "" }).success).toBe(true);
+    expect(parse({ type: "contact", email: "", phone: "+351 912 345 678", whatsapp: "(212) 555-0100" }).success).toBe(true);
+    expect(parse({ type: "contact", email: "", phone: "", whatsapp: "" }).success).toBe(false);
+    for (const bad of [{ email: "nope" }, { phone: "call me" }, { phone: "12" }, { whatsapp: "+1 <script>" }]) expect(parse({ type: "contact", email: "", phone: "", whatsapp: "", ...bad }).success).toBe(false);
+    expect(telHref("+351 912-345 678")).toBe("tel:+351912345678"); expect(whatsappHref("+351 (912) 345 678")).toBe("https://wa.me/351912345678");
+  });
+  it("opens maps by search, never embedding one, and keeps the address as text", () => {
+    expect(parse({ type: "location", label: "", address: "Rua Augusta 1, Lisboa" }).success).toBe(true);
+    expect(parse({ type: "location", label: "", address: "  " }).success).toBe(false);
+    expect(parse({ type: "location", label: "", address: "<iframe>" }).success).toBe(false);
+    expect(mapsHref(" Rua Augusta 1 & 2 ")).toBe("https://www.openstreetmap.org/search?query=Rua%20Augusta%201%20%26%202");
+  });
+  it("takes Live now as an https link with an on switch, and testimonials with a quote and a name", () => {
+    expect(parse({ type: "live", title: "Sunday service", url: "https://example.org/live", on: true }).success).toBe(true);
+    expect(parse({ type: "live", title: "Live", url: "http://example.org/live", on: true }).success).toBe(false);
+    const quote = (id: string) => ({ id, quote: "It helped me.", name: "Ana", role: "" });
+    expect(parse({ type: "testimonials", items: [quote("qqqqqqq1")] }).success).toBe(true);
+    expect(parse({ type: "testimonials", items: [] }).success).toBe(false);
+    expect(parse({ type: "testimonials", items: Array.from({ length: bioLimits.testimonials + 1 }, (_, i) => quote(`qqqqqqq${i}`)) }).success).toBe(false);
+    expect(parse({ type: "testimonials", items: [{ ...quote("qqqqqqq1"), name: "" }] }).success).toBe(false);
+    expect(parse({ type: "form", title: "Prayer request", slug: "prayer-request" }).success).toBe(true);
+    expect(parse({ type: "form", title: "", slug: "prayer-request" }).success).toBe(false);
+  });
+  it("keeps the database's click list and catalog rule in step", () => {
+    const sql = readFileSync("drizzle/0140_bio_blocks.sql", "utf8");
+    const listed = sql.match(/b->>'type' IN \(([^)]*)\)\n\s*AND \(b->>'type' <> 'live'/)![1].match(/'([^']+)'/g)!.map((w) => w.slice(1, -1));
+    expect(listed.sort()).toEqual([...bioClickTypes].sort());
+    expect(sql).toMatch(/c\.state = 'published' AND c\.visibility <> 'hidden'/);
+    expect(sql).toMatch(/'app\.catalog_slug','app\.catalog_tenant'\]/);
+  });
+});
+
+describe("gallery, share and countdown (rework PR 3)", () => {
+  const base = { ...emptyBioDefinition("Grace Church"), blocks: [link()] };
+  const parse = (block: Record<string, unknown>) => bioDefinitionSchema.safeParse({ ...base, blocks: [{ id: "bbbbbbbb", hidden: false, tab: "home", ...block }] });
+  const photo = (i: number) => `33333333-3333-4333-8333-${String(i).padStart(12, "0")}`;
+  it("takes one to twelve gallery pictures by id", () => {
+    expect(parse({ type: "gallery", title: "", fileIds: [photo(1), photo(2)] }).success).toBe(true);
+    expect(parse({ type: "gallery", title: "", fileIds: [] }).success).toBe(false);
+    expect(parse({ type: "gallery", title: "", fileIds: [photo(1), photo(1)] }).success).toBe(false);
+    expect(parse({ type: "gallery", title: "", fileIds: Array.from({ length: bioLimits.galleryPhotos + 1 }, (_, i) => photo(i)) }).success).toBe(false);
+    expect(fieldIssues({ ...base, blocks: [{ type: "gallery", id: "bbbbbbbb", hidden: false, tab: "home", title: "", fileIds: [] }] })).toEqual({ bbbbbbbb: "required" });
+  });
+  it("takes a share button with a label and a countdown with a moment and an optional https link", () => {
+    expect(parse({ type: "share", title: "Share this page" }).success).toBe(true);
+    expect(parse({ type: "share", title: " " }).success).toBe(false);
+    expect(parse({ type: "countdown", title: "Easter", at: "2027-03-28T09:00:00.000Z", url: "" }).success).toBe(true);
+    expect(parse({ type: "countdown", title: "Easter", at: "2027-03-28T10:00:00+01:00", url: "https://example.org/live" }).success).toBe(true);
+    expect(parse({ type: "countdown", title: "Easter", at: "next Sunday", url: "" }).success).toBe(false);
+    expect(parse({ type: "countdown", title: "Easter", at: "2027-03-28T09:00:00.000Z", url: "http://example.org" }).success).toBe(false);
+  });
+  it("keeps the gallery pictures behind the published page in the database", () => {
+    const sql = readFileSync("drizzle/0141_bio_gallery.sql", "utf8");
+    expect(sql).toMatch(/CHECK \("bio_files"\."kind" in \('photo','cover','gallery'\)\)/);
+    expect(sql).toMatch(/public\.bio_role_can\(public\.access_role\(tenant_id, user_id, 'website', role_id\)\)/);
+    expect(sql).toMatch(/b->>'type' = 'gallery' AND public\.bio_block_shown\(page\.published, b\)/);
+    expect(sql).toMatch(/DECLARE prior jsonb := public\.bio_scope_clear\(false\)/);
   });
 });
 

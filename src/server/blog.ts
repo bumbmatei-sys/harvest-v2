@@ -38,7 +38,7 @@ const randomSuffix = () => randomBytes(3).toString("hex").slice(0, 4);
 export type BlogOwnerSettings = { handle: string; title: string; intro: string | null; version: number; handleLocked: boolean; timeZone: string };
 export type BlogListRow = { id: string; title: string; slug: string; status: BlogStatus; publishAt: string | null; publishedAt: string | null; updatedAt: string; author: string | null };
 export type BlogOwnerPost = { id: string; version: number; title: string; slug: string; slugLocked: boolean; excerpt: string | null; body: DocContent;
-  coverFileId: string | null; shareFileId: string | null; seoTitle: string | null; seoDescription: string | null; status: BlogStatus;
+  harvestPage: boolean; coverFileId: string | null; shareFileId: string | null; seoTitle: string | null; seoDescription: string | null; status: BlogStatus;
   publishAt: string | null; publishedAt: string | null; updatedAt: string };
 
 async function settingsRow(tx: Transaction, tenantId: string, user: string) {
@@ -75,7 +75,7 @@ const listColumns = { id: blogPosts.id, title: blogPosts.title, slug: blogPosts.
 const listRow = (r: { id: string; title: string; slug: string; status: BlogStatus; publishAt: Date | null; publishedAt: Date | null; updatedAt: Date; author: string | null }): BlogListRow =>
   ({ id: r.id, title: r.title, slug: r.slug, status: r.status, publishAt: iso(r.publishAt), publishedAt: iso(r.publishedAt), updatedAt: iso(r.updatedAt)!, author: r.author });
 const ownerPost = (r: typeof blogPosts.$inferSelect): BlogOwnerPost => ({ id: r.id, version: r.version, title: r.title, slug: r.slug, slugLocked: r.firstPublishedAt !== null,
-  excerpt: r.excerpt, body: r.body, coverFileId: r.coverFileId, shareFileId: r.shareFileId, seoTitle: r.seoTitle, seoDescription: r.seoDescription, status: r.status,
+  excerpt: r.excerpt, body: r.body, harvestPage: r.harvestPage, coverFileId: r.coverFileId, shareFileId: r.shareFileId, seoTitle: r.seoTitle, seoDescription: r.seoDescription, status: r.status,
   publishAt: iso(r.publishAt), publishedAt: iso(r.publishedAt), updatedAt: iso(r.updatedAt)! });
 
 /** The ministry's blog settings and every article (newest change first), created empty the first time an owner or admin opens it. */
@@ -194,7 +194,8 @@ export async function saveBlogPost(db: Database, user: string, workspace: string
     const row = await writePost(tx, tenantId, id, current.version, {
       title: input.title, slug, excerpt: input.excerpt ?? null, seoTitle: input.seoTitle ?? null, seoDescription: input.seoDescription ?? null,
       ...(input.coverFileId !== undefined ? { coverFileId: input.coverFileId } : {}), ...(input.shareFileId !== undefined ? { shareFileId: input.shareFileId } : {}),
-      ...(body ? { body, imageIds: blogImageIds(body) } : {}), updatedBy: user,
+      ...(body ? { body, imageIds: blogImageIds(body) } : {}),
+      ...(input.harvestPage !== undefined ? { harvestPage: input.harvestPage } : {}), updatedBy: user,
     }, "blog_post_save");
     await tx.insert(auditLogs).values({ tenantId, actorId: user, action: "blog.post.save", targetId: id, metadata: { version: String(row.version) } });
     return ownerPost(row);
@@ -242,7 +243,7 @@ export async function deleteBlogPost(db: Database, user: string, workspace: stri
 }
 
 /** For the Social Planner: scheduled and published articles whose time falls in [from, to). Empty for anyone who cannot manage the blog. */
-export type PlannerArticle = { id: string; title: string; status: "scheduled" | "published"; at: string; slug: string; handle: string };
+export type PlannerArticle = { id: string; title: string; status: "scheduled" | "published"; at: string; slug: string; handle: string; harvestPage: boolean };
 export async function plannerArticles(db: Database, user: string, workspace: string, range: { from: string; to: string }): Promise<PlannerArticle[]> {
   requireBlogEnabled();
   const from = new Date(z.iso.datetime({ offset: true }).parse(range.from)), to = new Date(z.iso.datetime({ offset: true }).parse(range.to));
@@ -250,12 +251,12 @@ export async function plannerArticles(db: Database, user: string, workspace: str
   return withTenant(db, user, uuid.parse(workspace), "blog:manage", async (tx, tenantId) => {
     const [settings] = await tx.select({ handle: blogSettings.handle }).from(blogSettings).where(eq(blogSettings.tenantId, tenantId));
     if (!settings) return [];
-    const rows = await tx.select({ id: blogPosts.id, title: blogPosts.title, slug: blogPosts.slug, status: blogPosts.status, publishAt: blogPosts.publishAt, publishedAt: blogPosts.publishedAt })
+    const rows = await tx.select({ id: blogPosts.id, title: blogPosts.title, slug: blogPosts.slug, status: blogPosts.status, publishAt: blogPosts.publishAt, publishedAt: blogPosts.publishedAt, harvestPage: blogPosts.harvestPage })
       .from(blogPosts).where(and(eq(blogPosts.tenantId, tenantId), or(
         and(eq(blogPosts.status, "scheduled"), gte(blogPosts.publishAt, from), lt(blogPosts.publishAt, to)),
         and(eq(blogPosts.status, "published"), gte(blogPosts.publishedAt, from), lt(blogPosts.publishedAt, to)))))
       .orderBy(asc(sql`coalesce(${blogPosts.publishAt}, ${blogPosts.publishedAt})`), asc(blogPosts.id)).limit(500);
-    return rows.map((r) => ({ id: r.id, title: r.title, slug: r.slug, handle: settings.handle, status: r.status as "scheduled" | "published", at: iso(r.status === "scheduled" ? r.publishAt : r.publishedAt)! }));
+    return rows.map((r) => ({ id: r.id, title: r.title, slug: r.slug, handle: settings.handle, harvestPage: r.harvestPage, status: r.status as "scheduled" | "published", at: iso(r.status === "scheduled" ? r.publishAt : r.publishedAt)! }));
   });
 }
 
