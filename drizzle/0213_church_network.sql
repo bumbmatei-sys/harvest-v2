@@ -57,7 +57,7 @@ BEGIN
 
   PERFORM set_config('app.access_tenant', p_tenant::text, true);
   PERFORM 1 FROM public.workspace_members m
-    WHERE m.tenant_id = p_tenant AND m.user_id = actor AND m.role_id = 'owner' FOR SHARE;
+    WHERE m.tenant_id = p_tenant AND m.user_id = actor AND public.access_role(p_tenant, actor, 'settings', m.role_id) = 'owner' FOR SHARE;
   IF FOUND THEN
     IF p_action = 'request' THEN
       BEGIN
@@ -121,7 +121,7 @@ BEGIN
   PERFORM public.community_definer_reset();
   IF actor IS NULL OR p_tenant IS NULL THEN RETURN NULL; END IF;
   PERFORM set_config('app.access_tenant', p_tenant::text, true);
-  IF EXISTS (SELECT 1 FROM public.workspace_members WHERE tenant_id = p_tenant AND user_id = actor AND role_id = 'owner') THEN
+  IF EXISTS (SELECT 1 FROM public.workspace_members WHERE tenant_id = p_tenant AND user_id = actor AND public.access_role(p_tenant, actor, 'settings', role_id) = 'owner') THEN
     SELECT coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'parentId', l.parent_id, 'childId', l.child_id,
       'status', CASE WHEN l.accepted_at IS NULL THEN 'pending' ELSE 'linked' END) ORDER BY l.requested_at DESC, l.id), '[]')
     INTO answer FROM (SELECT id, parent_id, child_id, accepted_at, requested_at FROM public.church_network_links
