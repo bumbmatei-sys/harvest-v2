@@ -63,32 +63,21 @@ BEGIN
     ))$policy$, current_user);
 END $$;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.community_definer_reset() RETURNS void LANGUAGE sql SET search_path = pg_catalog, pg_temp AS $$
-  SELECT set_config(name, '', true) FROM unnest(ARRAY['app.community_resolve_slug','app.community_definer_tenant','app.community_resolve_ids',
-    'app.community_resolve_invite','app.community_resolve_email','app.discover_read','app.community_resolve_user','app.community_purge',
-    'app.community_email_worker','app.giving_definer','app.giving_definer_tenant','app.giving_public_tenant',
-    'app.give_public_slug','app.give_public_tenant','app.give_public_fundraising',
-    'app.catalog_tenant','app.chat_purge','app.chat_settings','app.community_stats_write','app.discover_platform',
-    'app.dm_evidence_report','app.dm_purge','app.events_tenant','app.live_community',
-    'app.account_export','app.account_erase','app.community_email_feedback_token']) AS name;
-$$;
---> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.account_self_reset() RETURNS void LANGUAGE sql SET search_path = pg_catalog, pg_temp AS $$
-  SELECT pg_catalog.set_config(name, '', true) FROM pg_catalog.unnest(ARRAY['app.account_export','app.account_erase',
-    'app.access_tenant','app.access_token','app.ads_definer','app.blog_public_file','app.blog_public_handle','app.blog_public_tenant','app.blog_publish','app.bio_handle','app.bio_tenant','app.campaign_budget_tenant','app.campaign_invite_tenant',
-    'app.campaign_invite_token','app.catalog_learner_tenant','app.catalog_my_notes','app.catalog_progress_tenant','app.catalog_slug','app.catalog_tenant',
-    'app.chat_purge','app.chat_settings','app.community_definer_tenant','app.community_email_worker','app.community_email_feedback_token','app.community_purge','app.community_resolve_email',
-    'app.community_resolve_ids','app.community_resolve_invite','app.community_resolve_slug','app.community_resolve_user','app.community_stats_write',
-    'app.connect_campaign','app.connect_flow','app.connect_intake_mode','app.connect_invite_id','app.connect_invite_token','app.connect_invite_worker',
-    'app.connect_landing_link','app.connect_metrics','app.connect_purge','app.connect_receipt','app.connect_resolve_code','app.connect_resolve_tenant',
-    'app.connect_retention','app.connect_version','app.crm_forms_slug','app.crm_forms_tenant','app.discover_platform','app.discover_read',
-    'app.dm_evidence_report','app.dm_purge','app.docs_purge','app.event_cover_cleanup','app.events_tenant','app.give_public_fundraising',
-    'app.give_public_slug','app.give_public_tenant','app.giving_definer','app.giving_definer_tenant','app.giving_public_tenant','app.live_community',
-    'app.newsletter_erasure_contact','app.newsletter_erasure_tenant','app.nl02_private','app.nl02_tenant','app.nl_auto_private','app.nl_forms_tenant','app.nl_growth_scan',
-    'app.nl_send_insight','app.nl_send_tenant','app.nl_send_worker','app.office_erasure_contact','app.platform_staff','app.social_analytics_worker',
-    'app.social_approval_definer','app.social_auto_dm_worker','app.social_definer','app.social_inbox_worker','app.social_media_tenant',
-    'app.social_upload_cleanup','app.tenant_id']) AS name;
-$$;
+-- Add the feedback grant flag to the shared reset lists in place (a full redefinition would drop flags that later migrations added).
+DO $$
+DECLARE def text; patched text; fn text;
+  anchor text := $a$'app.community_email_worker',$a$;
+  added text := $b$'app.community_email_worker','app.community_email_feedback_token',$b$;
+BEGIN
+  FOREACH fn IN ARRAY ARRAY['public.community_definer_reset()','public.account_self_reset()','public.blog_scope_clear()'] LOOP
+    def := pg_catalog.pg_get_functiondef(fn::regprocedure);
+    patched := pg_catalog.replace(def, anchor, added);
+    IF pg_catalog.length(patched) - pg_catalog.length(def) <> pg_catalog.length(added) - pg_catalog.length(anchor) THEN
+      RAISE EXCEPTION '%: expected exactly one app.community_email_worker entry', fn;
+    END IF;
+    EXECUTE patched;
+  END LOOP;
+END $$;
 --> statement-breakpoint
 -- A fresh grant authorizes only the authenticated worker within this transaction.
 CREATE FUNCTION public.community_email_feedback_scope_open() RETURNS void

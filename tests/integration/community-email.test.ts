@@ -144,8 +144,8 @@ it("verifies feedback, deduplicates events, and suppresses the exact send-time a
   }
   const send = async (user: string) => {
     await notify(user, "warning", "warning");
-    const sent: CommunityMail[] = [];
-    await runCommunityEmail(f.workerPool, async (mail) => { sent.push(mail); }, { origin, secret });
+    const sent: (CommunityMail & { deliveryId: string })[] = [];
+    await runCommunityEmail(f.workerPool, async (mail) => { sent.push({ ...mail, deliveryId: mail.deliveryId ?? mail.idempotencyKey }); }, { origin, secret });
     return sent;
   };
   const accept = (request: Request) => acceptCommunityEmailFeedback(request, trusted, undefined, env, now);
