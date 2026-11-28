@@ -135,7 +135,7 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] }),
   index("community_chat_mutations_idx").on(t.actorId,t.action,t.createdAt),
-  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit', 'bio.message.submit', 'docs.trash.purge')`)]);
+  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit', 'bio.message.submit', 'docs.trash.purge', 'blog.external.outcome')`)]);
 export const authSchema = { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits };
 
 // A campaign belongs to its parent workspace; it never creates another tenant.
@@ -4113,6 +4113,7 @@ export const blogPosts = pgTable("blog_posts", {
   shareFileId: uuid("share_file_id").references(() => files.id, { onDelete: "set null" }),
   seoTitle: text("seo_title"),
   seoDescription: text("seo_description"),
+  harvestPage: boolean("harvest_page").notNull().default(true),
   status: text("status", { enum: ["draft", "scheduled", "published"] }).notNull().default("draft"),
   publishAt: timestamp("publish_at", { withTimezone: true }),
   publishedAt: timestamp("published_at", { withTimezone: true }),
@@ -4140,6 +4141,92 @@ export const blogPosts = pgTable("blog_posts", {
     and (${t.status} = 'draft' or ${t.firstPublishedAt} is not null or ${t.status} = 'scheduled')`),
   check("blog_posts_version", sql`${t.version} >= 1`),
 ]);
+
+export const blogExternalDestinations = pgTable("blog_external_destinations", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  connectionId: uuid("connection_id").notNull(),
+  blogRef: text("blog_ref").notNull(),
+  title: text("title").notNull(),
+  platform: text("platform", { enum: ["wordpress", "shopify", "wix", "webflow"] }).notNull(),
+  health: text("health", { enum: ["unknown", "healthy", "degraded", "failing"] }).notNull(),
+  authorization: text("authorization", { enum: ["authorized", "unavailable"] }).notNull(),
+  checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("blog_external_destination_ref").on(t.tenantId, t.connectionId, t.blogRef),
+  foreignKey({ name: "blog_external_destination_connection", columns: [t.tenantId, t.connectionId], foreignColumns: [socialConnections.tenantId, socialConnections.id] }),
+  check("blog_external_destination_fields", sql`length(${t.blogRef}) between 1 and 200 and length(${t.title}) between 1 and 200
+    and ${t.platform} in ('wordpress','shopify','wix','webflow') and ${t.health} in ('unknown','healthy','degraded','failing')
+    and ${t.authorization} in ('authorized','unavailable')`),
+]);
+
+export const blogExternalDeliveries = pgTable("blog_external_deliveries", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  postId: uuid("post_id").notNull(),
+  destinationId: uuid("destination_id").notNull(),
+  mode: text("mode", { enum: ["draft", "same_time", "own_time"] }).notNull(),
+  requestedAt: timestamp("requested_at", { withTimezone: true }),
+  status: text("status", { enum: ["queued", "scheduled_on_blog", "published", "draft_on_blog", "failed", "changed_on_blog"] }).notNull().default("queued"),
+  reason: text("reason"),
+  remoteId: text("remote_id"),
+  remoteUrl: text("remote_url"),
+  contentHash: text("content_hash"),
+  pushedVersion: integer("pushed_version"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  pushedAt: timestamp("pushed_at", { withTimezone: true }),
+  checkedAt: timestamp("checked_at", { withTimezone: true }),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("blog_external_delivery_target").on(t.tenantId, t.postId, t.destinationId),
+  foreignKey({ name: "blog_external_delivery_post", columns: [t.tenantId, t.postId], foreignColumns: [blogPosts.tenantId, blogPosts.id] }).onDelete("cascade"),
+  foreignKey({ name: "blog_external_delivery_destination", columns: [t.tenantId, t.destinationId], foreignColumns: [blogExternalDestinations.tenantId, blogExternalDestinations.id] }),
+  check("blog_external_delivery_state", sql`(${t.mode} in ('draft','same_time','own_time')) and ((${t.mode} = 'draft') = (${t.requestedAt} is null))
+    and ${t.status} in ('queued','scheduled_on_blog','published','draft_on_blog','failed','changed_on_blog')
+    and ((${t.status} = 'failed') = (${t.reason} is not null))
+    and (${t.reason} is null or ${t.reason} in ('disconnected','authorization','unavailable','invalid_request','remote_missing','outcome_unknown','unsupported'))
+    and (${t.contentHash} is null or ${t.contentHash} ~ '^[0-9a-f]{64}$')
+    and (${t.remoteId} is null or length(${t.remoteId}) between 1 and 200)
+    and (${t.remoteUrl} is null or (length(${t.remoteUrl}) <= 2000 and ${t.remoteUrl} like 'https://%'))`),
+]);
+
+export const blogExternalJobs = pgTable("blog_external_jobs", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  deliveryId: uuid("delivery_id").notNull(),
+  operation: text("operation", { enum: ["push", "update", "check"] }).notNull(),
+  postVersion: integer("post_version").notNull(),
+  payload: jsonb("payload").$type<import("../lib/external-blog").ExternalArticleInput>(),
+  attempts: integer("attempts").notNull().default(0),
+  lease: uuid("lease"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  nextAt: timestamp("next_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "blog_external_job_delivery", columns: [t.tenantId, t.deliveryId], foreignColumns: [blogExternalDeliveries.tenantId, blogExternalDeliveries.id] }).onDelete("cascade"),
+  uniqueIndex("blog_external_pending_job").on(t.tenantId, t.deliveryId).where(sql`${t.finishedAt} is null`),
+  index("blog_external_due_job").on(t.nextAt, t.id).where(sql`${t.finishedAt} is null`),
+  check("blog_external_job_state", sql`${t.operation} in ('push','update','check') and ${t.attempts} between 0 and 4
+    and (${t.operation} = 'check' or ${t.payload} is not null or ${t.finishedAt} is not null)
+    and (${t.payload} is null or (jsonb_typeof(${t.payload}) = 'object' and pg_column_size(${t.payload}) <= 2097152))
+    and ((${t.lease} is null) = (${t.leaseUntil} is null))`),
+]);
+
+export const blogExternalAssets = pgTable("blog_external_assets", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").primaryKey().defaultRandom(),
+  fileId: uuid("file_id").notNull().references(() => files.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [unique("blog_external_asset_file").on(t.tenantId, t.fileId)]);
+
+export const blogExternalScopeTokens = pgTable("blog_external_scope_tokens", {
+  id: uuid("id").primaryKey(),
+  backendPid: integer("backend_pid").notNull(),
+  purpose: text("purpose").notNull(),
+});
 
 // Community points are projected from authoritative activity. Only the scoped points function reads or writes these tables.
 export const communityPointSettings = pgTable("community_point_settings", {

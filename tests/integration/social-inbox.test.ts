@@ -17,11 +17,10 @@ import { checkInboxReply, getInboxReply, submitInboxReply } from "../../src/serv
 import { runSocialInboxReplies } from "../../src/server/social/inbox-reply-worker";
 import { createReplyHandoff } from "../../src/server/social/inbox-reply-handoff";
 import { SocialProviderError } from "../../src/server/social/port";
-import { linkConnection } from "../../src/server/social/service";
 import { receiveSocialWebhook } from "../../src/server/social/webhook";
 import { withTenant } from "../../src/server/tenancy";
 import { testDatabase } from "../database";
-import { CANARY, depsFor, event, noNetwork, seedPeople, signedRequest, useTestKeys } from "./social-layer-fixture";
+import { CANARY, depsFor, event, linkFixtureAccount, noNetwork, seedPeople, signedRequest, useTestKeys } from "./social-layer-fixture";
 
 vi.mock("server-only", () => ({}));
 const providerBody = "distinct-private-provider-body";
@@ -68,9 +67,7 @@ beforeAll(async () => {
   for (const account of provider.accounts) {
     // Use all 25 platform keys, including accounts without inbox support.
     const other = account.accountRef.endsWith("-other");
-    const linked = await linkConnection(f.db, other ? people.outsider : people.owner, other ? people.other : people.tenant,
-      { provider: "fake", credential: CANARY, accountRef: account.accountRef }, deps);
-    ids.set(account.accountRef, linked.connection.id);
+    ids.set(account.accountRef, await linkFixtureAccount(f.db, other ? people.outsider : people.owner, other ? people.other : people.tenant, account, provider));
   }
   provider.inboxEntries = [
     entry("facebook", "dm", "shared", 10), entry("facebook", "comment", "shared"), entry("instagram", "dm", "shared"),

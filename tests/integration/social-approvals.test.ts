@@ -2,11 +2,11 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vite
 vi.mock("server-only", () => ({}));
 import { sql } from "drizzle-orm";
 import { testDatabase } from "../database";
-import { CANARY, depsFor, noNetwork, seedPeople, useTestKeys } from "./social-layer-fixture";
+import { CANARY, depsFor, linkFixtureAccount, noNetwork, seedPeople, useTestKeys } from "./social-layer-fixture";
 import { useKeyProvider } from "../../src/server/connect-key-provider";
 import { FakeProvider } from "../../src/server/social/fake-provider";
 import { socialPlatforms } from "../../src/lib/social/platforms";
-import { linkConnection, schedulePost } from "../../src/server/social/service";
+import { schedulePost } from "../../src/server/social/service";
 import { changeDraft, saveDraft } from "../../src/server/social/drafts";
 import { runSocialPublisher } from "../../src/server/social/publisher";
 import { changeApprovalSettings, decideApproval, listApprovalNotices, listApprovals, markApprovalNoticeRead, readApprovalSettings, requestApproval } from "../../src/server/social/approvals";
@@ -45,7 +45,7 @@ beforeAll(async () => {
   await f.db.insert(users).values({ id: admin2, name: admin2, email: `${admin2}@example.test`, emailVerified: true });
   await putMember(f.db, p.owner, p.tenant, `${admin2}@example.test`, "admin");
   useTestKeys(); spy = noNetwork();
-  for (const platform of socialPlatforms) ids.set(platform, (await linkConnection(f.db, p.owner, p.tenant, { provider: "fake", accountRef: platform, credential: CANARY }, deps)).connection.id);
+  for (const account of fake.accounts) ids.set(account.platform, await linkFixtureAccount(f.db, p.owner, p.tenant, account, fake));
 }, 60_000);
 beforeEach(async () => {
   await q("truncate social_approval_notices, social_approvals, social_approval_settings");

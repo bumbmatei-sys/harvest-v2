@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Database } from "../../db/client";
 import { auditLogs, socialConnections, socialPosts } from "../../db/schema";
 import { message } from "../../i18n/messages";
+import { isExternalBlogPlatform } from "../../lib/external-blog";
 import { uuidInput } from "../../lib/contact-input";
 import { AccessError } from "../permissions";
 import { withTenant } from "../tenancy";
@@ -76,6 +77,7 @@ export async function linkConnection(db: Database, userId: string, workspace: st
   try { account = (await deps.provider(input.provider).listAccounts({ secret: input.credential })).find((a) => a.accountRef === input.accountRef); }
   catch (error) { throw providerFailure(error); }
   if (!account || !(socialPlatforms as readonly string[]).includes(account.platform)) throw invalid();
+  if (isExternalBlogPlatform(account.platform)) throw invalid();
   const id = randomUUID(), envelope = sealCredential({ secret: input.credential }, credentialBinding(tenantId, id));
   try {
     return await withTenant(db, userId, tenantId, "social:connect", async (tx) => {

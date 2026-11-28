@@ -1,3 +1,4 @@
+import type { ExternalArticleInput, ExternalBlog, ExternalBlogPlatform, ExternalBlogTarget, RemoteBlogArticle } from "../../lib/external-blog";
 import type { AnalyticsDayRange, AnalyticsPosts, AnalyticsQuery, AnalyticsSlot } from "./analytics-contract";
 import type { AccountMetric, Metrics } from "../../lib/social/analytics";
 import type { AutoDmEvent, AutoDmEvidence } from "./auto-dm-contract";
@@ -25,6 +26,13 @@ export interface SocialProvider {
   readonly id: SocialProviderId;
   /** Header carrying the delivery signature (lower case). */
   readonly signatureHeader: string;
+  startBlogConnect(cred: SocialCredential, request: { platform: ExternalBlogPlatform; attemptId: string; callback: string; shop?: string }): Promise<{ profileRef: string; url: string }>;
+  findBlogConnection(cred: SocialCredential, profileRef: string, platform: ExternalBlogPlatform): Promise<SocialAccount | null>;
+  listBlogs(cred: SocialCredential, accountRef: string): Promise<ExternalBlog[]>;
+  findBlogArticle(cred: SocialCredential, target: ExternalBlogTarget, handle: string): Promise<RemoteBlogArticle | null>;
+  getBlogArticle(cred: SocialCredential, target: ExternalBlogTarget, articleId: string): Promise<RemoteBlogArticle>;
+  createBlogArticle(cred: SocialCredential, target: ExternalBlogTarget, article: ExternalArticleInput, key: string): Promise<RemoteBlogArticle>;
+  updateBlogArticle(cred: SocialCredential, target: ExternalBlogTarget, articleId: string, article: ExternalArticleInput): Promise<RemoteBlogArticle>;
   listAccounts(cred: SocialCredential): Promise<SocialAccount[]>;
   getAccountHealth(cred: SocialCredential, accountRef: string): Promise<SocialAccountHealth>;
   publishPost(cred: SocialCredential, request: PublishRequest): Promise<PublishResult>;

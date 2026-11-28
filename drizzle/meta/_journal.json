@@ -1037,6 +1037,13 @@
       "when": 1795833830821,
       "tag": "0150_community_email_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "7",
+      "when": 1795836104250,
+      "tag": "0151_external_blog",
+      "breakpoints": true
     }
   ]
 }
