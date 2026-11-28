@@ -1023,6 +1023,13 @@
       "when": 1795830296566,
       "tag": "0148_community_points",
       "breakpoints": true
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1795832028645,
+      "tag": "0149_newsletter_analytics_owner",
+      "breakpoints": true
     }
   ]
 }

@@ -231,7 +231,10 @@ it("keeps delegated newsletter managers out of the report: owners and admins onl
   await changeMemberAccess(fixture.db, people.owner, people.tenant, { userId: people.viewer, role: "collaborator", grants: { newsletter: "manage" } });
   try {
     await expect(report(counted.automation, people.viewer)).rejects.toMatchObject({ status: 404 });
-    await expect(withTenant(fixture.db, people.viewer, people.tenant, "newsletter:analytics", (tx) =>
+    // The server refuses analytics to a delegated manager before any SQL runs.
+    await expect(withTenant(fixture.db, people.viewer, people.tenant, "newsletter:analytics", async () => undefined)).rejects.toThrow();
+    // The database refuses it too: open the transaction with a permission the delegated manager does hold.
+    await expect(withTenant(fixture.db, people.viewer, people.tenant, "newsletter:read", (tx) =>
       tx.execute(sql`select public.newsletter_automation_click_report(${people.tenant}::uuid,${counted.automation}::uuid,current_date,current_date+1)`)))
       .rejects.toHaveProperty("cause.code", "42501");
   } finally {
