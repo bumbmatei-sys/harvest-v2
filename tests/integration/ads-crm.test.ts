@@ -231,7 +231,7 @@ it("lets only owners and admins build or sync a CRM audience; a collaborator wit
   // Founder decision 28 Nov 2026.
   ads.audienceMinimum = 1;
   const collaborator = "ac-collaborator";
-  await f.db.insert(users).values({ id: collaborator, name: collaborator, email: `${collaborator}@example.test`, emailVerified: true });
+  await f.db.insert(users).values({ id: collaborator, name: collaborator, email: `${collaborator}@example.invalid`, emailVerified: true });
   await q("insert into workspace_members (tenant_id,user_id,role_id) values ($1,$2,'viewer')", [p.tenant, collaborator]);
   const shared = await createView(f.db, p.owner, p.tenant, { objectType: "person", name: "Staff only", shared: true,
     state: fullState({ filters: [{ field: "email", op: "is_not_empty", value: null }] }) });
