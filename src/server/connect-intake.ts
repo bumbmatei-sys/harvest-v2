@@ -1,6 +1,7 @@
+import { z } from "zod";
 import { retryConnectTransaction } from "./connect-retry";
 import { and, desc, eq, isNull, max, sql } from "drizzle-orm";
-import type { Database } from "../db/client";
+import type { Database, Transaction } from "../db/client";
 import { auditLogs, campaigns, forms, formVersions, privacyNoticeVersions } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
 import { intakeDefinition, intakeRights, intakeSetup, intakeSubmission, type IntakeManifest } from "../lib/connect-intake";
@@ -33,7 +34,23 @@ export async function readIntakeManifest(db: Database, kind: string, code: strin
     return { ...manifest, capability, receiptToken:receiptHash(capability) };
   });
 }
-export async function submitIntake(db: Database, kind: string, code: string, raw: unknown) {
+const assistedEvidence = z.object({
+  method: z.enum(["in_person", "phone"]),
+  wordingVersion: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+const assistedSubmission = z.object({ intake: intakeSubmission, evidence: assistedEvidence }).strict();
+type Assisted = z.infer<typeof assistedEvidence> & { tenant: string; campaign: string; userId: string };
+
+export function submitIntake(db: Database, kind: string, code: string, raw: unknown) {
+  return submit(db, kind, code, raw);
+}
+export async function submitAssistedIntake(db: Database, userId: string, workspace: string, campaign: string, kind: string, code: string, raw: unknown) {
+  requireSyntheticIntake();
+  const tenant = uuidInput.parse(workspace), campaignId = uuidInput.parse(campaign);
+  const { intake, evidence } = assistedSubmission.parse(raw);
+  return submit(db, kind, code, intake, { ...evidence, tenant, campaign: campaignId, userId });
+}
+async function submit(db: Database, kind: string, code: string, raw: unknown, assisted?: Assisted) {
   requireSyntheticIntake();
   const input = intakeSubmission.parse(raw), publicSource = source(kind, code);
   const replayUntil = verifyIntakeCapability(input.capability,publicSource.kind,publicSource.code,input.stamp);
@@ -41,24 +58,36 @@ export async function submitIntake(db: Database, kind: string, code: string, raw
   if (input.website) throw new AccessError(400, message("Intake.checkDetails"));
   const manifest = await readIntakeManifest(db, kind, code);
   if (!manifest) throw unavailable();
-  if (manifest.stamp !== input.stamp) throw new AccessError(409, message("Intake.changed"));
+  if (manifest.stamp !== input.stamp || (assisted && assisted.wordingVersion !== input.stamp)) throw new AccessError(409, message("Intake.changed"));
   const emailNeeded = input.purposes.includes("account_communications") || input.purposes.includes("newsletter") || (input.purposes.includes("outreach_follow_up") && manifest.definition.followUpChannel === "email");
   const phoneNeeded = input.purposes.includes("outreach_follow_up") && manifest.definition.followUpChannel === "phone";
   // Reserved synthetic contacts only. There is deliberately no path accepting real addresses.
-  if ((emailNeeded ? !/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@example\.test$/i.test(input.email) : Boolean(input.email))
+  const validEmail = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@example\.(test|invalid)$/i.test(input.email);
+  const requiredDomain = assisted ? "@example.invalid" : "@example.test";
+  if ((emailNeeded ? !validEmail || !input.email.toLowerCase().endsWith(requiredDomain) : Boolean(input.email))
     || (phoneNeeded ? !/^\+155555501\d{2}$/.test(input.phone) : Boolean(input.phone))
     || (!manifest.definition.preferredName && input.preferredName)
     || input.purposes.some(p => !manifest.purposes.includes(p))) throw new AccessError(400, message("Intake.checkDetails"));
   const data = { stamp: input.stamp, purposes: [...input.purposes].sort(), preferredName: input.preferredName,
     email: input.email.toLowerCase(), phone: input.phone };
-  const fingerprint = intakeFingerprint(data), hash = receiptHash(input.receiptToken);
+  const fingerprint = intakeFingerprint(assisted ? { ...data, assisted } : data), hash = receiptHash(input.receiptToken);
   const sealed = sealIntakeV1(data, `${publicSource.kind}:${publicSource.code}:${input.submissionId}:${hash}`);
-  const outcome = await withSyntheticIntake(db, async tx => {
-    const result = await tx.execute<{ outcome: string }>(sql`select public.submit_connect_intake(${publicSource.kind},${publicSource.code},${input.submissionId}::uuid,${input.stamp},${hash},${fingerprint},${sql.param(data.purposes)}::text[],${emailNeeded},${phoneNeeded},${JSON.stringify(sealed)}::jsonb,${replayUntil}::timestamptz) as outcome`);
+  const argumentsSql = sql`${publicSource.kind},${publicSource.code},${input.submissionId}::uuid,${input.stamp},${hash},${fingerprint},${sql.param(data.purposes)}::text[],${emailNeeded},${phoneNeeded},${JSON.stringify(sealed)}::jsonb,${replayUntil}::timestamptz`;
+  const run = async (tx: Transaction) => {
+    const query = assisted
+      ? sql`select public.submit_connect_intake_scoped(${argumentsSql},${assisted.tenant}::uuid,${assisted.campaign}::uuid,${assisted.method},${assisted.wordingVersion}) as outcome`
+      : sql`select public.submit_connect_intake(${argumentsSql}) as outcome`;
+    const result = await tx.execute<{ outcome: string }>(query);
     const outcome=result.rows[0]?.outcome;
     if((outcome==="created"||outcome==="replayed")&&data.purposes.includes("account_communications"))await enqueueInvitation(tx,hash,data.email);
     return outcome;
-  });
+  };
+  const outcome = assisted
+    ? await withTenant(db, assisted.userId, assisted.tenant, "connect:publish", async tx => {
+      await tx.execute(sql`select set_config('app.connect_intake_mode','synthetic',true)`);
+      return run(tx);
+    })
+    : await withSyntheticIntake(db, run);
   // Quota writes commit even on a refused submit; never throw from inside that transaction.
   if (outcome === "limited") return { limited: true } as const;
   if (outcome === "changed" || outcome === "conflict") throw new AccessError(409, message("Intake.changed"));

@@ -1145,6 +1145,7 @@ export const campaignResponseConsents = pgTable("campaign_response_consents", {
   // What was presented: the published form version and its immutable notice version.
   formVersionId: uuid("form_version_id").notNull(), noticeVersionId: uuid("notice_version_id").notNull(),
   actorKind: text("actor_kind").$type<typeof responseConsentActors[number]>().notNull(),
+  assistedEvidence: jsonb("assisted_evidence").$type<{ method: "in_person" | "phone"; wordingVersion: string; recordedBy: string }>(),
   recordedBy: text("recorded_by").references(() => users.id),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1162,6 +1163,12 @@ export const campaignResponseConsents = pgTable("campaign_response_consents", {
     or (${t.actorKind} = 'staff' and (${t.recordedBy} is not null or ${t.redactedAt} is not null))`),
   // Grants come only from the person; staff can record a withdrawal on their behalf, never a grant.
   check("campaign_response_consent_grantor", sql`${t.status} = 'withdrawn' or ${t.actorKind} = 'subject'`),
+  check("campaign_response_consent_assisted", sql`${t.assistedEvidence} is null or (${t.status} = 'granted' and ${t.actorKind} = 'subject'
+    and ${t.redactedAt} is null and jsonb_typeof(${t.assistedEvidence}) = 'object'
+    and coalesce(${t.assistedEvidence}->>'method' in ('in_person','phone'), false)
+    and coalesce(${t.assistedEvidence}->>'wordingVersion' ~ '^[a-f0-9]{64}$', false)
+    and coalesce(length(${t.assistedEvidence}->>'recordedBy') between 1 and 200, false)
+    and ${t.assistedEvidence} - ARRAY['method','wordingVersion','recordedBy'] = '{}'::jsonb)`),
   check("campaign_response_consent_occurrence", sql`${t.occurredAt} <= ${t.recordedAt} + interval '5 minutes'`),
   check("campaign_response_consent_redaction", sql`${t.redactedAt} is null or (${t.channel} is null and ${t.recordedBy} is null)`)]);
 
