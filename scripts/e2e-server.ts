@@ -5,6 +5,9 @@ import { appendFileSync, writeFileSync } from "node:fs";
 import { testDatabase } from "../tests/database";
 import { storageMock } from "../tests/storage-mock";
 const productionBuild = process.env.E2E_SERVER === "production";
+if (productionBuild && (process.env.VERCEL_ENV !== undefined || process.env.VERCEL_TARGET_ENV !== undefined)) {
+  throw new Error("The E2E production runner requires a local test environment.");
+}
 const database = await testDatabase();
 const storage = await storageMock();
 // Browser tests may simulate a slow database (for loading states) on this disposable DB only.
