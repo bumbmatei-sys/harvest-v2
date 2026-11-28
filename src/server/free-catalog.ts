@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
 import { auditLogs, catalogItems, catalogLessonAttachments, catalogLessons, catalogLevels, catalogSections, catalogFiles, communities, communityProductLinks, files } from "../db/schema";
 import { catalogPublicationVisibilities, legacyCatalogVisibility, type CatalogPublicationVisibility } from "../lib/catalog";
+import { catalogCardPrice, type LandingPrice } from "../lib/catalog-landing";
 import { coverMimes } from "../lib/forum";
 import { sanitizeRichText, type RichDoc } from "../lib/rich-text";
 import { parseVideoLink, type LessonVideo } from "../lib/lesson-video";
@@ -76,7 +77,7 @@ const invalid = () => new AccessError(400, message("Errors.checkTheSuppliedDetai
 
 type Draft = z.infer<typeof draft>;
 type Item = typeof catalogItems.$inferSelect;
-type Metadata = { slug: string; title: string; summary: string; kind: Item["kind"]; priceLabel?: string; hasCover?: boolean };
+type Metadata = { slug: string; title: string; summary: string; kind: Item["kind"]; priceLabel?: string; price?: LandingPrice | null; hasCover?: boolean };
 type Content = Metadata & { lessons: { id: string; title: string; body: RichDoc; sectionId?: string; video?: LessonVideo | null }[]; files: { id: string; name: string }[];
   labels?: CourseLabels; levels?: { id: string; title: string }[]; sections?: { id: string; levelId: string | null; title: string }[];
   /** 0131: the caller's own completed lessons and notes (published lessons only). */
@@ -148,11 +149,21 @@ const catalogView = <T extends Pick<Item, "visibility" | "state">>(row: T) => {
 const audit = (tx: Transaction, tenantId: string, actorId: string, action: string, item: Item) =>
   tx.insert(auditLogs).values({ tenantId, actorId, action, targetId: item.id, metadata: { state: item.state, version: String(item.version) } });
 
+async function staffCardPrices(tx: Transaction, tenant: string, items: readonly { id: string }[]) {
+  if (!items.length) return {};
+  const { rows: [row] } = await tx.execute<{ prices: Record<string, LandingPrice> }>(sql`
+    select public.catalog_staff_card_prices(${tenant}::uuid,${sql.param(items.map(item => item.id))}::uuid[]) as prices`);
+  return row.prices;
+}
+
 export function listCatalog(db: Database, user: string, tenant: string, after: string | null) {
-  return ministry(db, user, tenant, false, async (tx, scope) =>
-    (await tx.select(editorialMetadata).from(catalogItems)
+  return ministry(db, user, tenant, false, async (tx, scope) => {
+    const items = await tx.select(editorialMetadata).from(catalogItems)
       .where(and(eq(catalogItems.tenantId, scope), after === null ? undefined : sql`${catalogItems.id} > ${uuid.parse(after)}::uuid`))
-      .orderBy(catalogItems.id).limit(50)).map(catalogView));
+      .orderBy(catalogItems.id).limit(50);
+    const prices = await staffCardPrices(tx, scope, items);
+    return items.map(({ priceLabel, ...item }) => ({ ...catalogView(item), ...catalogCardPrice(prices[item.id] ?? null, priceLabel) }));
+  });
 }
 export function getCatalogDraft(db: Database, user: string, tenant: string, id: string) {
   return ministry(db, user, tenant, false, async (tx, scope, role) => {
@@ -363,7 +374,8 @@ export function listCommunityShelf(db: Database, user: string, tenant: string, c
         eq(communityProductLinks.itemId, catalogItems.id), eq(communityProductLinks.communityId, communityId)))
       .where(and(eq(catalogItems.tenantId, scope), eq(catalogItems.state, "published")))
       .orderBy(sql`${communityProductLinks.position} is null`, desc(communityProductLinks.featured), asc(communityProductLinks.position), asc(catalogItems.title), asc(catalogItems.id)).limit(500);
-    return rows.map(({ position, featured, ...row }) => ({ ...row, visibility: legacyCatalogVisibility(row.visibility), linked: position !== null, position, featured: featured === true }));
+    const prices = await staffCardPrices(tx, scope, rows);
+    return rows.map(({ position, featured, ...row }) => ({ ...row, ...catalogCardPrice(prices[row.id] ?? null), visibility: legacyCatalogVisibility(row.visibility), linked: position !== null, position, featured: featured === true }));
   });
 }
 const arrangement = z.object({ kind: z.enum(["course", "download"]), order: z.array(uuid).max(500).refine((ids) => new Set(ids).size === ids.length),
@@ -404,7 +416,10 @@ async function access<T>(db: Database, slug: string, action: "metadata" | "enrol
   return data;
 }
 /** Published metadata by exact slug. A hidden item resolves only with the `user` of a community whose shelf shows it (0123). */
-export const getPublicCatalogItem = (db: Database, slug: string, user?: string) => access<Metadata>(db, slug, "metadata", user);
+export async function getPublicCatalogItem(db: Database, slug: string, user?: string) {
+  const { price, priceLabel, ...item } = await access<Metadata>(db, slug, "metadata", user);
+  return { ...item, ...catalogCardPrice(price ?? null, priceLabel) };
+}
 export const enrolInCatalogItem = (db: Database, user: string, slug: string) => access<{ enrolled: true }>(db, slug, "enrol", user);
 export const getCatalogContent = (db: Database, user: string, slug: string) => access<Content>(db, slug, "content", user);
 export async function catalogDownload(db: Database, user: string, slug: string, fileId: string, storage: () => Pick<StorageAdapter, "presignDownload">) {

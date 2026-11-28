@@ -1,11 +1,13 @@
+import { sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { testDatabase } from "../database";
 import { users } from "../../src/db/schema";
 import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { createCatalogItem, enrolInCatalogItem, setCatalogState, updateCatalogItem } from "../../src/server/free-catalog";
-import { getLanding, publicLanding, saveLanding, saveReview, setReviewHidden } from "../../src/server/catalog-landing";
+import { getLanding, landingPhoto, listLandingImages, publicLanding, saveLanding, saveReview, setReviewHidden } from "../../src/server/catalog-landing";
 import { deleteMyAccount } from "../../src/server/account-deletion";
-import { withUser } from "../../src/server/tenancy";
+import { withTenant, withUser } from "../../src/server/tenancy";
 
 // Product and course landing page (0154): owner editing, the public read, sale rules, reviews, hiding, small-group stats and account deletion.
 // Synthetic people only.
@@ -154,3 +156,37 @@ it("removes the person's reviews when they delete their account", async () => {
   expect((await f.admin.query("select hidden_by, hidden_at is not null h from catalog_reviews where user_id = $1", [l2])).rows).toEqual([{ hidden_by: null, h: true }]);
 });
 void updateCatalogItem;
+
+it("accepts only private ready regular images and clears the reference on file deletion", async () => {
+  const ids = { regular: randomUUID(), social: randomUUID(), pending: randomUUID(), public: randomUUID() };
+  for (const [kind, id] of Object.entries(ids)) {
+    await f.admin.query(`insert into files(id,tenant_id,owner_id,key,name,mime,size,checksum,status,visibility,social_upload,media_metadata)
+      values ($1,$2,$3,'workspaces/'||$2::uuid::text||'/files/'||$1::uuid::text,'photo.png','image/png',8,repeat('a',64),
+        $4,$5,$6,case when $6 then '{}'::jsonb end)`, [id, tenant, owner, kind === "pending" ? "pending" : "ready",
+      kind === "public" ? "public" : "private", kind === "social"]);
+  }
+  const { version } = (await getLanding(f.db, owner, tenant, courseId)).landing;
+  expect((await listLandingImages(f.db, owner, tenant)).map(photo => photo.id)).toEqual([ids.regular]);
+  for (const id of [ids.social, ids.pending, ids.public]) {
+    await expect(saveLanding(f.db, owner, tenant, courseId, landing(version, { aboutPhotoId: id })))
+      .rejects.toMatchObject({ status: 400, details: { reason: "photo" } });
+    await f.admin.query("update catalog_landings set about_photo_id=$1 where item_id=$2", [id, courseId]);
+    expect((await publicLanding(f.db, "pray-daily"))?.about.photo).toBe(false);
+    expect(await landingPhoto(f.db, "pray-daily")).toBeNull();
+  }
+  await saveLanding(f.db, owner, tenant, courseId, landing(version, { aboutPhotoId: ids.regular }));
+  expect((await publicLanding(f.db, "pray-daily"))?.about.photo).toBe(true);
+  expect(await landingPhoto(f.db, "pray-daily")).toMatchObject({ name: "photo.png" });
+  await f.admin.query("delete from files where id=$1", [ids.regular]);
+  expect((await getLanding(f.db, owner, tenant, courseId)).landing.aboutPhotoId).toBeNull();
+  expect(await landingPhoto(f.db, "pray-daily")).toBeNull();
+});
+
+it("withholds a draft price from ministry members even if they know its ID", async () => {
+  const { version } = (await getLanding(f.db, owner, tenant, draftId)).landing;
+  await saveLanding(f.db, owner, tenant, draftId, landing(version, { price: { cents: 2900, currency: "USD" } }));
+  const read = (actor: string) => withTenant(f.db, actor, tenant, "catalog:read", tx => tx.execute<{ price: Record<string, unknown> }>(
+    sql`select public.catalog_staff_card_prices(${tenant}::uuid,array[${draftId}::uuid]) as price`));
+  expect((await read(member)).rows[0].price).toEqual({});
+  expect((await read(owner)).rows[0].price).toMatchObject({ [draftId]: { cents: 2900 } });
+});

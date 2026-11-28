@@ -2730,6 +2730,8 @@ export const catalogLandings = pgTable("catalog_landings", {
 }, (t) => [
   primaryKey({ columns: [t.tenantId, t.itemId] }),
   foreignKey({ columns: [t.tenantId, t.itemId], foreignColumns: [catalogItems.tenantId, catalogItems.id] }).onDelete("cascade"),
+  // The SQL migration limits SET NULL to about_photo_id, preserving the ministry key.
+  foreignKey({ name: "catalog_landing_about_photo_fk", columns: [t.tenantId, t.aboutPhotoId], foreignColumns: [files.tenantId, files.id] }).onDelete("set null"),
   check("catalog_landing_text", sql`length(${t.subtitle}) <= 160 and length(${t.aboutHeading}) <= 120 and length(${t.aboutBody}) <= 1500
     and length(${t.ctaQuote}) <= 280 and length(${t.ctaLabel}) <= 40 and cardinality(${t.included}) <= 12`),
   check("catalog_landing_lists", sql`jsonb_typeof(${t.faq}) = 'array' and jsonb_array_length(${t.faq}) <= 12

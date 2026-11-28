@@ -1,3 +1,4 @@
+import { catalogCardPrice, type LandingPrice } from "../lib/catalog-landing";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { Database } from "../db/client";
 import { catalogItems, communityProductLinks, entitlements } from "../db/schema";
@@ -6,7 +7,7 @@ import { freeCatalogEnabled } from "./free-catalog-mode";
 import { forumContextTx, type ForumContext } from "./community-forum";
 import { withUser } from "./tenancy";
 
-export type ShelfItem = { id: string; kind: CatalogKind; slug: string; title: string; summary: string; visibility: CatalogVisibility; featured: boolean; enrolled: boolean };
+export type ShelfItem = { id: string; kind: CatalogKind; slug: string; title: string; summary: string; visibility: CatalogVisibility; featured: boolean; enrolled: boolean } & ReturnType<typeof catalogCardPrice>;
 
 /**
  * C13 classroom (courses) and C16 products shelf (downloads): the published items a community shows, for one of its members. The community must be
@@ -21,12 +22,13 @@ export async function communityShelf(db: Database, userId: string, slug: string,
     const enrolled = sql<boolean>`exists (select 1 from ${entitlements} e where e.tenant_id = ${catalogItems.tenantId} and e.catalog_item_id = ${catalogItems.id}
       and e.user_id = ${userId} and e.revoked_at is null and e.valid_from <= now() and (e.valid_until is null or e.valid_until > now()))`;
     const items = await tx.select({ id: catalogItems.id, kind: catalogItems.kind, slug: catalogItems.slug, title: catalogItems.title, summary: catalogItems.summary,
-      visibility: catalogItems.visibility, featured: communityProductLinks.featured, enrolled })
+      visibility: catalogItems.visibility, featured: communityProductLinks.featured, enrolled,
+      price: sql<LandingPrice | null>`public.catalog_access(${catalogItems.slug}, 'metadata')->'price'` })
       .from(communityProductLinks)
       .innerJoin(catalogItems, and(eq(catalogItems.tenantId, communityProductLinks.tenantId), eq(catalogItems.id, communityProductLinks.itemId)))
       .where(and(eq(communityProductLinks.tenantId, context.tenantId), eq(communityProductLinks.communityId, context.id), eq(communityProductLinks.kind, kind),
         eq(catalogItems.state, "published")))
       .orderBy(desc(communityProductLinks.featured), asc(communityProductLinks.position), asc(catalogItems.title), asc(catalogItems.id)).limit(200);
-    return { context, items: items.map(row => ({ ...row, visibility: legacyCatalogVisibility(row.visibility) })) };
+    return { context, items: items.map(({ price, ...row }) => ({ ...row, ...catalogCardPrice(price), visibility: legacyCatalogVisibility(row.visibility) })) };
   });
 }

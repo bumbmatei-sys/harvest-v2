@@ -1,3 +1,4 @@
+import { catalogCardPrice, type LandingPrice } from "../lib/catalog-landing";
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -93,7 +94,7 @@ export async function editorCatalogCover(db: Database, user: string, tenant: str
   return assetResponse(file, body, true);
 }
 
-type DirectoryRow = { id: string; kind: "course" | "download"; slug: string; title: string; summary: string; priceLabel: string;
+type DirectoryRow = { id: string; kind: "course" | "download"; slug: string; title: string; summary: string; priceLabel: string; price: LandingPrice | null;
   cover: boolean; author: { id: string; name: string } | null };
 const page = z.object({ author: z.string().min(1).max(128).optional(), after: uuid.optional(),
   limit: z.coerce.number().int().min(1).max(48).default(24) }).strict();
@@ -102,7 +103,7 @@ export async function publicCatalogDirectory(db: Database, tenant: string, query
   const { author, after, limit } = page.parse(query);
   const { rows: [{ data }] } = await db.execute<{ data: { items: DirectoryRow[]; next: string | null } }>(sql`
     select public.catalog_directory(${uuid.parse(tenant)}::uuid,${author ?? null},${after ?? null}::uuid,${limit}) as data`);
-  return { next: data.next, items: data.items.map(({ cover, ...item }) => ({
-    ...item, coverHref: cover ? `/api/catalog/${item.slug}/cover` : null,
+  return { next: data.next, items: data.items.map(({ cover, price, priceLabel, ...item }) => ({
+    ...item, ...catalogCardPrice(price, priceLabel), coverHref: cover ? `/api/catalog/${item.slug}/cover` : null,
   })) };
 }

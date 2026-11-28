@@ -56,7 +56,7 @@ it("separates metadata, authoring, anonymous publication and the enrolment grant
   await expect(getPublicCatalogItem(f.db, input.slug)).rejects.toMatchObject(notFound);
   await expect(enrolInCatalogItem(f.db, learner, input.slug)).rejects.toMatchObject(notFound);
   await expect(setCatalogState(f.db, owner, tenant, draft.id, { version: 1, state: "published" })).resolves.toMatchObject({ version: 2 });
-  await expect(getPublicCatalogItem(f.db, input.slug)).resolves.toEqual({ slug: input.slug, title: input.title, summary: "", kind: "course", priceLabel: "Free", hasCover: false });
+  await expect(getPublicCatalogItem(f.db, input.slug)).resolves.toEqual({ slug: input.slug, title: input.title, summary: "", kind: "course", priceLabel: "Free", paid: false, price: null, hasCover: false });
   await expect(getCatalogContent(f.db, learner, input.slug)).rejects.toMatchObject(notFound);
   await expect(Promise.all([enrolInCatalogItem(f.db, learner, input.slug), enrolInCatalogItem(f.db, learner, input.slug)]))
     .resolves.toEqual([{ enrolled: true }, { enrolled: true }]);
