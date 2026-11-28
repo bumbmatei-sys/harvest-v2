@@ -70,7 +70,7 @@ fundraising and Ways to give gates: never when `NODE_ENV`, `VERCEL_ENV` or `HARV
   `giving_hidden`, `giving_public_methods`, `bioVisitorKey`, `fundraisingRoute`.
 - `GiveProgress` lives next to `FundraisingProgress` (same file, same helpers `formatCents` / `progressPercent`): the staff block shows pledges and gift
   counts that a public page must not, so the public variant is a sibling rather than a flag.
-- No new Shadcn UI Kit item and no new kit layout; no approval list needed.
+- Rebuilt on 27 Nov from the approved kit items form-layout14 (settings), product-details1 (page), stat-card17 (progress), payment-methods1 and dashboard-modal14 (Ways to give, Report); see docs/ui-sources.md, Giving screens. The amount setting is now a checkbox.
 
 ## Evidence
 - Integration `tests/integration/give-page.test.ts` (embedded Postgres, restricted migration owner): 10 tests — production guard; slug format, reserved words

@@ -42,7 +42,8 @@ function counts(shaped: Report["totals"]): Counts | null {
  */
 export async function newsletterAnalyticsOverview(db: Database, actor: string, workspace: string, period: AnalyticsPeriod, now = new Date()): Promise<AnalyticsOverview> {
   const range = periodRange(period, now);
-  const report = await withNewsletter(db, actor, workspace, "newsletter:analytics", async (tx, tenant) => {
+  const report = await withNewsletter(db, actor, workspace, "newsletter:analytics", async (tx, tenant, _role, access) => {
+    if (access !== "owner" && access !== "admin") throw unavailable();
     const overall = await analyticsIn(tx, tenant, range, null);
     const clicks = await clicksIn(tx, tenant, range, null);
     const candidates = await tx.select({ id: newsletterCampaigns.id, name: newsletterCampaigns.name, state: newsletterCampaigns.state })
@@ -79,7 +80,8 @@ const sentStates = ["sending", "sent", "partial", "failed", "cancelled"];
  */
 export async function newsletterCampaignAnalytics(db: Database, actor: string, workspace: string, campaignId: string, now = new Date()): Promise<CampaignAnalytics> {
   const range = periodRange(90, now);
-  const report = await withNewsletter(db, actor, workspace, "newsletter:analytics", async (tx, tenant) => {
+  const report = await withNewsletter(db, actor, workspace, "newsletter:analytics", async (tx, tenant, _role, access) => {
+    if (access !== "owner" && access !== "admin") throw unavailable();
     const [campaign] = await tx.select({ id: newsletterCampaigns.id, name: newsletterCampaigns.name, state: newsletterCampaigns.state })
       .from(newsletterCampaigns).where(and(eq(newsletterCampaigns.id, idOf(campaignId)), eq(newsletterCampaigns.tenantId, tenant)));
     if (!campaign) throw unavailable();

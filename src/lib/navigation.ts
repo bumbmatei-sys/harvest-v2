@@ -1,7 +1,7 @@
 import { Zap, BadgeDollarSign, Banknote, ChartColumn, BookOpen, Bot, Briefcase, Building, Calendar, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, ClipboardPen, Cloud, Compass, Contact, ContactRound, FileText, FileUp, Flag, Gift, Globe, GraduationCap, Handshake, HandCoins, HeartHandshake, Kanban, LayoutDashboard, LayoutTemplate, Link2, ListChecks, Mail, MailPlus, MessageCircleReply, MessageSquareText, MessagesSquare, Newspaper, Package, Palette, PiggyBank, Podcast, QrCode, Radio, ScanQrCode, Send, Settings, Share2, Sheet, SlidersHorizontal, Sparkles, Target, TicketPercent, UserCheck, UserCog, UserRoundCheck, Users, UsersRound, Wallet, Church, Landmark, ChartLine, ChartNoAxesCombined, Workflow, TextCursorInput, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
-import { canSeeArea, type AccessArea } from "./access-areas";
+import { hasFeatureGrant, type AccessArea } from "./access-areas";
 
 /** Message keys in `ComponentsAppShell` that the sidebar and breadcrumb may show. */
 export type NavLabelKey = "communities" | "crm" | "workspace" | "settings" | "people" | "companies" | "pipelines" | "tasks" | "reports" | "imports" | "campaigns" | "followUp" | "files" | "crmFields" | "pipelineSettings" | "appearance" | "ministrySettings" | "profile"
@@ -53,7 +53,7 @@ export type NavEntry = {
    */
   exitTo?: string;
 };
-export type NavFeature = "communities" | "catalog" | "events" | "social" | "office" | "newsletter" | "newsletterAutomations" | "docs" | "linkInBio" | "discover" | "giving" | "fundraising";
+export type NavFeature = "communities" | "catalog" | "events" | "social" | "office" | "newsletter" | "newsletterAutomations" | "docs" | "linkInBio" | "blog" | "discover" | "giving" | "fundraising";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
 /** A `pinned` group is rendered without a header, above the other groups (Discover). */
 export type NavGroup = { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon; pinned?: boolean; items: NavItem[] };
@@ -136,15 +136,15 @@ export const navEntries: readonly NavEntry[] = [
   { id: "signupForms", group: "newsletter", mode: "public", label: "signupForms", icon: ClipboardPen, path: "/newsletter/forms", match: under("/newsletter/forms"), permission: "newsletter:manage", feature: "newsletter" },
   { id: "newsletterSender", group: "newsletter", mode: "public", label: "newsletterSender", icon: ShieldCheck, path: "/newsletter/sender", match: under("/newsletter/sender"), permission: "newsletter:delivery", feature: "newsletter" },
   { id: "linkInBio", group: "website", mode: "public", label: "linkInBio", icon: Link2, path: "/link-in-bio", match: under("/link-in-bio"), permission: "bio:manage", feature: "linkInBio" },
-  { id: "articles", group: "website", mode: "public", status: "planned", label: "articles", icon: Newspaper, path: "/articles", match: under("/articles") },
+  { id: "articles", group: "website", mode: "public", label: "articles", icon: Newspaper, path: "/blog", match: under("/blog"), permission: "blog:manage", feature: "blog" },
   { id: "website", group: "website", mode: "public", status: "planned", label: "websiteBuilder", icon: LayoutTemplate, path: "/website", match: under("/website") },
   // Public > Community. ADR 0013: every ministry role lists communities; owners/admins edit (enforced by the API). Hidden until activated.
   { id: "communities", group: "community", legacyGroup: "workspace", mode: "public", label: "communities", icon: MessagesSquare, path: "/communities", match: has("/communities"), permission: "communities:read", feature: "communities" },
   { id: "live", group: "community", mode: "public", status: "planned", label: "live", icon: Podcast, path: "/live", match: under("/live") },
   // Public > Courses and products (their own group: sold or given outside a community too).
   // Free courses and downloads: live only where the catalogue server is (feature "catalog"; off in production with it). Every role can read the list; the server gates authoring.
-  { id: "courses", group: "commerce", mode: "public", label: "courses", icon: BookOpen, path: "/courses", match: under("/courses"), feature: "catalog" },
-  { id: "products", group: "commerce", mode: "public", label: "products", icon: Package, path: "/products", match: under("/products"), feature: "catalog" },
+  { id: "courses", area: "catalog", group: "commerce", mode: "public", label: "courses", icon: BookOpen, path: "/courses", match: under("/courses"), feature: "catalog" },
+  { id: "products", area: "catalog", group: "commerce", mode: "public", label: "products", icon: Package, path: "/products", match: under("/products"), feature: "catalog" },
   { id: "coaching", group: "commerce", mode: "public", status: "planned", label: "coaching", icon: CalendarClock, path: "/coaching", match: under("/coaching") },
   { id: "coupons", group: "commerce", mode: "public", status: "planned", label: "coupons", icon: TicketPercent, path: "/coupons", match: under("/coupons") },
   { id: "assistant", group: "chat", mode: "assistant", status: "planned", label: "assistant", icon: Bot, path: "/assistant", match: under("/assistant") },
@@ -158,7 +158,7 @@ export const navEntries: readonly NavEntry[] = [
 ];
 
 const visibleTo = (entry: NavEntry, role: string | undefined, audience: Audience | null | undefined, features: readonly NavFeature[]) =>
-  entry.status !== "planned" && (!entry.feature || features.includes(entry.feature)) && (!entry.permission || (role !== undefined && can(role, entry.permission))) && (!entry.area || role === undefined || canSeeArea(role, entry.area)) && (!entry.audiences || (audience != null && entry.audiences.includes(audience)));
+  entry.status !== "planned" && (!entry.feature || features.includes(entry.feature)) && (!entry.permission || (role !== undefined && can(role, entry.permission))) && (!entry.area || role === undefined || hasFeatureGrant(role, entry.area, "view")) && (!entry.audiences || (audience != null && entry.audiences.includes(audience)));
 const labelFor = (entry: NavEntry, audience: Audience | null | undefined) => (audience && entry.audienceLabels?.[audience]) || entry.label;
 type Viewer = { tenantId: string; role?: string; audience?: Audience | null; features?: readonly NavFeature[] };
 const toItem = (entry: NavEntry, { tenantId, audience, pathname }: { tenantId: string; audience?: Audience | null; pathname: string }): NavItem => ({

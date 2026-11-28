@@ -1,3 +1,4 @@
+import { appOrigin, connectClaimLink } from "../src/lib/site-address";
 import { appendFile } from "node:fs/promises";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { createPool } from "../src/db/pool";
@@ -9,7 +10,7 @@ let pool:ReturnType<typeof createPool>|undefined;
 try {
  requireSyntheticIntake();
  const path=process.env.HARVEST_CONNECT_TEST_MAILBOX;
- const base=new URL(process.env.BETTER_AUTH_URL??"");
+ const base=new URL(appOrigin());
  if(!path||!["localhost","127.0.0.1"].includes(base.hostname))throw new Error("TEST_MAILBOX_REQUIRED");
  pool=createPool(process.env.DATABASE_URL!);pool.on("error",()=>console.error("connect_dispatch_pool_failed"));
  const {rows:[role]}=await pool.query("select current_user,rolsuper,rolbypassrls from pg_roles where rolname=current_user");
@@ -17,9 +18,9 @@ try {
  const db=drizzle(pool,{schema});let sent=0;
  for(let n=0;n<50;n++){
   const outcome=await dispatchInvitation(db,async mail=>{
-   const url=new URL("/connect/claim",base);url.hash=`token=${mail.token}`;
+   const url=connectClaimLink(mail.token);
    // Operator-invoked LOCAL mock mailbox only; never an application HTTP route or provider bypass.
-   await appendFile(path,JSON.stringify({to:mail.to,text:message("Invitations.emailBody",{url:url.href}),idempotencyKey:mail.idempotencyKey})+"\n",{mode:0o600});
+   await appendFile(path,JSON.stringify({to:mail.to,text:message("Invitations.emailBody",{url}),idempotencyKey:mail.idempotencyKey})+"\n",{mode:0o600});
   });
   if(outcome.status==="idle")break;if(outcome.status==="sent")sent++;
  }

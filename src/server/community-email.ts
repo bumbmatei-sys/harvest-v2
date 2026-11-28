@@ -41,7 +41,7 @@ export async function runCommunityEmail(pool: Queryable, sender: CommunityMailSe
           "select public.community_email_check_suppression($1, $2, $3) as decision", [job.id, digest, mask]);
         if (decision !== "ready") continue;
         const mail = renderEmail(job, { origin: options.origin, secret: options.secret, now: options.now });
-        try { await sender({ to: job.to, deliveryId: job.id, ...mail, idempotencyKey: job.idempotencyKey, signal: AbortSignal.timeout(SEND_TIMEOUT_MS) }); }
+        try { await sender({ to: job.to, ...mail, idempotencyKey: job.idempotencyKey, deliveryId: job.id, signal: AbortSignal.timeout(SEND_TIMEOUT_MS) }); }
         catch { error = "send_failed"; }
       } catch { error = "render_failed"; }
       await pool.query("select public.community_email_complete($1::uuid, $2, $3)", [job.id, error ? "failed" : "sent", error]);

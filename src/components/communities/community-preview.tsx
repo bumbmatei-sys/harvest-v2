@@ -13,8 +13,8 @@ import { cn } from "@/lib/utils";
 import { communityPreviewData, communityPreviewFields, isCommunityField, type CommunityDraft, type CommunityPreviewData, type CommunityPreviewTab, type PreviewViewer } from "@/lib/editor-preview";
 
 /** A control drawn in the preview. It looks like the real one but does nothing and cannot take focus. */
-function Inert({ className, variant, children }: { className?: string; variant?: "outline"; children: React.ReactNode }) {
-  return <Button type="button" variant={variant} aria-disabled="true" tabIndex={-1} className={cn("min-h-11 cursor-default opacity-60", !variant && "hover:bg-primary", className)}>{children}</Button>;
+function Inert({ className, variant, size, children }: { className?: string; variant?: "outline" | "ghost"; size?: "sm"; children: React.ReactNode }) {
+  return <Button type="button" variant={variant} size={size} aria-disabled="true" tabIndex={-1} className={cn("min-h-11 cursor-default opacity-60", !variant && "hover:bg-primary", variant === "ghost" && "hover:bg-transparent", className)}>{children}</Button>;
 }
 
 /** The community as the preview shows it: the same views as the public page and the member welcome, fed the draft. */
@@ -27,11 +27,11 @@ function CommunityPreviewContent({ data, tab, viewer, wide }: { data: CommunityP
     return <CommunityPageView preview layout={wide ? "wide" : "narrow"} data={{ ...data, name }} join={join} />;
   }
   if (viewer === "member") return <WelcomeCardView preview message={data.welcomeMessage} dismiss={null}>
-    <div className="flex flex-col gap-2">
-      {data.rulesList.length > 0 && <div data-preview-field="rules"><Inert variant="outline" className={cn(welcomeActionClass, "w-full")}><BookOpen aria-hidden="true" />{t("previewRules")}</Inert></div>}
-      {data.hasIntro && <Inert variant="outline" className={welcomeActionClass}><MessageCirclePlus aria-hidden="true" />{t("previewIntroduce")}</Inert>}
-      <Inert variant="outline" className={welcomeActionClass}><Bell aria-hidden="true" />{t("previewNotifications")}</Inert>
-    </div>
+    <>
+      {data.rulesList.length > 0 && <span data-preview-field="rules"><Inert variant="ghost" size="sm" className={welcomeActionClass}><BookOpen aria-hidden="true" />{t("previewRules")}</Inert></span>}
+      {data.hasIntro && <Inert variant="ghost" size="sm" className={welcomeActionClass}><MessageCirclePlus aria-hidden="true" />{t("previewIntroduce")}</Inert>}
+      <Inert variant="ghost" size="sm" className={welcomeActionClass}><Bell aria-hidden="true" />{t("previewNotifications")}</Inert>
+    </>
   </WelcomeCardView>;
   return <Card aria-label={joinT("title", { name })}>
     <CardHeader><CardTitle><p className="text-lg font-semibold break-words">{joinT("title", { name })}</p></CardTitle></CardHeader>

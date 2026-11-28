@@ -10,7 +10,7 @@ export async function GET(request: Request, context: Context) {
   try {
     const user = await verifiedUser(request), { tenantId, formId } = await context.params;
     const format = new URL(request.url).searchParams.get("format") === "png" ? "png" : "svg";
-    const result = await signupFormQr(getDb(), user, tenantId, formId, format, new URL(request.url).origin);
+    const result = await signupFormQr(getDb(), user, tenantId, formId, format);
     if (!result) return new Response(null, { status: 404 });
     return new Response(result.body, { headers: { "Content-Type": result.type, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
       ...(new URL(request.url).searchParams.get("download") === "1" ? { "Content-Disposition": `attachment; filename="signup-${result.slug}.${format}"` } : {}) } });

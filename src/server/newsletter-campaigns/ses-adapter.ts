@@ -1,3 +1,4 @@
+import { StagingEmailRefused, stagingEmailPayload, submitStagingEmail } from "../staging-email-transport";
 import { createVerify } from "node:crypto";
 import { z } from "zod";
 import { callbackClockSkewMs, callbackTimestampValid, type NewsletterProvider, type NewsletterSubmission } from "./port";
@@ -6,18 +7,7 @@ export const LIVE_NEWSLETTER_ENABLED = false;
 const tag = "harvest_delivery_id";
 
 export function buildSesSend(message: NewsletterSubmission, configurationSet: string) {
-  return {
-    FromEmailAddress: message.from,
-    Destination: { ToAddresses: [message.to] },
-    ReplyToAddresses: [message.replyTo],
-    ConfigurationSetName: configurationSet,
-    EmailTags: [{ Name: tag, Value: message.deliveryId }],
-    Content: { Simple: {
-      Subject: { Data: message.subject, Charset: "UTF-8" },
-      Body: { Html: { Data: message.html, Charset: "UTF-8" }, Text: { Data: message.text, Charset: "UTF-8" } },
-      Headers: Object.entries(message.headers).map(([Name, Value]) => ({ Name, Value })),
-    } },
-  };
+  return stagingEmailPayload(message, message.from, configurationSet);
 }
 
 const notification = z.object({
@@ -75,16 +65,16 @@ export function verifyCommunityEmailFeedback(config: TrustedSns, body: Uint8Arra
 }
 
 export function sesAdapter(config: TrustedSns, submission?: {
-  configurationSet: string;
-  send: (request: ReturnType<typeof buildSesSend>) => Promise<{ MessageId?: string }>;
+  env: Record<string, string | undefined>;
+  transport?: typeof fetch;
 }): NewsletterProvider {
   return {
     async submit(message) {
-      if (!LIVE_NEWSLETTER_ENABLED || !submission) return { state: "failed" };
+      if (!submission) return { state: "failed" };
       try {
-        const receipt = await submission.send(buildSesSend(message, submission.configurationSet));
-        return receipt.MessageId ? { state: "accepted", reference: receipt.MessageId } : { state: "unknown" };
-      } catch { return { state: "unknown" }; }
+        const reference = await submitStagingEmail(submission.env, message, submission.transport);
+        return { state: "accepted", reference };
+      } catch (error) { return { state: error instanceof StagingEmailRefused ? "failed" : "unknown" }; }
     },
     verifyCallback(body, _headers, now) {
       const verified = verifiedSnsEvent(config, body, now);

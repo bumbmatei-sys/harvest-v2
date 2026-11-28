@@ -72,10 +72,13 @@ export function inspectSource(source: string, file = "component.tsx"): Violation
  */
 export const SENDER_PROVIDER_PACKAGES = ["resend", "nodemailer", "@sendgrid/mail", "postmark", "twilio", "zernio"];
 /** Known sender entry points (module basenames). */
-export const SENDER_ENTRY_MODULES = ["email", "community-email-sender", "connect-invitation-email"];
+export const SENDER_ENTRY_MODULES = ["email", "community-email-sender", "connect-invitation-email", "staging-email-transport"];
 export const CONSENT_GATE_EXEMPTIONS: Record<string, string> = {
   "src/server/email.ts": "Sign-in code only: authentication, not a consent purpose.",
   "src/server/auth.ts": "Sends the sign-in code only: authentication, not a consent purpose.",
+  "src/server/community-email-sender.ts": "Community notification adapter for opted-in members and explicitly allowed staging recipients.",
+  "src/server/newsletter-campaigns/ses-adapter.ts": "Newsletter worker checks subscription and suppression before submission; the transport only accepts allowed staging recipients.",
+  "scripts/ses-staging-test.ts": "Explicit operator request for one allowed staging test recipient.",
   "src/server/community-email.ts": "Member-preference community notification worker (fixed templates); preference and eligibility are re-checked at claim in SQL.",
   "scripts/send-community-email.ts": "Operator script for the same worker, local test mailbox only.",
   "src/server/connect-invitation-email.ts": "Provider adapter for the fixed Connect invitation; connect_invitation_eligible re-checks account_communications at dispatch.",

@@ -825,3 +825,13 @@ Transitive packages added to the lockfile by `@base-ui/react` 1.7.0 (all MIT): `
 | `lib0` | 0.2.120 | MIT |
 | `y-protocols` | 1.0.7 | MIT |
 | `yjs` | 13.6.33 | MIT |
+
+## Link in bio rework additions (2026-11-27)
+
+Founder decision 27 Nov 2026: one small MIT carousel library for phone tab swipe (PR 1) and the photo gallery (later PR). `embla-carousel-react` is pinned to an exact version in `package.json`; its two dependencies come with it. MIT for all three (each `package.json`; the upstream `LICENSE` at tag `v8.6.0` of davidjerleke/embla-carousel read on 27 Nov 2026). Version 8.6.0 was published on 4 Apr 2025.
+
+| Package | Version | License |
+| --- | --- | --- |
+| `embla-carousel` | 8.6.0 | MIT |
+| `embla-carousel-react` | 8.6.0 | MIT |
+| `embla-carousel-reactive-utils` | 8.6.0 | MIT |

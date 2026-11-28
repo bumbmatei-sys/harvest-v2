@@ -1,14 +1,25 @@
 import { appendFile } from "node:fs/promises";
+import { StagingEmailRefused, submitStagingEmail } from "./staging-email-transport";
 
 // C15b: where community email goes. Provider-neutral interface, a local test mailbox, and a live sender that is hard-disabled.
-export type CommunityMail = { deliveryId: string; to: string; subject: string; text: string; headers: Record<string, string>; idempotencyKey: string; signal?: AbortSignal };
+export type CommunityMail = { to: string; subject: string; text: string; headers: Record<string, string>; idempotencyKey: string; deliveryId?: string; signal?: AbortSignal };
 export type CommunityMailSender = (mail: CommunityMail) => Promise<void>;
 
-// Intentionally not an environment toggle. A separate activation change and review are required (as for Connect invitations).
+// Automatic live community jobs stay disabled pending the feedback integration.
 export const COMMUNITY_EMAIL_LIVE_DELIVERY = false;
-export const sendLiveCommunityEmail: CommunityMailSender = async () => {
-  throw new Error("COMMUNITY_EMAIL_DELIVERY_DISABLED");
-};
+
+export function createStagingCommunitySender(env: Record<string, string | undefined>, transport?: typeof fetch): CommunityMailSender {
+  return async ({ idempotencyKey, deliveryId = idempotencyKey, ...mail }) => {
+    try {
+      await submitStagingEmail(env, { ...mail, deliveryId }, transport);
+    } catch (error) {
+      if (error instanceof StagingEmailRefused) throw new Error("COMMUNITY_EMAIL_DELIVERY_DISABLED");
+      throw new Error("COMMUNITY_EMAIL_SEND_FAILED");
+    }
+  };
+}
+
+export const sendLiveCommunityEmail: CommunityMailSender = (mail) => createStagingCommunitySender(process.env)(mail);
 
 /** Operator-invoked LOCAL mock mailbox: one JSON line per email. Never an application route and never a provider bypass. */
 export function testMailboxSender(path: string): CommunityMailSender {
