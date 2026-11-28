@@ -6,18 +6,17 @@ beforeAll(async () => { fixture = await testDatabase(); }, 120_000);
 afterAll(async () => { await fixture?.close(); });
 
 // These columns are covered by the subject's export, the Connect subject-rights
-// capability, or the export request count. The catalog also catches SQL-only tables.
+// capability. The catalog also catches SQL-only tables.
 const exported = {
-    account_export_requests: "user_id",
     blog_posts: "created_by",
     catalog_enrolments: "user_id",
     catalog_notes: "user_id",
     catalog_progress: "user_id",
+    catalog_reviews: "user_id",
     community_applications: "user_id",
     community_challenge_members: "user_id",
     community_comments: "author_id",
     community_dm_messages: "author_id",
-    community_dm_participants: "user_id",
     community_files: "uploader_id",
     community_likes: "user_id",
     community_member_profiles: "user_id",
@@ -48,6 +47,7 @@ const reviewedNotExported = {
   // Authentication, access controls and internal accountability records.
     account_deletions: "user_id",
     account_erase_grants: "user_id",
+    account_export_requests: "user_id",
     accounts: "user_id",
     ai_tool_approvals: "requested_by",
     audit_logs: "actor_id",
@@ -77,6 +77,7 @@ const reviewedNotExported = {
     blog_posts: "scheduled_by updated_by",
     blog_settings: "created_by",
     catalog_items: "created_by",
+    catalog_reviews: "hidden_by",
     doc_attachments: "attached_by",
     doc_comments: "assignee_id author_id resolved_by",
     doc_favorites: "user_id",
@@ -134,6 +135,7 @@ const reviewedNotExported = {
     community_dm_blocks: "blocked_id blocker_id",
     community_dm_conversations: "last_sender_id staff_engaged_by started_by",
     community_dm_messages: "deleted_by",
+    community_dm_participants: "user_id",
     community_email_deliveries: "recipient_id",
     community_exits: "user_id",
     community_invites: "created_by redeemed_by",

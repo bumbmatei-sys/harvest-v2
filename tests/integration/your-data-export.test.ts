@@ -20,6 +20,10 @@ beforeAll(async () => {
   seed = await seedYourData(f.db, f.admin);
   await f.admin.query("insert into sessions(id, token, expires_at, ip_address, user_agent, user_id) values ('yd-s', 'yd-secret-token', now() + interval '1 day', '203.0.113.7', 'Synthetic browser', $1)", [me]);
   const { tenant, community, event, myPost, peerPost, file } = seed;
+  const { rows: [{ item_id: item }] } = await f.admin.query("select item_id from catalog_enrolments where user_id = $1", [me]);
+  await f.admin.query(`insert into catalog_reviews (tenant_id, item_id, user_id, rating, body, hidden_at, hidden_by) values
+    ($1, $2, $3, 5, 'My synthetic course review', now(), $4), ($1, $2, $4, 1, 'Peer private review', null, null)`,
+  [tenant, item, me, peer]);
   await f.admin.query("insert into community_post_details values ($1, $3, $4, $5), ($2, $3, $4, $6)",
     [myPost, peerPost, tenant, community, { location: "My public location", feeling: "joyful", photoIds: [file], mentionIds: [peer] },
       { location: "Peer private location", feeling: "sad" }]);
@@ -56,7 +60,7 @@ beforeAll(async () => {
     [tenant, intent, donor, amount]);
     await f.admin.query(`insert into ministry_payment_ledger
       (tenant_id, id, account_id, intent_id, object_ref, kind, amount_minor, currency, occurred_at)
-      values ($1, $2, 'fake-your-data', $3, $2::text, 'charge', $4, 'EUR', now())`, [tenant, ledger, intent, amount]);
+      values ($1, $2, 'fake-your-data', $3, $2::uuid::text, 'charge', $4, 'EUR', now())`, [tenant, ledger, intent, amount]);
     await f.admin.query(`insert into ministry_donation_receipts
       (tenant_id, ledger_id, intent_id, donor_id, amount_minor, currency, paid_at, legal_name, personal_support, cadence)
       values ($1, $2, $3, $4, $5, 'EUR', now(), 'Synthetic ministry', false, 'once')`, [tenant, ledger, intent, donor, amount]);
@@ -96,8 +100,9 @@ it("exports every section of the caller's own data", async () => {
   expect(rows(data, "volunteerRequests")).toEqual([expect.objectContaining({ kind: "swap", participation: "replacement", acceptedAt: null })]);
   expect(rows(data, "donationReceipts")).toEqual([expect.objectContaining({ amountMinor: 1234, currency: "EUR" })]);
   expect(rows(data, "paymentIntents")).toEqual([expect.objectContaining({ amountMinor: 1234, currency: "EUR" })]);
+  expect(rows(data, "catalogReviews")).toEqual([expect.objectContaining({ rating: 5, text: "My synthetic course review", hidden: true })]);
   const encoded = JSON.stringify(data);
-  for (const detail of ["Peer private location", "Private staff note", "private-request-key", "fake-your-data", "2345"]) {
+  for (const detail of ["Peer private location", "Private staff note", "private-request-key", "fake-your-data", "Peer private review"]) {
     expect(encoded).not.toContain(detail);
   }
   expect(data.notes.truncated).toEqual([]);

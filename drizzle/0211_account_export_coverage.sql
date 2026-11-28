@@ -10,7 +10,7 @@ BEGIN
     ARRAY['community_point_attendance','user_id'], ARRAY['community_points_hidden_members','user_id'],
     ARRAY['community_challenge_members','user_id'], ARRAY['volunteers','user_id'],
     ARRAY['volunteer_availability','user_id'], ARRAY['ministry_donation_receipts','donor_id'],
-    ARRAY['ministry_payment_intents','payer_id'], ARRAY['blog_posts','created_by']
+    ARRAY['ministry_payment_intents','payer_id'], ARRAY['blog_posts','created_by'], ARRAY['catalog_reviews','user_id']
   ] LOOP
     EXECUTE format('CREATE POLICY export_personal_entry ON public.%I FOR SELECT TO %I USING (%s AND %I = %s)',
       entry[1], current_user, scope, entry[2], actor);
@@ -141,6 +141,11 @@ $a$;
         'itemId', i.item_id, 'amountMinor', i.amount_minor, 'currency', i.currency, 'createdAt', i.created_at,
         'subscriptionEndedAt', i.subscription_ended_at) x
       FROM public.ministry_payment_intents i WHERE i.payer_id = actor ORDER BY i.created_at, i.id LIMIT cap + 1) q
+    UNION ALL
+    SELECT 'catalogReviews', coalesce(jsonb_agg(x ORDER BY created_at, tenant_id, item_id), '[]') FROM (
+      SELECT r.created_at, r.tenant_id, r.item_id, jsonb_build_object('ministryId', r.tenant_id, 'itemId', r.item_id,
+        'rating', r.rating, 'text', r.body, 'createdAt', r.created_at, 'updatedAt', r.updated_at, 'hidden', r.hidden_at IS NOT NULL) x
+      FROM public.catalog_reviews r WHERE r.user_id = actor ORDER BY r.created_at, r.tenant_id, r.item_id LIMIT cap + 1) q
     UNION ALL
     SELECT 'ministryOwnershipOffers', coalesce(jsonb_agg(x ORDER BY created_at, id), '[]') FROM (
       SELECT o.created_at, o.id, jsonb_build_object('id', o.id, 'ministryId', o.tenant_id,
