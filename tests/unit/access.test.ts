@@ -12,10 +12,24 @@ function frozen(role: string, p: string): boolean {
   if (p === "social:approvals_settings") return role === "owner";
   return role === "owner" || role === "admin";
 }
+const addedPermissions = new Set(["volunteers:participate", "volunteers:manage", "payments:finance", "payments:manage"]);
+
 describe("feature access, code capabilities", () => {
   it("keeps every legacy role and unknown role exactly as before", () => {
-    for (const role of ["owner", "admin", "member", "viewer", "superadmin", "", "OWNER"]) for (const p of everyPermission) expect(can(role, p), `${role} ${p}`).toBe(frozen(role, p));
+    for (const role of ["owner", "admin", "member", "viewer", "superadmin", "", "OWNER"]) for (const p of everyPermission.filter(p => !addedPermissions.has(p))) expect(can(role, p), `${role} ${p}`).toBe(frozen(role, p));
     expect(legacyRules("member", "crm:import")).toBe(true);
+  });
+  it("keeps volunteer participation and payout-account permissions distinct", () => {
+    expect(can("member", "volunteers:participate")).toBe(true);
+    expect(can("member", "volunteers:manage")).toBe(false);
+    expect(can("admin", "volunteers:manage")).toBe(true);
+    expect(can(roleToken("collaborator", { volunteers: "view" }), "volunteers:manage")).toBe(false);
+    const coordinator = roleToken("collaborator", { volunteers: "manage" });
+    expect(can(coordinator, "volunteers:manage")).toBe(true);
+    expect(can(coordinator, "payments:finance")).toBe(false);
+    expect(can("admin", "payments:finance")).toBe(true);
+    expect(can("admin", "payments:manage")).toBe(false);
+    expect(can("owner", "payments:manage")).toBe(true);
   });
   it("maps every permission to an area (exhaustive at compile time)", () => { expect(everyPermission.length).toBe(Object.keys(permissionArea).length); });
   it("collaborator with Social manage holds social and nothing else", () => {

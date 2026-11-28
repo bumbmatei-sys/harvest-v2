@@ -44,6 +44,7 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   // Native blog: owners and admins (a collaborator with Website at manage). Members and viewers never see a draft.
   | "blog:manage"
   // Ways to give (CW-10): the ministry's own giving accounts. Owners and admins (a collaborator with Giving at manage).
+  | "volunteers:participate" | "volunteers:manage" | "payments:finance" | "payments:manage"
   | "giving:manage"
   | "newsletter:read" | "newsletter:manage" | "newsletter:campaigns" | "newsletter:delivery" | "newsletter:analytics"
   // Fundraising pledge campaigns: owners and admins. Campaign settings follow the Giving area; pledges, gifts and supporter details stay owner/admin only.
@@ -55,7 +56,8 @@ function legacyCan(role: string, permission: Permission): boolean {
   if (permission === "contacts:write" || permission === "companies:write" || permission === "opportunities:write" || permission === "tasks:write" || permission === "notes:write"
     || permission === "campaigns:write" || permission === "crm:import" || permission === "crm:export") return role === "owner" || role === "admin" || role === "member";
   // Approvals: owners and admins submit and decide; only an owner changes the ministry setting.
-  if (permission === "social:approvals_settings") return role === "owner";
+  if (permission === "social:approvals_settings" || permission === "payments:manage") return role === "owner";
+  if (permission === "volunteers:participate") return role === "owner" || role === "admin" || role === "member";
   return role === "owner" || role === "admin";
 }
 

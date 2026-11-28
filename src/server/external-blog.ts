@@ -168,18 +168,24 @@ export async function refreshExternalBlogs(db: Database, user: string, workspace
     if (!(error instanceof SocialProviderError)) throw error;
     health = error.code === "AUTH" ? "failing" : "degraded";
   }
-  return withBlogAccess(db, user, connection.tenantId, "social:connect", async (tx, tenant) => {
-    const [current] = await load(tx, tenant).for("share");
-    if (!current || current.version !== connection.version) throw unavailable();
-    // The app role can only read the catalog. The definer checks owner/admin membership and the connection version again.
-    const list = allowed ? JSON.stringify(blogs.map((blog) => ({ id: blog.id, title: blog.title }))) : null;
-    const { rows: [written] } = await tx.execute<{ count: number | null }>(sql`select public.blog_external_refresh(
-      ${tenant}::uuid, ${id}::uuid, ${connection.version}::integer, ${health}, ${list}::jsonb) as count`);
-    if (written?.count === null || written?.count === undefined) throw unavailable();
-    await tx.insert(auditLogs).values({ tenantId: tenant, actorId: user, action: "blog.external.refresh", targetId: id,
-      metadata: { outcome: allowed ? "authorized" : "unavailable" } });
-    return { authorization: allowed ? "authorized" : "unavailable", health, count: blogs.length };
-  });
+  try {
+    return await withBlogAccess(db, user, connection.tenantId, "social:connect", async (tx, tenant) => {
+      const [current] = await load(tx, tenant).for("share");
+      if (!current || current.version !== connection.version) throw unavailable();
+      // The app role can only read the catalog. The definer checks owner/admin membership and the connection version again.
+      const list = allowed ? JSON.stringify(blogs.map((blog) => ({ id: blog.id, title: blog.title }))) : null;
+      const { rows: [written] } = await tx.execute<{ count: number | null }>(sql`select public.blog_external_refresh(
+        ${tenant}::uuid, ${id}::uuid, ${connection.version}::integer, ${health}, ${list}::jsonb) as count`);
+      if (written?.count === null || written?.count === undefined) throw unavailable();
+      await tx.insert(auditLogs).values({ tenantId: tenant, actorId: user, action: "blog.external.refresh", targetId: id,
+        metadata: { outcome: allowed ? "authorized" : "unavailable" } });
+      return { authorization: allowed ? "authorized" : "unavailable", health, count: blogs.length };
+    });
+  } catch (error) {
+    const refusal = error as { code?: string; cause?: { code?: string } } | null;
+    if ((refusal?.cause?.code ?? refusal?.code) === "42501") throw unavailable();
+    throw error;
+  }
 }
 
 function render(article: Article, destination: Destination, imageUrl: (id: string) => string | null, delivery?: Delivery) {

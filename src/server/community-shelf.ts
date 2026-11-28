@@ -6,7 +6,7 @@ import { freeCatalogEnabled } from "./free-catalog-mode";
 import { forumContextTx, type ForumContext } from "./community-forum";
 import { withUser } from "./tenancy";
 
-export type ShelfItem = { id: string; kind: CatalogKind; slug: string; title: string; summary: string; visibility: CatalogVisibility; featured: boolean; enrolled: boolean };
+export type ShelfItem = { id: string; kind: CatalogKind; slug: string; title: string; summary: string; visibility: CatalogVisibility; featured: boolean; enrolled: boolean; lessonCount?: number; completedCount?: number };
 
 /**
  * C13 classroom (courses) and C16 products shelf (downloads): the published items a community shows, for one of its members. The community must be
@@ -27,6 +27,14 @@ export async function communityShelf(db: Database, userId: string, slug: string,
       .where(and(eq(communityProductLinks.tenantId, context.tenantId), eq(communityProductLinks.communityId, context.id), eq(communityProductLinks.kind, kind),
         eq(catalogItems.state, "published")))
       .orderBy(desc(communityProductLinks.featured), asc(communityProductLinks.position), asc(catalogItems.title), asc(catalogItems.id)).limit(200);
-    return { context, items: items.map(row => ({ ...row, visibility: legacyCatalogVisibility(row.visibility) })) };
+    const counts = new Map<string, { lessonCount: number; completedCount: number }>();
+    if (kind === "course" && items.length) {
+      const ids = sql.join(items.map(({ id }) => sql`${id}::uuid`), sql`, `);
+      const { rows } = await tx.execute<{ itemId: string; lessonCount: number; completedCount: number }>(sql`
+        select item_id as "itemId", lesson_count as "lessonCount", completed_count as "completedCount"
+        from public.catalog_shelf_counts(${context.tenantId}::uuid, ${context.id}::uuid, array[${ids}])`);
+      for (const { itemId, ...progress } of rows) counts.set(itemId, progress);
+    }
+    return { context, items: items.map(row => ({ ...row, visibility: legacyCatalogVisibility(row.visibility), ...counts.get(row.id) })) };
   });
 }

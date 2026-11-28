@@ -114,6 +114,16 @@ it("confines the destination catalog and job controls to their intended roles", 
   expect(tables).toEqual(Array.from({ length: 5 }, () => ({ relrowsecurity: true, relforcerowsecurity: true })));
 });
 
+it("maps a database refresh refusal to the neutral 404", async () => {
+  const signature = "public.blog_external_refresh(uuid,uuid,integer,text,jsonb)";
+  await f.admin.query(`revoke execute on function ${signature} from harvest_app`);
+  try {
+    await expect(refreshExternalBlogs(f.db, owner, tenant, wpConnection, deps)).rejects.toMatchObject({ status: 404 });
+  } finally {
+    await f.admin.query(`grant execute on function ${signature} to harvest_app`);
+  }
+});
+
 it("links through a server-owned sign-in attempt and refuses impersonation, pasted secrets and replay", async () => {
   const connectDeps = { ...deps, blogConnect: { providerId: "fake" as const, credential: { secret: CANARY } } };
   const start = { action: "start", platform: "wix" };

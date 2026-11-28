@@ -56,8 +56,9 @@ export function MailThread({ tenantId, api, connectionId, threadRef, canReply, o
 
   // Opening a thread reads it in Harvest. The mailbox's own read state is never touched.
   useEffect(() => {
-    if (load.status !== "ready" || load.data.marker.read || opened.current) return;
-    opened.current = true; void change({ read: true }, true);
+    if (load.status !== "ready" || opened.current) return;
+    opened.current = true;
+    if (!load.data.marker.read) void Promise.resolve().then(() => change({ read: true }, true));
   }, [load, change]);
 
   if (load.status === "loading") return <div className="flex-1 space-y-4 p-4" role="status" aria-busy="true" aria-label={th("loading")} data-testid="thread-loading"><Skeleton className="h-6 w-1/2" /><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div>;

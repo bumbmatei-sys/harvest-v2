@@ -5,7 +5,7 @@
 import type { Permission } from "./permissions";
 
 /** The founder's list (25 Nov). Code says "area" because `feature` already means an activation flag in the navigation registry. */
-export const accessAreas = ["crm", "giving", "campaigns", "communities", "catalog", "social", "newsletter", "website", "office", "connect", "settings"] as const;
+export const accessAreas = ["crm", "giving", "campaigns", "communities", "catalog", "social", "newsletter", "website", "office", "connect", "settings", "volunteers"] as const;
 export type AccessArea = typeof accessAreas[number];
 export const accessLevels = ["view", "manage"] as const;
 export type AccessLevel = typeof accessLevels[number];
@@ -35,6 +35,8 @@ export const permissionArea = {
   "office:connect": "office", "office:mail": "office", "office:calendar": "office", "office:files": "office", "docs:read": "office", "docs:write": "office", "docs:manage": "office",
   "connect:publish": "connect", "followup:manage": "connect", "followup:work": "connect",
   "settings:write": "settings",
+  "volunteers:participate": "volunteers", "volunteers:manage": "volunteers",
+  "payments:finance": "owner_admin", "payments:manage": "owner_admin",
   // Giving: a collaborator with Giving can run campaign settings; supporter details, pledges and gifts are owner/admin only (a separate decision).
   "fundraising:read": "giving", "fundraising:manage": "giving", "fundraising:publish": "giving",
   "giving:record": "owner_admin", "giving:correct": "owner_admin", "giving:read_donors": "owner_admin",

@@ -3879,7 +3879,7 @@ export const workspaceMemberAccess = pgTable("workspace_member_access", {
   grantedBy: text("granted_by").notNull().references(() => users.id), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.userId, t.area] }),
   foreignKey({ name: "workspace_member_access_member_fk", columns: [t.tenantId, t.userId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
-  check("workspace_member_access_area", sql`${t.area} in ('crm','giving','campaigns','communities','catalog','social','newsletter','website','office','connect','settings')`),
+  check("workspace_member_access_area", sql`${t.area} in ('crm','giving','campaigns','communities','catalog','social','newsletter','website','office','connect','settings','volunteers')`),
   check("workspace_member_access_level", sql`${t.level} in ('view','manage')`)]);
 // An invitation carries the intended role and area set; nothing is added until the invited account accepts. Only the hash of the token is stored.
 export const workspaceInvitationRoles = ["admin", "member", "viewer", "collaborator", "guest"] as const;
