@@ -26,9 +26,13 @@ type Status =
  * the event's cover; replace and remove. Uploading and choosing a cover take effect at once (they are their own requests, not part of Save).
  * The picture shown comes from `url`, a short-lived signed address the server hands out; no storage address is ever built here.
  */
-export function EventCoverPicker({ endpoint, saved, coverFileId, version, url, onUrlFailed, onChange, onBusyChange, disabled = false, namespace = "Events.cover" }: {
+export function EventCoverPicker({ endpoint, saved, coverFileId, version, url, onUrlFailed, onChange, onBusyChange, disabled = false, namespace = "Events.cover", variant = "wide", invalid = false }: {
   endpoint: string; saved: boolean; coverFileId: string | null; version: number; url: string | null; onUrlFailed: () => void;
   onChange: (change: CoverChange) => void; onBusyChange: (busy: boolean) => void; disabled?: boolean;
+  /** `square`: a small square thumbnail with the buttons beside it (link in bio profile, founder decision 25 Nov); `wide`: the 16:9 drop zone. */
+  variant?: "wide" | "square";
+  /** Marks the control as a required field that is still empty. */
+  invalid?: boolean;
   /** Message namespace of the labels (the same keys); Link in bio reuses this control for its profile photo. */
   namespace?: "Events.cover" | "LinkInBio.cover" | "LinkInBio.banner" | "CampaignWizard.cover" | "GivePage.cover";
 }) {
@@ -71,20 +75,22 @@ export function EventCoverPicker({ endpoint, saved, coverFileId, version, url, o
   const pick = () => input.current?.click();
   const active = status.kind === "busy" ? status : null;
 
-  return <Field>
-    <FieldLabel htmlFor={inputId}>{t("label")}</FieldLabel>
-    <div className="flex flex-col gap-3">
+  const square = variant === "square", has = Boolean(coverFileId && url);
+  return <Field data-invalid={invalid || undefined}>
+    <FieldLabel htmlFor={inputId} className={square ? "sr-only" : undefined}>{t("label")}</FieldLabel>
+    <div className={cn("flex flex-col gap-3", square && "sm:flex-row sm:flex-wrap sm:items-center")}>
       <div data-testid="cover-zone" data-dragging={dragging || undefined} data-has-cover={Boolean(coverFileId && url) || undefined}
         onDragEnter={(event) => { event.preventDefault(); if (!locked) setDragging(true); }}
         onDragOver={(event) => event.preventDefault()}
         onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
         onDrop={(event) => { event.preventDefault(); setDragging(false); void start(event.dataTransfer.files?.[0]); }}
-        className={cn("relative flex aspect-video w-full flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-input p-4 transition-colors",
+        className={cn("relative flex flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-input transition-colors", square ? "aspect-square size-24 shrink-0" : "aspect-video w-full p-4", invalid && "border-destructive",
           "has-[input:focus-visible]:border-ring has-[input:focus-visible]:ring-[3px] has-[input:focus-visible]:ring-ring/50 data-[dragging=true]:bg-accent/50", locked && "opacity-80")}>
         <input ref={input} id={inputId} type="file" accept={coverAccept} className="sr-only" disabled={locked} data-testid="cover-input"
           onChange={(event) => { const picked = event.target.files?.[0]; event.target.value = ""; void start(picked); }} />
         {coverFileId && url
           ? <img src={url} alt={t("alt")} onError={onUrlFailed} className="absolute inset-0 size-full object-cover" data-testid="cover-image" />
+          : square ? <span className="flex size-11 items-center justify-center rounded-full border bg-background" aria-hidden="true"><ImageIcon className="size-4 opacity-60" /></span>
           : <div className="flex flex-col items-center justify-center gap-1 px-4 text-center">
             <span className="mb-2 flex size-11 shrink-0 items-center justify-center rounded-full border bg-background" aria-hidden="true"><ImageIcon className="size-4 opacity-60" /></span>
             {saved ? <>
@@ -95,7 +101,11 @@ export function EventCoverPicker({ endpoint, saved, coverFileId, version, url, o
           </div>}
       </div>
 
-      {coverFileId && url && <div className="flex flex-wrap gap-2">
+      {square && !has && <div className="flex flex-col gap-1">
+        {saved ? <><Button type="button" variant="outline" className="min-h-11 self-start" disabled={locked} onClick={pick}><UploadIcon className="-ms-1 size-4 opacity-60" aria-hidden="true" />{t("select")}</Button>
+          <p className="text-xs text-muted-foreground">{t("limits", { mb: coverMaxMb })}</p></> : <p className="text-sm text-muted-foreground">{t("saveFirst")}</p>}
+      </div>}
+      {has && <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" className="min-h-11" disabled={locked} onClick={pick}><UploadIcon aria-hidden="true" />{t("replace")}</Button>
         <Button type="button" variant="outline" className="min-h-11" disabled={locked} onClick={() => setConfirmRemove(true)}>{t("remove")}</Button>
       </div>}

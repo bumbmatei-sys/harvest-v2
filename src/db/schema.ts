@@ -7,11 +7,12 @@ import { socialPlatforms, type SocialPlatform } from "../lib/social/platforms";
 import type { ComposerInput, DeliveryPayload, WeeklySlot } from "../lib/social/composer";
 import type { LandingDefinition } from "../lib/connect-landing";
 import type { RichDoc } from "../lib/rich-text";
+import { blogReservedHandles } from "../lib/blog";
 import type { BrandTheme } from "../lib/theme-registry";
 import type { Audience } from "../lib/audience";
 import type { AccessArea, AccessGrants, AccessLevel } from "../lib/access-areas";
 import type { campaignStructures, campaignTypes } from "../lib/campaigns";
-import type { BudgetConfig, OutreachConfig } from "../lib/campaign-wizard";
+import { departmentKeys, type BudgetConfig, type OutreachConfig } from "../lib/campaign-wizard";
 import type { ConnectPurpose, formVersionStatuses, responseConsentActors, responseConsentStatuses, responseContactKinds, responseLinkStatuses, responseStatuses } from "../lib/connect-data";
 import { associationConsentPurposes } from "../lib/consent-purposes";
 import type { FollowUpCaseState } from "../lib/follow-up-cases";
@@ -38,6 +39,20 @@ export const accountExportRequests = pgTable("account_export_requests", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("account_export_requests_user_idx").on(t.userId, t.requestedAt)]);
+// "Your data" (27 Nov): one row per deleted account, the reference staff and the audit row use. The account row itself stays as a scrubbed
+// tombstone (append-only audit logs and other people's records point at it). Written only by public.account_delete (0136); no app grant.
+export const accountDeletions = pgTable("account_deletions", {
+  userId: text("user_id").primaryKey().references(() => users.id),
+  reference: uuid("reference").notNull().unique(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }).notNull().defaultNow(),
+});
+// One row per running account definer (0136): the random token app.account_erase must equal, for the caller, created in this transaction.
+// Written and deleted only by the account definers; no app grant. It makes the erase flag unforgeable: a value the app sets by hand matches no row.
+export const accountEraseGrants = pgTable("account_erase_grants", {
+  token: uuid("token").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 export const sessions = pgTable("sessions", {
   id: text("id").primaryKey(), token: text("token").notNull().unique(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -85,10 +100,32 @@ export const workspaceMembers = pgTable("workspace_members", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   userId: text("user_id").notNull().references(() => users.id),
   roleId: text("role_id").notNull().references(() => roles.id),
+  revision: uuid("revision").defaultRandom().notNull(),
   // Founder decision (25 Nov): an admin created with this flag acts like an owner for granting, changing and removing admins (never for the owner). Admin only.
   canManageAdmins: boolean("can_manage_admins").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.userId] }), index("workspace_members_user_idx").on(t.userId, t.tenantId), check("workspace_member_admins_flag", sql`${t.canManageAdmins} = false or ${t.roleId} = 'admin'`)]);
+export const workspaceOwnershipOffers = pgTable("workspace_ownership_offers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  fromUserId: text("from_user_id").notNull().references(() => users.id),
+  toUserId: text("to_user_id").notNull().references(() => users.id),
+  fromRevision: uuid("from_revision").notNull(),
+  toRevision: uuid("to_revision").notNull(),
+  status: text("status").notNull().default("pending"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("workspace_ownership_one_offer").on(t.tenantId).where(sql`${t.status} = 'pending'`),
+  check("workspace_ownership_distinct_members", sql`${t.fromUserId} <> ${t.toUserId}`),
+  check("workspace_ownership_offer_status", sql`${t.status} in ('pending','accepted','cancelled','declined','expired','membership_changed')`),
+]);
+export const workspaceOwnershipGrants = pgTable("workspace_ownership_grants", {
+  token: uuid("token").primaryKey(),
+  tenantId: uuid("tenant_id").notNull(),
+  actorId: text("actor_id").notNull(),
+  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+});
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id"),
   // Null identifies an automatic follow-up action; application inserts still require the session actor (RLS).
@@ -98,7 +135,7 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] }),
   index("community_chat_mutations_idx").on(t.actorId,t.action,t.createdAt),
-  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit', 'bio.message.submit', 'docs.trash.purge')`)]);
+  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit', 'bio.message.submit', 'docs.trash.purge', 'blog.external.outcome')`)]);
 export const authSchema = { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits };
 
 // A campaign belongs to its parent workspace; it never creates another tenant.
@@ -639,23 +676,29 @@ export const crmNotes = pgTable("crm_notes", {
   check("crm_note_target", sql`num_nonnulls(${t.contactId}, ${t.companyId}, ${t.opportunityId}) = 1`),
   check("crm_note_body", sql`length(btrim(${t.body})) between 1 and 10000`),
   check("crm_note_version", sql`${t.version} >= 1`)]);
-export const crmNotificationKinds = ["task_assigned", "task_due", "task_overdue"] as const;
+export const crmNotificationKinds = ["task_assigned", "task_due", "task_overdue", "ownership_transfer", "volunteer_assigned", "volunteer_changed", "volunteer_reminder", "volunteer_swap_requested"] as const;
 export const crmNotifications = pgTable("crm_notifications", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
   recipientUserId: text("recipient_user_id").notNull().references(() => users.id),
   actorUserId: text("actor_user_id").references(() => users.id),
   kind: text("kind").$type<typeof crmNotificationKinds[number]>().notNull(),
-  taskId: uuid("task_id").notNull(),
+  taskId: uuid("task_id"),
+  ownershipOfferId: uuid("ownership_offer_id").references(() => workspaceOwnershipOffers.id),
+  volunteerSlotId: uuid("volunteer_slot_id"),
   // The due time a due/overdue notice was generated for; with the task, recipient and kind it is the dedupe key.
   dueAt: timestamp("due_at", { withTimezone: true }),
   readAt: timestamp("read_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   foreignKey({ columns: [t.tenantId, t.taskId], foreignColumns: [crmTasks.tenantId, crmTasks.id] }),
+  foreignKey({ columns: [t.tenantId, t.volunteerSlotId], foreignColumns: [volunteerSlots.tenantId, volunteerSlots.id] }),
   index("crm_notifications_recipient_idx").on(t.tenantId, t.recipientUserId, t.readAt, t.createdAt),
   uniqueIndex("crm_notifications_due_unique").on(t.tenantId, t.taskId, t.recipientUserId, t.kind, t.dueAt).where(sql`${t.kind} in ('task_due', 'task_overdue')`),
-  check("crm_notification_kind", sql`${t.kind} in ('task_assigned', 'task_due', 'task_overdue')`),
-  check("crm_notification_due_at", sql`(${t.kind} = 'task_assigned') = (${t.dueAt} is null)`)]);
+  check("crm_notification_target", sql`num_nonnulls(${t.taskId}, ${t.ownershipOfferId}, ${t.volunteerSlotId}) = 1 and (${t.kind} = 'ownership_transfer') = (${t.ownershipOfferId} is not null) and (${t.kind} in ('volunteer_assigned','volunteer_changed','volunteer_reminder','volunteer_swap_requested')) = (${t.volunteerSlotId} is not null)`),
+  check("crm_notification_kind", sql`${t.kind} in ('task_assigned', 'task_due', 'task_overdue', 'ownership_transfer', 'volunteer_assigned', 'volunteer_changed', 'volunteer_reminder', 'volunteer_swap_requested')`),
+  check("crm_notification_due_at", sql`(${t.kind} in ('task_assigned', 'ownership_transfer', 'volunteer_assigned', 'volunteer_changed', 'volunteer_swap_requested')) = (${t.dueAt} is null)`),
+  uniqueIndex("crm_notification_volunteer_reminder").on(t.tenantId, t.volunteerSlotId, t.recipientUserId, t.dueAt).where(sql`${t.kind} = 'volunteer_reminder'`),
+]);
 // Per-person on/off for each due/overdue kind in one ministry (default on; in-app only).
 export const crmNotificationPreferences = pgTable("crm_notification_preferences", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
@@ -1795,6 +1838,8 @@ export const communityEmailDeliveries = pgTable("community_email_deliveries", {
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
   lastError: text("last_error"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  feedbackHash: text("feedback_hash"),
+  feedbackMask: text("feedback_mask"),
   sentAt: timestamp("sent_at", { withTimezone: true }),
 }, (t) => [
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
@@ -1803,6 +1848,33 @@ export const communityEmailDeliveries = pgTable("community_email_deliveries", {
   check("community_email_delivery_kind", sql`${t.kind} in ('instant', 'digest') and (${t.kind} = 'instant') = (${t.notificationId} is not null)`),
   check("community_email_delivery_status", sql`${t.status} in ('queued', 'sending', 'sent', 'failed', 'skipped')`),
   check("community_email_delivery_error", sql`${t.lastError} is null or length(${t.lastError}) <= 40`)]);
+
+export const communityEmailFeedback = pgTable("community_email_feedback", {
+  eventId: uuid("event_id").primaryKey(),
+  deliveryId: uuid("delivery_id").notNull(),
+  outcome: text("outcome").notNull(),
+}, t => [
+  uniqueIndex("community_email_feedback_delivery_outcome_idx").on(t.deliveryId, t.outcome),
+  check("community_email_feedback_outcome", sql`${t.outcome} in ('soft_bounce', 'hard_bounce', 'complaint')`),
+]);
+
+export const communityEmailFeedbackGrants = pgTable("community_email_feedback_grants", {
+  token: uuid("token").primaryKey(),
+  transactionId: text("transaction_id").notNull(),
+});
+
+export const communityEmailSuppressions = pgTable("community_email_suppressions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId, { onDelete: "cascade" }),
+  addressHash: text("address_hash").notNull(),
+  maskedAddress: text("masked_address").notNull(),
+  reason: text("reason").notNull(),
+  softCount: integer("soft_count").notNull().default(0),
+  blockedAt: timestamp("blocked_at", { withTimezone: true }),
+}, t => [
+  uniqueIndex("community_email_suppression_address_idx").on(t.tenantId, t.addressHash),
+  check("community_email_suppression_reason", sql`${t.reason} in ('soft_bounce', 'hard_bounce', 'complaint')`),
+]);
 
 export const communityNotifications = pgTable("community_notifications", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -2491,7 +2563,9 @@ export const catalogItems = pgTable("catalog_items", {
   title: text("title").notNull(),
   summary: text("summary").notNull().default(""),
   state: text("state", { enum: ["draft", "published", "archived"] }).notNull().default("draft"),
-  visibility: text("visibility", { enum: ["hidden", "unlisted", "listed"] }).notNull().default("hidden"),
+  visibility: text("visibility", { enum: ["hidden", "unlisted", "listed", "community", "public"] }).notNull().default("hidden"),
+  coverFileId: uuid("cover_file_id"),
+  priceLabel: text("price_label").notNull().default("Free"),
   version: integer("version").notNull().default(1),
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -2503,9 +2577,11 @@ export const catalogItems = pgTable("catalog_items", {
     and (${t.levelLabel} is null or (length(trim(${t.levelLabel})) between 1 and 24 and ${t.levelLabel} = btrim(${t.levelLabel}) and ${t.levelLabel} !~ '[[:cntrl:]]'))
     and (${t.sectionLabel} is null or (length(trim(${t.sectionLabel})) between 1 and 24 and ${t.sectionLabel} = btrim(${t.sectionLabel}) and ${t.sectionLabel} !~ '[[:cntrl:]]'))
     and (${t.lessonLabel} is null or (length(trim(${t.lessonLabel})) between 1 and 24 and ${t.lessonLabel} = btrim(${t.lessonLabel}) and ${t.lessonLabel} !~ '[[:cntrl:]]'))`),
+  foreignKey({ columns: [t.tenantId, t.coverFileId], foreignColumns: [files.tenantId, files.id] }),
+  check("catalog_item_free_price", sql`${t.priceLabel} = 'Free'`),
   check("catalog_item_kind", sql`${t.kind} in ('course','download')`),
   check("catalog_item_state", sql`${t.state} in ('draft','published','archived')`),
-  check("catalog_item_visibility", sql`${t.visibility} in ('hidden','unlisted','listed')`),
+  check("catalog_item_visibility", sql`${t.visibility} in ('hidden','unlisted','listed','community','public')`),
   check("catalog_item_slug", sql`${t.slug} ~ '^[a-z0-9][a-z0-9-]{1,58}[a-z0-9]$'`),
   check("catalog_item_title", sql`length(trim(${t.title})) between 1 and 120`),
   check("catalog_item_summary", sql`length(${t.summary}) <= 2000`),
@@ -2561,6 +2637,21 @@ export const catalogLessons = pgTable("catalog_lessons", {
   check("catalog_lesson_title", sql`length(trim(${t.title})) between 1 and 120`),
   check("catalog_lesson_body", sql`jsonb_typeof(${t.body}) = 'object' and octet_length(${t.body}::text) <= 32000`),
 ]);
+
+export const catalogLessonAttachments = pgTable("catalog_lesson_attachments", {
+  tenantId: uuid("tenant_id").notNull(), itemId: uuid("item_id").notNull(),
+  lessonId: uuid("lesson_id").notNull(), fileId: uuid("file_id").notNull(), position: integer("position").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId, t.lessonId, t.fileId] }),
+  unique().on(t.tenantId, t.itemId, t.lessonId, t.position),
+  foreignKey({ columns: [t.tenantId, t.itemId, t.lessonId], foreignColumns: [catalogLessons.tenantId, catalogLessons.itemId, catalogLessons.id] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.fileId], foreignColumns: [files.tenantId, files.id] }),
+  check("catalog_lesson_attachment_position", sql`${t.position} between 0 and 19`),
+]);
+export const catalogAssetGrants = pgTable("catalog_asset_grants", {
+  token: uuid("token").primaryKey(), tenantId: uuid("tenant_id").notNull(),
+  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // 0131 learner progress and private notes, one row per (learner, lesson). Learners write only their own rows, through public.catalog_learner;
 // owners and admins see aggregate counts only (public.catalog_progress_summary) and never read notes. A removed lesson takes its rows with it.
@@ -3452,7 +3543,7 @@ export const bioFiles = pgTable("bio_files", {
   checksum: text("checksum").notNull(), status: text("status").$type<"pending" | "uploaded" | "quarantined" | "ready">().notNull().default("pending"),
   retiredAt: timestamp("retired_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("bio_files_page").on(t.tenantId, t.pageId), foreignKey({ columns: [t.tenantId, t.pageId], foreignColumns: [bioPages.tenantId, bioPages.id] }).onDelete("cascade"),
-  check("bio_file_kind", sql`${t.kind} in ('photo','cover')`), check("bio_file_mime", sql`${t.mime} in ('image/jpeg','image/png','image/webp')`),
+  check("bio_file_kind", sql`${t.kind} in ('photo','cover','gallery')`), check("bio_file_mime", sql`${t.mime} in ('image/jpeg','image/png','image/webp')`),
   check("bio_file_name", sql`length(btrim(${t.name})) between 1 and 200`), check("bio_file_size", sql`${t.size} between 1 and 10485760`),
   check("bio_file_checksum", sql`${t.checksum} ~ '^[a-f0-9]{64}$'`), check("bio_file_status", sql`${t.status} in ('pending','uploaded','quarantined','ready')`),
   check("bio_file_key", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/bio/' || ${t.pageId}::text || '/files/' || ${t.id}::text`)]);
@@ -4000,3 +4091,491 @@ export const fundraisingFiles = pgTable("fundraising_files", {
   check("fundraising_file_status", sql`${t.status} in ('pending','uploaded','quarantined','ready')`),
   check("fundraising_file_key", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/fundraising/' || ${t.fundraisingId}::text || '/files/' || ${t.id}::text`),
 ]);
+// Native blog (0135). One blog per ministry at /blog/<handle>; articles are Docs content with pictures from the ministry's Files. Owners and admins (a
+// collaborator with Website at manage) manage both; visitors read only published articles, through the SECURITY DEFINER functions of the migration.
+const blogHandleCheck = `'^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])$' and position('--' in %s) = 0 and %s not in (${blogReservedHandles.map((h) => `'${h}'`).join(", ")})`;
+const blogText = (column: string, max: number) => `(${column} is null or (length(${column}) between 1 and ${max} and ${column} = btrim(${column}) and ${column} !~ '[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]'))`;
+export const blogSettings = pgTable("blog_settings", {
+  tenantId: uuid("tenant_id").primaryKey().references(() => workspaces.tenantId),
+  handle: text("handle").notNull(),
+  title: text("title").notNull(),
+  intro: text("intro"),
+  version: integer("version").notNull().default(1),
+  /** Set once, when the blog's first article is first published; the address is fixed from then on. */
+  firstPublishedAt: timestamp("first_published_at", { withTimezone: true }),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("blog_settings_handle_idx").on(t.handle),
+  check("blog_settings_handle", sql.raw(`"blog_settings"."handle" ~ ${blogHandleCheck.replaceAll("%s", `"blog_settings"."handle"`)}`)),
+  check("blog_settings_title", sql.raw(`length("blog_settings"."title") between 1 and 100 and "blog_settings"."title" = btrim("blog_settings"."title")`)),
+  check("blog_settings_intro", sql.raw(blogText(`"blog_settings"."intro"`, 500))),
+  check("blog_settings_version", sql`${t.version} >= 1`),
+]);
+export const blogPosts = pgTable("blog_posts", {
+  tenantId: uuid("tenant_id").notNull().references(() => blogSettings.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  slug: text("slug").notNull(),
+  title: text("title").notNull().default(""),
+  excerpt: text("excerpt"),
+  body: jsonb("body").$type<import("../lib/docs").DocContent>().notNull(),
+  imageIds: uuid("image_ids").array().notNull().default(sql`'{}'::uuid[]`),
+  coverFileId: uuid("cover_file_id").references(() => files.id, { onDelete: "set null" }),
+  shareFileId: uuid("share_file_id").references(() => files.id, { onDelete: "set null" }),
+  seoTitle: text("seo_title"),
+  seoDescription: text("seo_description"),
+  harvestPage: boolean("harvest_page").notNull().default(true),
+  status: text("status", { enum: ["draft", "scheduled", "published"] }).notNull().default("draft"),
+  publishAt: timestamp("publish_at", { withTimezone: true }),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  firstPublishedAt: timestamp("first_published_at", { withTimezone: true }),
+  scheduledBy: text("scheduled_by").references(() => users.id, { onDelete: "set null" }),
+  version: integer("version").notNull().default(1),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("blog_posts_slug_idx").on(t.tenantId, t.slug),
+  index("blog_posts_public_idx").on(t.tenantId, t.publishedAt, t.id).where(sql`${t.status} = 'published'`),
+  index("blog_posts_due_idx").on(t.publishAt, t.tenantId, t.id).where(sql`${t.status} = 'scheduled'`),
+  index("blog_posts_list_idx").on(t.tenantId, t.updatedAt, t.id),
+  check("blog_posts_slug", sql.raw(`"blog_posts"."slug" ~ '^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$' and position('--' in "blog_posts"."slug") = 0 and "blog_posts"."slug" not in ('rss', 'feed', 'images', 'page')`)),
+  check("blog_posts_title", sql.raw(`length("blog_posts"."title") <= 200 and "blog_posts"."title" = btrim("blog_posts"."title")`)),
+  check("blog_posts_text", sql.raw(`${blogText(`"blog_posts"."excerpt"`, 300)} and ${blogText(`"blog_posts"."seo_title"`, 70)} and ${blogText(`"blog_posts"."seo_description"`, 160)}`)),
+  check("blog_posts_body", sql`jsonb_typeof(${t.body}) = 'object' and ${t.body}->>'type' = 'doc' and pg_column_size(${t.body}) <= 524288`),
+  check("blog_posts_images", sql`cardinality(${t.imageIds}) <= 50 and array_position(${t.imageIds}, null) is null`),
+  check("blog_posts_status", sql`${t.status} in ('draft', 'scheduled', 'published')
+    and ((${t.status} = 'scheduled') = (${t.publishAt} is not null))
+    and ((${t.status} = 'published') = (${t.publishedAt} is not null))
+    and (${t.status} = 'draft' or ${t.firstPublishedAt} is not null or ${t.status} = 'scheduled')`),
+  check("blog_posts_version", sql`${t.version} >= 1`),
+]);
+
+export const blogExternalDestinations = pgTable("blog_external_destinations", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  connectionId: uuid("connection_id").notNull(),
+  blogRef: text("blog_ref").notNull(),
+  title: text("title").notNull(),
+  platform: text("platform", { enum: ["wordpress", "shopify", "wix", "webflow"] }).notNull(),
+  health: text("health", { enum: ["unknown", "healthy", "degraded", "failing"] }).notNull(),
+  authorization: text("authorization", { enum: ["authorized", "unavailable"] }).notNull(),
+  checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("blog_external_destination_ref").on(t.tenantId, t.connectionId, t.blogRef),
+  foreignKey({ name: "blog_external_destination_connection", columns: [t.tenantId, t.connectionId], foreignColumns: [socialConnections.tenantId, socialConnections.id] }),
+  check("blog_external_destination_fields", sql`length(${t.blogRef}) between 1 and 200 and length(${t.title}) between 1 and 200
+    and ${t.platform} in ('wordpress','shopify','wix','webflow') and ${t.health} in ('unknown','healthy','degraded','failing')
+    and ${t.authorization} in ('authorized','unavailable')`),
+]);
+
+export const blogExternalDeliveries = pgTable("blog_external_deliveries", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  postId: uuid("post_id").notNull(),
+  destinationId: uuid("destination_id").notNull(),
+  mode: text("mode", { enum: ["draft", "same_time", "own_time"] }).notNull(),
+  requestedAt: timestamp("requested_at", { withTimezone: true }),
+  status: text("status", { enum: ["queued", "scheduled_on_blog", "published", "draft_on_blog", "failed", "changed_on_blog"] }).notNull().default("queued"),
+  reason: text("reason"),
+  remoteId: text("remote_id"),
+  remoteUrl: text("remote_url"),
+  contentHash: text("content_hash"),
+  pushedVersion: integer("pushed_version"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  pushedAt: timestamp("pushed_at", { withTimezone: true }),
+  checkedAt: timestamp("checked_at", { withTimezone: true }),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("blog_external_delivery_target").on(t.tenantId, t.postId, t.destinationId),
+  foreignKey({ name: "blog_external_delivery_post", columns: [t.tenantId, t.postId], foreignColumns: [blogPosts.tenantId, blogPosts.id] }).onDelete("cascade"),
+  foreignKey({ name: "blog_external_delivery_destination", columns: [t.tenantId, t.destinationId], foreignColumns: [blogExternalDestinations.tenantId, blogExternalDestinations.id] }),
+  check("blog_external_delivery_state", sql`(${t.mode} in ('draft','same_time','own_time')) and ((${t.mode} = 'draft') = (${t.requestedAt} is null))
+    and ${t.status} in ('queued','scheduled_on_blog','published','draft_on_blog','failed','changed_on_blog')
+    and ((${t.status} = 'failed') = (${t.reason} is not null))
+    and (${t.reason} is null or ${t.reason} in ('disconnected','authorization','unavailable','invalid_request','remote_missing','outcome_unknown','unsupported'))
+    and (${t.contentHash} is null or ${t.contentHash} ~ '^[0-9a-f]{64}$')
+    and (${t.remoteId} is null or length(${t.remoteId}) between 1 and 200)
+    and (${t.remoteUrl} is null or (length(${t.remoteUrl}) <= 2000 and ${t.remoteUrl} like 'https://%'))`),
+]);
+
+export const blogExternalJobs = pgTable("blog_external_jobs", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  deliveryId: uuid("delivery_id").notNull(),
+  operation: text("operation", { enum: ["push", "update", "check"] }).notNull(),
+  postVersion: integer("post_version").notNull(),
+  payload: jsonb("payload").$type<import("../lib/external-blog").ExternalArticleInput>(),
+  attempts: integer("attempts").notNull().default(0),
+  lease: uuid("lease"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  nextAt: timestamp("next_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "blog_external_job_delivery", columns: [t.tenantId, t.deliveryId], foreignColumns: [blogExternalDeliveries.tenantId, blogExternalDeliveries.id] }).onDelete("cascade"),
+  uniqueIndex("blog_external_pending_job").on(t.tenantId, t.deliveryId).where(sql`${t.finishedAt} is null`),
+  index("blog_external_due_job").on(t.nextAt, t.id).where(sql`${t.finishedAt} is null`),
+  check("blog_external_job_state", sql`${t.operation} in ('push','update','check') and ${t.attempts} between 0 and 4
+    and (${t.operation} = 'check' or ${t.payload} is not null or ${t.finishedAt} is not null)
+    and (${t.payload} is null or (jsonb_typeof(${t.payload}) = 'object' and pg_column_size(${t.payload}) <= 2097152))
+    and ((${t.lease} is null) = (${t.leaseUntil} is null))`),
+]);
+
+export const blogExternalAssets = pgTable("blog_external_assets", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").primaryKey().defaultRandom(),
+  fileId: uuid("file_id").notNull().references(() => files.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [unique("blog_external_asset_file").on(t.tenantId, t.fileId)]);
+
+export const blogExternalScopeTokens = pgTable("blog_external_scope_tokens", {
+  id: uuid("id").primaryKey(),
+  backendPid: integer("backend_pid").notNull(),
+  purpose: text("purpose").notNull(),
+});
+
+// Community points are projected from authoritative activity. Only the scoped points function reads or writes these tables.
+export const communityPointSettings = pgTable("community_point_settings", {
+  enabled: boolean("enabled").notNull().default(false),
+  tenantId: uuid("tenant_id").notNull(),
+  communityId: uuid("community_id").notNull(),
+  postPoints: integer("post_points").notNull().default(5),
+  replyPoints: integer("reply_points").notNull().default(2),
+  lessonPoints: integer("lesson_points").notNull().default(10),
+  eventPoints: integer("event_points").notNull().default(15),
+  thresholds: integer("thresholds").array().notNull().default(sql`ARRAY[25, 100, 250]`),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.communityId] }),
+  foreignKey({ name: "point_settings_community_fk", columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  check("community_point_settings_post_points_check", sql`${t.postPoints} BETWEEN 0 AND 1000`),
+  check("community_point_settings_reply_points_check", sql`${t.replyPoints} BETWEEN 0 AND 1000`),
+  check("community_point_settings_lesson_points_check", sql`${t.lessonPoints} BETWEEN 0 AND 1000`),
+  check("community_point_settings_event_points_check", sql`${t.eventPoints} BETWEEN 0 AND 1000`),
+]);
+
+export const communityPointAttendance = pgTable("community_point_attendance", {
+  tenantId: uuid("tenant_id").notNull(),
+  communityId: uuid("community_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  userId: text("user_id").notNull(),
+}, (t) => [
+  primaryKey({ name: "point_attendance_pk", columns: [t.tenantId, t.communityId, t.eventId, t.userId] }),
+  foreignKey({ name: "point_attendance_event_link_fk", columns: [t.tenantId, t.eventId, t.communityId], foreignColumns: [communityEventLinks.tenantId, communityEventLinks.eventId, communityEventLinks.communityId] }).onDelete("cascade"),
+  foreignKey({ name: "point_attendance_member_fk", columns: [t.tenantId, t.communityId, t.userId], foreignColumns: [communityMemberships.tenantId, communityMemberships.communityId, communityMemberships.userId] }).onDelete("cascade"),
+]);
+
+export const communityChallenges = pgTable("community_challenges", {
+  tenantId: uuid("tenant_id").notNull(),
+  communityId: uuid("community_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  title: text("title").notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  goal: text("goal", { enum: ["post", "reply", "lesson", "event"] }).notNull(),
+  target: integer("target").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.communityId, t.id] }),
+  foreignKey({ name: "community_challenges_community_fk", columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  check("community_challenges_title_check", sql`length(btrim(${t.title})) BETWEEN 1 AND 120 AND ${t.title} !~ '[[:cntrl:]]'`),
+  check("community_challenges_ends_at_check", sql`${t.endsAt} > ${t.startsAt}`),
+  check("community_challenges_goal_check", sql`${t.goal} IN ('post', 'reply', 'lesson', 'event')`),
+  check("community_challenges_target_check", sql`${t.target} BETWEEN 1 AND 10000`),
+]);
+
+export const communityChallengeMembers = pgTable("community_challenge_members", {
+  tenantId: uuid("tenant_id").notNull(),
+  communityId: uuid("community_id").notNull(),
+  challengeId: uuid("challenge_id").notNull(),
+  userId: text("user_id").notNull(),
+  joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (t) => [
+  primaryKey({ name: "challenge_members_pk", columns: [t.tenantId, t.communityId, t.challengeId, t.userId] }),
+  foreignKey({ name: "challenge_members_challenge_fk", columns: [t.tenantId, t.communityId, t.challengeId], foreignColumns: [communityChallenges.tenantId, communityChallenges.communityId, communityChallenges.id] }).onDelete("cascade"),
+  foreignKey({ name: "challenge_members_member_fk", columns: [t.tenantId, t.communityId, t.userId], foreignColumns: [communityMemberships.tenantId, communityMemberships.communityId, communityMemberships.userId] }).onDelete("cascade"),
+]);
+
+export const communityPointsHiddenMembers = pgTable("community_points_hidden_members", {
+  tenantId: uuid("tenant_id").notNull(),
+  communityId: uuid("community_id").notNull(),
+  userId: text("user_id").notNull(),
+}, (t) => [
+  primaryKey({ name: "point_hidden_member_pk", columns: [t.tenantId, t.communityId, t.userId] }),
+  foreignKey({ name: "point_hidden_member_fk", columns: [t.tenantId, t.communityId, t.userId], foreignColumns: [communityMemberships.tenantId, communityMemberships.communityId, communityMemberships.userId] }).onDelete("cascade"),
+]);
+
+export const ministryPaymentAccounts = pgTable("ministry_payment_accounts", {
+  tenantId: uuid("tenant_id").primaryKey().references(() => workspaces.tenantId),
+  accountId: text("account_id").notNull().unique(),
+  provider: text("provider", { enum: ["fake", "stripe_connect"] }).notNull(),
+  legalName: text("legal_name").notNull(),
+  currency: text("currency").notNull(),
+  country: text("country").notNull(),
+  chargesEnabled: boolean("charges_enabled").notNull().default(false),
+  payoutsEnabled: boolean("payouts_enabled").notNull().default(false),
+  requirementsDue: text("requirements_due").array().notNull().default(sql`ARRAY[]::text[]`),
+  disconnectedAt: timestamp("disconnected_at", { withTimezone: true }),
+  statusReportedAt: timestamp("status_reported_at", { withTimezone: true }),
+}, (t) => [
+  unique("ministry_payment_account_tenant_identity").on(t.tenantId, t.accountId),
+  check("ministry_payment_account_name", sql`length(btrim(${t.legalName})) between 1 and 200`),
+  check("ministry_payment_account_geo", sql`${t.currency} ~ '^[A-Z]{3}$' and ${t.country} ~ '^[A-Z]{2}$'`),
+  check("ministry_payment_account_provider", sql`${t.provider} in ('fake','stripe_connect')`),
+]);
+
+export const ministryPaymentPrices = pgTable("ministry_payment_prices", {
+  tenantId: uuid("tenant_id").notNull(),
+  itemId: uuid("item_id").notNull(),
+  currency: text("currency").notNull(),
+  amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId] }),
+  foreignKey({ columns: [t.tenantId, t.itemId], foreignColumns: [catalogItems.tenantId, catalogItems.id] }).onDelete("cascade"),
+  check("ministry_payment_price_money", sql`${t.currency} ~ '^[A-Z]{3}$' and ${t.amountMinor} between 1 and 1000000000000`),
+]);
+
+export const ministryPaymentIntents = pgTable("ministry_payment_intents", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  payerId: text("payer_id").references(() => users.id, { onDelete: "set null" }),
+  accountId: text("account_id").notNull(),
+  kind: text("kind", { enum: ["donation", "sale"] }).notNull(),
+  cadence: text("cadence", { enum: ["once", "monthly"] }).notNull(),
+  itemId: uuid("item_id"),
+  amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(),
+  currency: text("currency").notNull(),
+  legalName: text("legal_name").notNull(),
+  personalSupport: boolean("personal_support").notNull().default(false),
+  requestKey: text("request_key").notNull(),
+  subscriptionEndedAt: timestamp("subscription_ended_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("ministry_payment_intent_request").on(t.tenantId, t.payerId, t.requestKey),
+  foreignKey({ columns: [t.tenantId, t.accountId], foreignColumns: [ministryPaymentAccounts.tenantId, ministryPaymentAccounts.accountId] }),
+  foreignKey({ columns: [t.tenantId, t.itemId], foreignColumns: [catalogItems.tenantId, catalogItems.id] }),
+  check("ministry_payment_intent_money", sql`${t.currency} ~ '^[A-Z]{3}$' and ${t.amountMinor} between 1 and 1000000000000`),
+  check("ministry_payment_intent_kind", sql`(${t.kind} = 'donation' and ${t.itemId} is null and ${t.cadence} in ('once','monthly'))
+    or (${t.kind} = 'sale' and ${t.itemId} is not null and ${t.cadence} = 'once')`),
+]);
+
+export const ministryPaymentLedger = pgTable("ministry_payment_ledger", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  accountId: text("account_id").notNull(),
+  intentId: uuid("intent_id"),
+  paymentRef: text("payment_ref"),
+  objectRef: text("object_ref").notNull(),
+  kind: text("kind", { enum: ["charge", "application_fee", "refund", "dispute_opened", "dispute_won", "dispute_lost", "payout"] }).notNull(),
+  amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(),
+  currency: text("currency").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("ministry_payment_ledger_provider_object").on(t.tenantId, t.accountId, t.kind, t.objectRef),
+  foreignKey({ columns: [t.tenantId, t.accountId], foreignColumns: [ministryPaymentAccounts.tenantId, ministryPaymentAccounts.accountId] }),
+  foreignKey({ columns: [t.tenantId, t.intentId], foreignColumns: [ministryPaymentIntents.tenantId, ministryPaymentIntents.id] }),
+  index("ministry_payment_ledger_tenant_date").on(t.tenantId, t.occurredAt, t.id),
+  index("ministry_payment_ledger_related_charge").on(t.tenantId, t.accountId, t.paymentRef),
+  check("ministry_payment_ledger_money", sql`${t.currency} ~ '^[A-Z]{3}$' and ${t.amountMinor} between 0 and 1000000000000`),
+  check("ministry_payment_ledger_kind", sql`${t.kind} in ('charge','application_fee','refund','dispute_opened','dispute_won','dispute_lost','payout')`),
+]);
+
+export const ministryDonationReceipts = pgTable("ministry_donation_receipts", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  ledgerId: uuid("ledger_id").notNull(),
+  intentId: uuid("intent_id").notNull(),
+  donorId: text("donor_id").references(() => users.id, { onDelete: "set null" }),
+  amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(),
+  currency: text("currency").notNull(),
+  paidAt: timestamp("paid_at", { withTimezone: true }).notNull(),
+  legalName: text("legal_name").notNull(),
+  personalSupport: boolean("personal_support").notNull(),
+  cadence: text("cadence", { enum: ["once", "monthly"] }).notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("ministry_donation_receipt_charge").on(t.tenantId, t.ledgerId),
+  foreignKey({ columns: [t.tenantId, t.ledgerId], foreignColumns: [ministryPaymentLedger.tenantId, ministryPaymentLedger.id] }),
+  foreignKey({ columns: [t.tenantId, t.intentId], foreignColumns: [ministryPaymentIntents.tenantId, ministryPaymentIntents.id] }),
+  index("ministry_donation_receipt_donor").on(t.donorId, t.paidAt, t.id),
+]);
+
+export const ministryPaymentEvents = pgTable("ministry_payment_events", {
+  provider: text("provider", { enum: ["fake", "stripe_connect"] }).notNull(),
+  eventId: text("event_id").notNull(),
+  accountId: text("account_id").notNull(),
+  outcome: text("outcome", { enum: ["recorded", "ignored"] }).notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.provider, t.eventId] }),
+  check("ministry_payment_event_outcome", sql`${t.outcome} in ('recorded','ignored')`),
+]);
+
+export const ministryPaymentGrants = pgTable("ministry_payment_grants", {
+  backend: integer("backend").primaryKey(),
+  transaction: text("transaction").notNull(),
+  mode: text("mode", { enum: ["checkout", "event"] }).notNull(),
+  accountId: text("account_id"),
+  provider: text("provider").notNull(),
+});
+
+export const ministryPaymentOnboarding = pgTable("ministry_payment_onboarding", {
+  tenantId: uuid("tenant_id").notNull().references(() => ministryPaymentAccounts.tenantId),
+  requestKey: text("request_key").notNull(),
+  fingerprint: text("fingerprint").notNull(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.requestKey] })]);
+
+export const ministryProfiles = pgTable("ministry_profiles", {
+  tenantId: uuid("tenant_id").primaryKey().references(() => workspaces.tenantId),
+  published: boolean("published").notNull().default(false),
+  version: integer("version").notNull().default(1),
+}, (t) => [check("ministry_profile_version", sql`${t.version} > 0`)]);
+
+export const ministryProfileFields = pgTable("ministry_profile_fields", {
+  tenantId: uuid("tenant_id").notNull().references(() => ministryProfiles.tenantId, { onDelete: "cascade" }),
+  field: text("field").notNull(),
+  value: jsonb("value").notNull(),
+  visibility: text("visibility", { enum: ["public", "members", "staff"] }).notNull().default("staff"),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.field] }),
+  check("ministry_profile_field_name", sql`${t.field} in ('name','description','logo','cover','tradition','website','email','phone','socialLinks','serviceTimes')`),
+  check("ministry_profile_field_visibility", sql`${t.visibility} in ('public','members','staff')`),
+]);
+
+export const ministryLocations = pgTable("ministry_locations", {
+  tenantId: uuid("tenant_id").notNull().references(() => ministryProfiles.tenantId, { onDelete: "cascade" }),
+  id: uuid("id").notNull().defaultRandom(),
+  name: text("name").notNull(),
+  address1: text("address1").notNull(),
+  address2: text("address2"),
+  city: text("city").notNull(),
+  region: text("region"),
+  postalCode: text("postal_code"),
+  country: text("country").notNull(),
+  serviceTimes: jsonb("service_times").$type<string[]>().notNull().default([]),
+  primary: boolean("is_primary").notNull().default(false),
+  visibility: text("visibility", { enum: ["public", "members", "staff"] }).notNull().default("staff"),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("ministry_locations_one_primary").on(t.tenantId).where(sql`${t.primary}`),
+  check("ministry_location_visibility", sql`${t.visibility} in ('public','members','staff')`),
+]);
+
+export const ministryProfileReadGrants = pgTable("ministry_profile_read_grants", {
+  backend: integer("backend").primaryKey(),
+  transaction: text("transaction").notNull(),
+  tenantId: uuid("tenant_id").notNull(),
+  assetId: uuid("asset_id"),
+});
+
+export const volunteerRoles = pgTable("volunteer_roles", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  department: text("department", { enum: departmentKeys }),
+  archived: boolean("archived").notNull().default(false),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  check("volunteer_role_name", sql`length(btrim(${t.name})) between 1 and 120 and length(${t.description}) <= 2000`),
+  check("volunteer_role_department", sql`${t.department} in (${sql.raw(departmentKeys.map(key => `'${key}'`).join(", "))})`),
+]);
+
+export const volunteers = pgTable("volunteers", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  roleId: uuid("role_id").notNull(),
+  userId: text("user_id"),
+  contactId: uuid("contact_id"),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date"),
+  note: text("note"),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("volunteers_role_identity").on(t.tenantId, t.id, t.roleId),
+  foreignKey({ columns: [t.tenantId, t.roleId], foreignColumns: [volunteerRoles.tenantId, volunteerRoles.id] }),
+  foreignKey({ columns: [t.tenantId, t.userId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
+  check("volunteer_person", sql`num_nonnulls(${t.userId}, ${t.contactId}) = 1`),
+  check("volunteer_dates", sql`${t.endDate} >= ${t.startDate} and length(${t.note}) <= 2000`),
+]);
+
+export const volunteerSlots = pgTable("volunteer_slots", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  roleId: uuid("role_id").notNull(),
+  eventId: uuid("event_id"),
+  title: text("title").notNull(),
+  serviceDate: date("service_date").notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  needed: integer("needed").notNull(),
+  open: boolean("open").notNull().default(false),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("volunteer_slot_role").on(t.tenantId, t.id, t.roleId),
+  foreignKey({ columns: [t.tenantId, t.roleId], foreignColumns: [volunteerRoles.tenantId, volunteerRoles.id] }),
+  foreignKey({ columns: [t.tenantId, t.eventId], foreignColumns: [events.tenantId, events.id] }),
+  index("volunteer_slot_date").on(t.tenantId, t.serviceDate, t.id),
+  check("volunteer_slot_details", sql`length(btrim(${t.title})) between 1 and 120 and ${t.needed} between 1 and 500 and ${t.endsAt} > ${t.startsAt}`),
+]);
+
+export const volunteerAssignments = pgTable("volunteer_assignments", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  slotId: uuid("slot_id").notNull(),
+  roleId: uuid("role_id").notNull(),
+  userId: text("user_id"),
+  volunteerId: uuid("volunteer_id"),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("volunteer_assignment_slot_user").on(t.tenantId, t.slotId, t.userId),
+  unique("volunteer_assignment_slot_volunteer").on(t.tenantId, t.slotId, t.volunteerId),
+  foreignKey({ columns: [t.tenantId, t.slotId, t.roleId], foreignColumns: [volunteerSlots.tenantId, volunteerSlots.id, volunteerSlots.roleId] }),
+  foreignKey({ columns: [t.tenantId, t.volunteerId, t.roleId], foreignColumns: [volunteers.tenantId, volunteers.id, volunteers.roleId] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.userId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+  check("volunteer_assignment_person", sql`num_nonnulls(${t.userId}, ${t.volunteerId}) = 1`),
+]);
+
+export const volunteerAvailability = pgTable("volunteer_availability", {
+  tenantId: uuid("tenant_id").notNull(),
+  userId: text("user_id").notNull(),
+  unavailableDate: date("unavailable_date").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.userId, t.unavailableDate] }),
+  foreignKey({ columns: [t.tenantId, t.userId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+]);
+
+export const volunteerRequests = pgTable("volunteer_requests", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  slotId: uuid("slot_id").notNull(),
+  userId: text("user_id").notNull(),
+  replacementUserId: text("replacement_user_id"),
+  kind: text("kind", { enum: ["swap", "decline"] }).notNull(),
+  state: text("state", { enum: ["pending", "approved", "rejected", "cancelled", "declined"] }).notNull().default("pending"),
+  // Founder decision 27 Nov: the named replacement accepts a swap before staff can approve it.
+  replacementAcceptedAt: timestamp("replacement_accepted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("volunteer_request_pending").on(t.tenantId, t.slotId, t.userId).where(sql`${t.state} = 'pending'`),
+  foreignKey({ columns: [t.tenantId, t.slotId], foreignColumns: [volunteerSlots.tenantId, volunteerSlots.id] }),
+  foreignKey({ columns: [t.tenantId, t.userId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.replacementUserId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+  check("volunteer_request_state", sql`${t.state} in ('pending','approved','rejected','cancelled','declined')`),
+  check("volunteer_request_acceptance", sql`${t.replacementAcceptedAt} is null or ${t.kind} = 'swap'`),
+  check("volunteer_request_kind", sql`((${t.kind} = 'swap' and ${t.replacementUserId} <> ${t.userId}) or ${t.kind} = 'decline') and (${t.kind} = 'swap') = (${t.replacementUserId} is not null)`),
+]);
+
+export const volunteerRosterGrants = pgTable("volunteer_roster_grants", {
+  backend: integer("backend").primaryKey(),
+  transaction: text("transaction").notNull(),
+  tenantId: uuid("tenant_id").notNull(),
+});

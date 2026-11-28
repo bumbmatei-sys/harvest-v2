@@ -159,7 +159,7 @@ test("events: owner form and roster, member list, calendar and detail with RSVP,
       await m1.page.getByRole("button", { name: "Going", exact: true }).click();
       await expect(m1.page.getByRole("button", { name: "Going", exact: true })).toHaveAttribute("aria-pressed", "true");
       await expect(m1.page.getByText("You are going.")).toBeVisible();
-      await expect(m1.page.getByRole("link", { name: "Add to calendar" })).toHaveAttribute("href", `/api/workspaces/${tenant}/events/${mainId}/calendar`);
+      await expect(m1.page.getByRole("link", { name: "Add to calendar" })).toHaveAttribute("href", new RegExp(`/api/workspaces/${tenant}/events/${mainId}/calendar$`));
       expect((await m1.page.request.get(`/api/workspaces/${tenant}/events/${mainId}/calendar`)).headers()["content-type"]).toContain("text/calendar");
       await expect(m1.page.getByRole("button", { name: "Join online" })).toHaveCount(0);
       await audit(m1.page, "event-going");

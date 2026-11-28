@@ -107,7 +107,7 @@ export async function listPosts(db: Database, userId: string, slug: string, raw:
     const details = await loadPostDetails(tx, ctx.slug, page.map((row) => row.id));
     return { context: ctx, sort: input.sort as ForumSort, page: input.page, hasMore, posts: page.map(({ bodyText, videoUrl, ...row }): PostSummary => {
       const detail = details.get(row.id);
-      return { ...row, ...(detail?.former_member ? { authorId: null, authorName: message("CommunityForum.formerMember") } : {}),
+      return { ...row, ...(detail?.former_member ? { authorId: null, authorName: null } : {}),
         postDetails: detail?.details ?? noDetails, excerpt: bodyText.replace(/\s+/g, " ").slice(0, 220), hasVideo: Boolean(videoUrl) };
     }) };
   });
@@ -144,7 +144,7 @@ export async function getPost(db: Database, userId: string, slug: string, postId
     const detail = (await loadPostDetails(tx, ctx.slug, [post.id])).get(post.id);
     const postDetails = detail?.details ?? noDetails;
     const photos = new Set(postDetails.photos.map((photo) => photo.id));
-    return { context: ctx, post: { ...post, ...(detail?.former_member ? { authorId: null, authorName: message("CommunityForum.formerMember") } : {}),
+    return { context: ctx, post: { ...post, ...(detail?.former_member ? { authorId: null, authorName: null } : {}),
       body, video: post.videoUrl ? videoEmbed(post.videoUrl) : null, postDetails },
       attachments: attachments.filter((attachment) => !photos.has(attachment.id)), comments };
   });

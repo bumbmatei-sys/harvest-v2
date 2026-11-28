@@ -1,3 +1,4 @@
+import { appOrigin } from "@/lib/site-address";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -32,5 +33,5 @@ export default async function DocPage({ params, searchParams }: { params: Promis
   if (!wanted) notFound();
   const current = await getPage(db, user, tenantId, docId, wanted).catch(missing);
   if (!current) notFound();
-  return <DocEditor key={wanted} tenantId={tenantId} detail={detail} page={current} userId={user} />;
+  return <DocEditor origin={appOrigin()} key={wanted} tenantId={tenantId} detail={detail} page={current} userId={user} />;
 }

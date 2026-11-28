@@ -1,3 +1,4 @@
+import type { ExternalArticleInput, ExternalBlog, ExternalBlogPlatform, ExternalBlogTarget, RemoteBlogArticle } from "../../lib/external-blog";
 import type { AnalyticsDayRange, AnalyticsPost, AnalyticsPosts, AnalyticsQuery, AnalyticsSlot } from "./analytics-contract";
 import { analyticsCapabilities, isoAnalyticsDay, projectMetrics, type AccountMetric, type Metrics } from "../../lib/social/analytics";
 import type { AutoDmEvent, AutoDmEvidence } from "./auto-dm-contract";
@@ -41,6 +42,26 @@ function retryAfter(header: string | null, now: Date) {
 }
 const enc = encodeURIComponent;
 
+const blogArticlesPath = (target: ExternalBlogTarget) => `/accounts/${enc(target.accountRef)}/blogs/${enc(target.blogRef)}/articles`;
+function remoteBlogArticle(value: unknown): RemoteBlogArticle {
+  const a = record(value), image = record(a.image);
+  const id = text(a.id), handle = text(a.handle), title = text(a.title, 800);
+  if (!id || !handle || !title) throw new SocialProviderError("UNAVAILABLE");
+  const rawUrl = text(a.url, 2000);
+  const parsed = rawUrl ? URL.parse(rawUrl) : null;
+  const publishedAt = date(a.publishedAt);
+  return {
+    id, handle, title,
+    url: parsed?.protocol === "https:" && !parsed.username && !parsed.password && parsed.href.length <= 2000 ? parsed.href : null,
+    bodyHtml: typeof a.bodyHtml === "string" ? a.bodyHtml : null,
+    excerpt: typeof a.excerpt === "string" ? a.excerpt : null,
+    tags: Array.isArray(a.tags) ? a.tags.filter((tag): tag is string => typeof tag === "string") : [],
+    image: typeof image.url === "string" ? { url: image.url, altText: text(image.altText, 800) } : null,
+    published: a.isPublished === true || a.status === "publish",
+    scheduledAt: date(a.publishDate)?.toISOString() ?? (a.isPublished === false ? publishedAt?.toISOString() ?? null : null),
+  };
+}
+
 export class ZernioAdapter implements SocialProvider, SocialSender {
   readonly id = "zernio" as const;
   readonly signatureHeader = "x-zernio-signature";
@@ -58,6 +79,84 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
     this.timeoutMs = options.timeoutMs ?? 15_000;
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.now = options.now ?? (() => new Date());
+  }
+
+  async startBlogConnect(cred: SocialCredential, request: { platform: ExternalBlogPlatform; attemptId: string; callback: string; shop?: string }) {
+    const result = record(await this.once(cred, "POST", "/profiles", {
+      body: { name: "Harvest Blog", externalId: request.attemptId },
+      headers: { "Idempotency-Key": request.attemptId },
+    }));
+    const profileRef = text(record(result.profile)._id);
+    if (!profileRef) throw new SocialProviderError("UNAVAILABLE");
+    const query = new URLSearchParams({ profileId: profileRef, redirect_url: request.callback, ...(request.shop ? { shop: request.shop } : {}) });
+    const response = record(await this.once(cred, "GET", `/connect/${request.platform}?${query}`, {}));
+    const authUrl = URL.parse(text(response.authUrl, 4000) ?? "");
+    if (!authUrl || authUrl.protocol !== "https:" || authUrl.username || authUrl.password) throw new SocialProviderError("UNAVAILABLE");
+    return { profileRef, url: authUrl.href };
+  }
+
+  async findBlogConnection(cred: SocialCredential, profileRef: string, platform: ExternalBlogPlatform) {
+    const query = new URLSearchParams({ profileId: profileRef, platform, status: "connected", limit: "2" });
+    const result = record(await this.once(cred, "GET", `/accounts?${query}`, {}));
+    if (!Array.isArray(result.accounts) || record(result.pagination).nextCursor) throw new SocialProviderError("UNAVAILABLE");
+    const candidates = result.accounts.map(record).filter((a) =>
+      a.platform === platform && (a.profileId === profileRef || record(a.profileId)._id === profileRef) && a.isActive !== false);
+    if (!candidates.length) return null;
+    const [account] = candidates;
+    const accountRef = text(account._id ?? account.id);
+    if (candidates.length !== 1 || !accountRef) throw new SocialProviderError("CONFLICT");
+    return { accountRef, platform, displayName: text(account.displayName ?? account.username, 120) };
+  }
+
+  async listBlogs(cred: SocialCredential, accountRef: string): Promise<ExternalBlog[]> {
+    const blogs: ExternalBlog[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 10; page++) {
+      const query = new URLSearchParams({ limit: "50", ...(cursor ? { cursor } : {}) });
+      const result = record(await this.once(cred, "GET", `/accounts/${enc(accountRef)}/blogs?${query}`, {}));
+      if (!Array.isArray(result.blogs)) throw new SocialProviderError("UNAVAILABLE");
+      for (const item of result.blogs.map(record)) {
+        const id = text(item.id), title = text(item.title);
+        if (!id || !title) throw new SocialProviderError("UNAVAILABLE");
+        blogs.push({ id, title });
+      }
+      cursor = text(result.nextCursor, 4000);
+      if (!cursor) return blogs;
+    }
+    throw new SocialProviderError("UNAVAILABLE");
+  }
+
+  async findBlogArticle(cred: SocialCredential, target: ExternalBlogTarget, handle: string) {
+    const filtered = target.platform === "wordpress" || target.platform === "webflow";
+    let cursor: string | null = null;
+    for (let page = 0; page < 10; page++) {
+      const query = new URLSearchParams({ limit: "50", ...(filtered ? { handle } : {}), ...(cursor ? { cursor } : {}) });
+      const result = record(await this.once(cred, "GET", `${blogArticlesPath(target)}?${query}`, {}));
+      if (!Array.isArray(result.articles)) throw new SocialProviderError("UNAVAILABLE");
+      const article = result.articles.map(record).find((item) => item.handle === handle);
+      if (article) {
+        const parsed = remoteBlogArticle(article);
+        return this.getBlogArticle(cred, target, parsed.id);
+      }
+      cursor = text(result.nextCursor, 4000);
+      if (!cursor) return null;
+    }
+    throw new SocialProviderError("UNAVAILABLE");
+  }
+
+  async getBlogArticle(cred: SocialCredential, target: ExternalBlogTarget, articleId: string) {
+    const result = record(await this.once(cred, "GET", `${blogArticlesPath(target)}/${enc(articleId)}`, {}));
+    return remoteBlogArticle(result.article);
+  }
+
+  async createBlogArticle(cred: SocialCredential, target: ExternalBlogTarget, article: ExternalArticleInput, key: string) {
+    const result = record(await this.once(cred, "POST", blogArticlesPath(target), { body: article, headers: { "Idempotency-Key": key } }));
+    return remoteBlogArticle(result.article);
+  }
+
+  async updateBlogArticle(cred: SocialCredential, target: ExternalBlogTarget, articleId: string, article: ExternalArticleInput) {
+    const result = record(await this.once(cred, "PATCH", `${blogArticlesPath(target)}/${enc(articleId)}`, { body: article }));
+    return remoteBlogArticle(result.article);
   }
 
   /** One logical call. Retries only when `idempotent`; maps every failure to a fixed provider error. */

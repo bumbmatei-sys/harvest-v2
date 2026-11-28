@@ -133,6 +133,12 @@ describe("public display", () => {
     const giving = { type: "giving" as const, id: "givegive", hidden: false, tab: "home" as const, title: "Give" };
     const def = (blocks: BioDefinition["blocks"]): BioDefinition => ({ ...emptyBioDefinition("Grace"), blocks });
     page = await saveBioDraft(db(), people.owner, people.tenant, { version: page.version, handle: "give-church", definition: def([giving]) });
+    // A ready profile photo: required to publish since the link in bio rework (0132).
+    const photo = crypto.randomUUID();
+    await fixture.admin.query("insert into bio_files(id,tenant_id,page_id,key,kind,name,mime,size,checksum,status) values($1,$2,$3,$4,'photo','p.png','image/png',10,$5,'ready')", [photo, people.tenant, page.id, `workspaces/${people.tenant}/bio/${page.id}/files/${photo}`, "d".repeat(64)]);
+    const attached = await withUser(db(), people.owner, async (tx) => (await tx.execute(sql`select public.bio_photo_operate(${people.tenant}::uuid, 'set', ${photo}::uuid, ${JSON.stringify({ version: page.version, kind: "photo" })}::jsonb) r`)).rows[0].r as { outcome: string });
+    expect(attached.outcome).toBe("ok");
+    page = await getBioPage(db(), people.owner, people.tenant);
     expect((await bioChoices(db(), people.owner, people.tenant)).giving?.map((m) => m.kind)).toEqual(["zelle", "bank_transfer"]);
     expect(await getPublicBio(db(), "give-church")).toBeNull();
     page = await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version: page.version });

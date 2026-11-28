@@ -69,7 +69,9 @@ test("reports, moderation queue, mute and ban, held first posts and banned words
     // A member reports a post and a member; the reported person never learns who.
     const r = reporter.page;
     await r.goto(`/communities/${slug}/posts/${spam.id}`);
-    await r.getByRole("button", { name: "Report post Cheap watches" }).click();
+    // Forum redesign (27 Nov): reporting a post is in the post's menu.
+    await r.getByRole("button", { name: "More actions for Cheap watches" }).click();
+    await r.getByRole("menuitem", { name: "Report", exact: true }).click();
     let dialog = r.getByRole("dialog", { name: "Report post" });
     await expect(dialog.getByRole("button", { name: "Send report" })).toBeDisabled();
     await dialog.getByLabel("Spam or advertising").click();
@@ -115,7 +117,7 @@ test("reports, moderation queue, mute and ban, held first posts and banned words
     await expect(members.getByText(/Muted until/)).toBeVisible();
     await author.page.goto(`/communities/${slug}/forum`);
     await expect(author.page.getByText(/You can't post until/)).toBeVisible();
-    await expect(author.page.getByRole("button", { name: "New post" })).toHaveCount(0);
+    await expect(author.page.getByRole("button", { name: "What's on your mind?" })).toHaveCount(0);
     expect((await newPost(author.page, "Still here?")).status()).toBe(403);
     await shoot(page, "members", async () => { await page.getByRole("tab", { name: "Members" }).click(); });
     await page.getByRole("tab", { name: "Members" }).click();

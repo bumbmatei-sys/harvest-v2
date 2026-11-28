@@ -4,6 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../db/client";
 import { workspaceMemberAccess, workspaceMembers } from "../db/schema";
 import { effectiveRoleFor, roleToken, type AccessGrants } from "../lib/access-areas";
+import { canAccessFeature, featureAccessFor } from "./feature-access";
 import { AccessError, requirePermission, type Permission } from "./permissions";
 
 // Explicit columns: withTenant also runs against databases mid-upgrade, before can_manage_admins exists.
@@ -39,6 +40,10 @@ export async function withTenant<T>(db: Database, userId: string, workspaceHint:
       access = roleToken("collaborator", grants); effective = effectiveRoleFor(grants, permission);
     }
     requirePermission(access, permission);
+    const feature = featureAccessFor(permission);
+    if (feature && !canAccessFeature(workspaceHint, { tenantId: locked.tenantId, access }, feature.key, feature.level)) {
+      throw new AccessError(403, message("Errors.workspaceAccessDenied"));
+    }
     return run(tx, locked.tenantId, effective, access);
   });
 }

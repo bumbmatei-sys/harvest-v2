@@ -113,7 +113,7 @@ it("puts the immutable delivery tag, headers, and text alternative in the inject
         { Name: "List-Unsubscribe-Post", Value: newsletter.headers["List-Unsubscribe-Post"] }] } },
   });
   const send = vi.fn().mockResolvedValue({ MessageId: "fake-test-receipt" });
-  const adapter = sesAdapter({ topicArn: "test", certificates: new Map() }, { configurationSet: "test-config", send });
+  const adapter = sesAdapter({ topicArn: "test", certificates: new Map() }, { env: { HARVEST_ENV: "production" }, transport: send });
   expect(await adapter.submit(newsletter)).toEqual({ state: "failed" });
   expect(send).not.toHaveBeenCalled();
 });

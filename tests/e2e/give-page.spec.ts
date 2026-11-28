@@ -62,7 +62,11 @@ test("owner publishes the give page, a visitor sees it, and the amount hides whe
   expect((await visit(guest, `/give/${slug}`))?.status()).toBe(404);
 
   // Open the fundraiser: the address is then fixed and the page is live.
-  await page.getByRole("button", { name: "Open", exact: true }).click();
+  // The first click right after the save's refresh can be dropped by the dev server (also on main before the kit redo); retry until the dialog opens.
+  await expect(async () => {
+    await page.getByRole("button", { name: "Open", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Confirm" })).toBeVisible({ timeout: 3000 });
+  }).toPass({ timeout: 60000 });
   await page.getByRole("button", { name: "Confirm" }).click();
   await expect(section.getByText("Live", { exact: true })).toBeVisible();
   await expect(section.getByLabel("Address")).toHaveAttribute("readonly", "");
@@ -79,6 +83,7 @@ test("owner publishes the give page, a visitor sees it, and the amount hides whe
   await expect(guest.locator("[data-give-raised]")).toHaveText("$3,750.00");
   await expect(guest.getByText("75% of goal")).toBeVisible();
   await expect(guest.locator("[data-ways-to-give]")).toContainText("Give online");
+  await expect(guest.locator("[data-ways-to-give]")).toContainText("PayPal");
   // The same method rendering as link in bio: brand logos for platforms, the generic bank icon for bank transfer.
   for (const kind of ["paypal", "revolut", "wise"]) await expect(guest.locator(`[data-ways-to-give] [data-giving-logo="${kind}"]`)).toBeVisible();
   await expect(guest.locator('[data-ways-to-give] [data-giving-generic="bank_transfer"]')).toBeVisible();
@@ -96,7 +101,7 @@ test("owner publishes the give page, a visitor sees it, and the amount hides whe
 
   // The owner switches the amount off: the visitor sees title, description and ways to give only.
   await page.reload();
-  await section.getByRole("switch", { name: "Show amount raised" }).click();
+  await section.getByRole("checkbox", { name: "Show amount raised" }).click();
   await section.getByRole("button", { name: "Save page" }).click();
   await expect(page.getByText("Public page saved.").first()).toBeVisible();
   await guest.reload();

@@ -1,3 +1,4 @@
+import { appOriginIfConfigured, giveCoverLink, giveLink } from "@/lib/site-address";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db/client";
@@ -11,15 +12,13 @@ import { publicGiveMethods, publicGivePage } from "@/server/give-page";
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ slug: string }> };
 
-const absolute = (path: string) => { try { return new URL(path, process.env.BETTER_AUTH_URL).href; } catch { return undefined; } };
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const view = givePageEnabled() ? await publicGivePage(getDb(), slug) : null;
   if (!view) return { title: "Not found", robots: { index: false, follow: false } };
-  const description = view.description?.replace(/\s+/g, " ").slice(0, 160) || undefined, image = view.hasCover ? absolute(`/give/${view.slug}/cover`) : undefined;
+  const description = view.description?.replace(/\s+/g, " ").slice(0, 160) || undefined, image = view.hasCover && appOriginIfConfigured() ? giveCoverLink(view.slug) : undefined;
   return { title: view.title, description, referrer: "no-referrer", robots: { index: false, follow: false },
-    openGraph: { type: "website", title: view.title, description, url: absolute(`/give/${view.slug}`), ...(image ? { images: [{ url: image }] } : {}) },
+    openGraph: { type: "website", title: view.title, description, url: appOriginIfConfigured() ? giveLink(view.slug) : undefined, ...(image ? { images: [{ url: image }] } : {}) },
     twitter: { card: image ? "summary_large_image" : "summary", title: view.title, description, ...(image ? { images: [image] } : {}) } };
 }
 
@@ -30,6 +29,6 @@ export default async function GivePage({ params }: Props) {
   if (!view) notFound();
   const methods = await publicGiveMethods(db, slug);
   return <PublicFrame personal notice={false}>
-    <div className="mx-auto max-w-5xl"><GivePageView view={view} coverUrl={view.hasCover ? `/give/${view.slug}/cover` : null} methods={methods} reportUrl={`/give/${view.slug}/report`} /></div>
+    <GivePageView view={view} coverUrl={view.hasCover ? `/give/${view.slug}/cover` : null} methods={methods} reportUrl={`/give/${view.slug}/report`} />
   </PublicFrame>;
 }

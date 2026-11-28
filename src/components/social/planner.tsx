@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { addDays, addMonths, endOfMonth, endOfWeek, format, isSameDay, parseISO, startOfMonth, startOfWeek } from "date-fns";
-import { CalendarClock, ChevronLeft, ChevronRight, Copy, Pencil, Plus, RotateCw, ShieldAlert, XCircle } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, Copy, Newspaper, Pencil, Plus, RotateCw, ShieldAlert, XCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,9 @@ import { socialPlatforms } from "@/lib/social/platforms";
 import { browserTimeZone, formatClock, formatWhen } from "@/lib/social/time";
 import { notify } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import type { PlannerArticle } from "@/server/blog";
+import type { ExternalPlannerDelivery } from "@/server/external-blog";
+import { defineStatusTones, type StatusTone } from "@/lib/status-tone";
 
 const statuses = ["queued", "scheduled", "publishing", "published", "failed", "cancelled", "unknown"] as const;
 type Action = { kind: "reschedule"; items: PlannerItem[]; whole: boolean } | { kind: "cancel"; item: PlannerItem } | { kind: "move"; item: PlannerItem; iso: string } | { kind: "place"; draft: { id: string; version: number }; iso: string } | { kind: "scheduleDraft"; draft: DraftSummary };
@@ -100,6 +103,40 @@ export function Planner({ tenantId, view }: { tenantId: string; view: "queue" | 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, data.state, view, rangeKey, zone, account, platform, statusFilter, reloadKey]);
 
+  // Blog articles (scheduled and published) sit in the same calendar. Only people who manage the blog get any; a refusal or an error leaves the grid as it was.
+  const [articles, setArticles] = useState<PlannerArticle[]>([]);
+  // Copies on connected blogs (not drafts) sit beside them, each at its own blog time.
+  const [copies, setCopies] = useState<ExternalPlannerDelivery[]>([]);
+  const t2 = useTranslations("Blog.planner"), blogStatus = useTranslations("Blog.status"), copyText = useTranslations("Blog.external");
+  useEffect(() => {
+    if (view !== "calendar") return;
+    const controller = new AbortController();
+    void fetch(`/api/workspaces/${tenantId}/blog/planner?from=${encodeURIComponent(range.from.toISOString())}&to=${encodeURIComponent(range.to.toISOString())}&includeDestinations=1`, { signal: controller.signal })
+      .then(async (response) => {
+        if (controller.signal.aborted) return;
+        const body = response.ok ? await response.json() as { articles: PlannerArticle[]; destinations: ExternalPlannerDelivery[] } | PlannerArticle[] : [];
+        setArticles(Array.isArray(body) ? body : body.articles);
+        setCopies(Array.isArray(body) ? [] : body.destinations.filter((copy) => copy.mode !== "draft"));
+      }).catch(() => {});
+    return () => controller.abort();
+  // The range is compared by value (rangeKey).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId, view, rangeKey, reloadKey]);
+  const shownArticles = useMemo(() => account || platform || schedule || (statusFilter && statusFilter !== "scheduled" && statusFilter !== "published") ? [] : articles.filter((a) => !statusFilter || a.status === statusFilter), [articles, account, platform, schedule, statusFilter]);
+  const articleById = useMemo(() => new Map(shownArticles.map((a) => [`article:${a.id}`, a])), [shownArticles]);
+  const shownCopies = useMemo(() => account || platform || schedule || statusFilter ? [] : copies, [copies, account, platform, schedule, statusFilter]);
+  const copyById = useMemo(() => new Map(shownCopies.map((c) => [`blogcopy:${c.id}`, c])), [shownCopies]);
+  const copyTone = defineStatusTones({ queued: "pending", scheduled_on_blog: "info", published: "success", draft_on_blog: "neutral", failed: "danger", changed_on_blog: "warning" });
+  const copyLabel = (copy: ExternalPlannerDelivery) => joinParts([copyText("planner", { platform: platformLabels[copy.platform] }), copyText(`status.${copy.status}`), copy.title], ", ");
+  const copyChip = (copy: ExternalPlannerDelivery, wide: boolean) => <>
+    <span className="flex items-center gap-1 text-[11px] text-muted-foreground"><PlatformLogo platform={copy.platform} className={cn("size-3.5 shrink-0", copy.status === "failed" && "text-destructive")} /><span className="truncate @max-[3.5rem]:sr-only max-sm:sr-only">{formatClock(copy.at, zone, locale)}</span></span>
+    {wide && <span className="line-clamp-2 break-words max-sm:sr-only @max-[3.5rem]:sr-only">{copy.title}</span>}
+    <span className="sr-only">{copyLabel(copy)}</span></>;
+  const articleChip = (article: PlannerArticle, wide: boolean) => <>
+    <span className="flex items-center gap-1 text-[11px] text-muted-foreground"><Newspaper className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate @max-[3.5rem]:sr-only max-sm:sr-only">{formatClock(article.at, zone, locale)}</span></span>
+    {wide && <span className="line-clamp-2 break-words max-sm:sr-only @max-[3.5rem]:sr-only">{article.title}</span>}
+    <span className="sr-only">{joinParts([t2("article"), blogStatus(article.status), article.title], ", ")}</span></>;
+
   // Open the week an hour before its first post (or at 7 AM), not at midnight; the shared grid scrolls once the posts are loaded.
   const openAt = items === null ? undefined
     : openingHour(items.filter((item) => item.status !== "draft").map((item) => ({ start: new Date(item.at), end: new Date(item.at) })), weekStart, addDays(weekStart, 7));
@@ -107,13 +144,18 @@ export function Planner({ tenantId, view }: { tenantId: string; view: "queue" | 
   const toolbarProps = { schedules: data.schedules, schedule, onSchedule: (id: string) => setParam({ schedule: id }), onManage: () => setManageOpen(true), draftCount: data.drafts.length, onDrafts: () => setDraftsOpen(true) };
   const connectionName = (item: PlannerItem) => { const connection = data.connections.find((entry) => entry.id === item.connectionId); return connection?.displayName ?? (item.platform ? platformLabels[item.platform] : ""); };
   const toEvent = (item: PlannerItem): CalendarEvent => ({ id: item.id, title: item.summary || t("noText"), start: new Date(item.at), end: new Date(new Date(item.at).getTime() + 60 * 60_000), status: item.status === "cancelled" ? "cancelled" : "published", ended: item.status === "published" });
-  const events = useMemo(() => visible.map(toEvent), [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+  const events = useMemo(() => [...visible.map(toEvent), ...shownArticles.map((a): CalendarEvent => ({ id: `article:${a.id}`, title: a.title, start: new Date(a.at), end: new Date(new Date(a.at).getTime() + 60 * 60_000), status: "published", ended: a.status === "published" })),
+    ...shownCopies.map((c): CalendarEvent => ({ id: `blogcopy:${c.id}`, title: c.title, start: new Date(c.at), end: new Date(new Date(c.at).getTime() + 60 * 60_000), status: c.status === "failed" ? "cancelled" : "published", ended: c.status === "published" }))], [visible, shownArticles, shownCopies]); // eslint-disable-line react-hooks/exhaustive-deps
   const byId = useMemo(() => new Map(visible.map((item) => [item.id, item])), [visible]);
   const logo = (item: PlannerItem) => item.platform ? <PlatformLogo platform={item.platform} className={cn("size-3.5 shrink-0", item.status === "failed" && "text-destructive")} /> : null;
-  const monthChip = (event: CalendarEvent) => { const item = byId.get(event.id); if (!item) return null;
+  const monthChip = (event: CalendarEvent) => { const copy = copyById.get(event.id); if (copy) return <><PlatformLogo platform={copy.platform} className="size-3.5 shrink-0" /><span className="truncate max-sm:sr-only"><span className="opacity-70">{formatClock(copy.at, zone, locale)} </span>{copy.title}</span><span className="sr-only">{copyLabel(copy)}</span></>;
+    const article = articleById.get(event.id); if (article) return <><Newspaper className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate max-sm:sr-only"><span className="opacity-70">{formatClock(article.at, zone, locale)} </span>{article.title}</span><span className="sr-only">{joinParts([t2("article"), blogStatus(article.status)], ", ")}</span></>;
+    const item = byId.get(event.id); if (!item) return null;
     return <>{logo(item)}<span className="truncate max-sm:sr-only"><span className="opacity-70">{formatClock(item.at, zone, locale)} </span>{event.title}</span>
       <span className="sr-only">{joinParts([item.platform ? platformLabels[item.platform] : "", status(item.status), formatClock(item.at, zone, locale)], ", ")}</span></>; };
-  const weekChip = (event: CalendarEvent) => { const item = byId.get(event.id); if (!item) return null;
+  const weekChip = (event: CalendarEvent) => { const copy = copyById.get(event.id); if (copy) return copyChip(copy, true);
+    const article = articleById.get(event.id); if (article) return articleChip(article, true);
+    const item = byId.get(event.id); if (!item) return null;
     return <><span className="flex items-center gap-1 text-[11px] text-muted-foreground">{logo(item)}<span className="truncate @max-[3.5rem]:sr-only">{formatClock(item.at, zone, locale)}</span>{item.status === "failed" && <span className="font-medium text-destructive max-sm:sr-only @max-[3.5rem]:sr-only">{status("failed")}</span>}</span>
       <span className="line-clamp-2 break-words max-sm:sr-only @max-[3.5rem]:sr-only">{event.title}</span>
       <span className="sr-only">{joinParts([item.platform ? platformLabels[item.platform] : "", status(item.status), event.title], ", ")}</span></>; };
@@ -219,6 +261,18 @@ export function Planner({ tenantId, view }: { tenantId: string; view: "queue" | 
     </div>;
 
   const dayItems = selectedDay ? visible.filter((item) => isSameDay(new Date(item.at), selectedDay)) : [];
+  // Blog articles and their copies on connected blogs as day rows (phone agenda and the month's selected day); each opens the article.
+  const blogRow = (key: string, icon: React.ReactNode, name: string, line: string, tone: StatusTone, label: string, postId: string) =>
+    <li key={key} className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3" data-testid="planner-blog-row">
+      <div className="flex min-w-0 flex-1 items-center gap-2">{icon}<div className="min-w-0"><p className="truncate text-sm font-medium">{name}</p><p className="truncate text-xs text-muted-foreground">{line}</p></div></div>
+      <StatusBadge tone={tone} label={label} dot /><Button asChild variant="outline" size="responsive"><Link href={`/workspaces/${tenantId}/blog/${postId}`}>{t("open")}<span className="sr-only"> {name}</span></Link></Button></li>;
+  const blogDay = (day: Date) => [
+    ...shownArticles.filter((a) => isSameDay(new Date(a.at), day)).map((a) => ({ at: a.at, node: blogRow(`article:${a.id}`, <Newspaper className="size-4 shrink-0" aria-hidden="true" />, a.title,
+      joinParts([t2("article"), formatWhen(a.at, zone, locale)]), a.status === "published" ? "success" : "info", blogStatus(a.status), a.id) })),
+    ...shownCopies.filter((c) => isSameDay(new Date(c.at), day)).map((c) => ({ at: c.at, node: blogRow(`blogcopy:${c.id}`, <PlatformLogo platform={c.platform} className="size-4 shrink-0" />, c.title,
+      joinParts([copyText("planner", { platform: platformLabels[c.platform] }), formatWhen(c.at, zone, locale)]), copyTone(c.status), copyText(`status.${c.status}`), c.postId) })),
+  ];
+  const dayRows = (items: PlannerItem[], day: Date) => [...items.map((item) => ({ at: item.at, node: row(item) })), ...blogDay(day)].sort((a, b) => Date.parse(a.at) - Date.parse(b.at)).map((entry) => entry.node);
   const row = (item: PlannerItem) => <li key={item.id} className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3" data-testid="planner-row" data-status={item.status}>
     <div className="flex min-w-0 flex-1 items-center gap-2">{logo(item)}<div className="min-w-0"><p className="truncate text-sm font-medium">{item.summary || t("noText")}</p><p className="truncate text-xs text-muted-foreground">{joinParts([lineOf(item), formatWhen(item.at, zoneOf(item), locale)])}</p></div></div>
     <StatusBadge tone={deliveryTone(item.status)} label={status(item.status)} dot /><Button type="button" variant="outline" size="responsive" onClick={() => setDetail(item)}>{t("open")}</Button></li>;
@@ -228,16 +282,18 @@ export function Planner({ tenantId, view }: { tenantId: string; view: "queue" | 
   const agendaItems = visible.filter((item) => isSameDay(new Date(item.at), agendaDay)).sort((a, b) => a.at.localeCompare(b.at));
   const agenda = <div className="space-y-3" data-testid="day-agenda">
     <div role="group" aria-label={t("agendaDays")} className="grid grid-cols-7 gap-1">
-      {weekDays.map((day) => { const count = visible.filter((item) => isSameDay(new Date(item.at), day)).length, picked = isSameDay(day, agendaDay);
+      {weekDays.map((day) => { const count = visible.filter((item) => isSameDay(new Date(item.at), day)).length + blogDay(day).length, picked = isSameDay(day, agendaDay);
         return <button key={day.toISOString()} type="button" data-testid="agenda-day" aria-pressed={picked} aria-label={t("agendaDay", { day: format(day, "EEEE, MMMM d"), count })} onClick={() => setAgendaPick(day)}
           className={cn("flex min-h-11 min-w-0 flex-col items-center justify-center rounded-lg border text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50", picked ? "border-primary bg-primary text-primary-foreground" : "bg-card text-muted-foreground")}>
           <span aria-hidden="true">{format(day, "EEEEE")}</span><span aria-hidden="true" className="text-sm font-semibold">{format(day, "d")}</span>
           <span aria-hidden="true" className={cn("mt-0.5 size-1 rounded-full", count > 0 ? (picked ? "bg-primary-foreground" : "bg-primary") : "bg-transparent")} /></button>; })}
     </div>
     <section aria-live="polite" aria-labelledby="planner-agenda-day" className="space-y-2"><h2 id="planner-agenda-day" className="text-sm font-medium text-muted-foreground">{format(agendaDay, "EEEE, MMMM d")}</h2>
-      {agendaItems.length === 0 ? <p className="text-sm text-muted-foreground">{t("emptyDay")}</p> : <ul className="m-0 list-none space-y-2 p-0">{agendaItems.map(row)}</ul>}</section>
+      {agendaItems.length + blogDay(agendaDay).length === 0 ? <p className="text-sm text-muted-foreground">{t("emptyDay")}</p> : <ul className="m-0 list-none space-y-2 p-0">{dayRows(agendaItems, agendaDay)}</ul>}</section>
   </div>;
-  const overlapRow = (event: CalendarEvent) => { const item = byId.get(event.id); if (!item) return null;
+  const overlapRow = (event: CalendarEvent) => { const copy = copyById.get(event.id); if (copy) return <><PlatformLogo platform={copy.platform} className="size-3.5 shrink-0" /><span className="min-w-0 flex-1 truncate"><span className="text-muted-foreground">{formatClock(copy.at, zone, locale)} </span>{copy.title}</span><span className="sr-only">{copyLabel(copy)}</span></>;
+    const article = articleById.get(event.id); if (article) return <><Newspaper className="size-3.5 shrink-0" aria-hidden="true" /><span className="min-w-0 flex-1 truncate"><span className="text-muted-foreground">{formatClock(article.at, zone, locale)} </span>{article.title}</span><span className="sr-only">{joinParts([t2("article"), blogStatus(article.status)], ", ")}</span></>;
+    const item = byId.get(event.id); if (!item) return null;
     return <>{logo(item)}<span className="min-w-0 flex-1 truncate"><span className="text-muted-foreground">{formatClock(item.at, zone, locale)} </span>{event.title}</span><span className="sr-only">{joinParts([item.platform ? platformLabels[item.platform] : "", status(item.status)], ", ")}</span></>; };
   const title = mode === "week" ? new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(weekStart) : new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(month);
   const prev = mode === "week" ? href({ mode: "week", week: format(addDays(weekStart, -7), "yyyy-MM-dd") }) : href({ mode: "month", month: format(addMonths(month, -1), "yyyy-MM") });
@@ -273,9 +329,9 @@ export function Planner({ tenantId, view }: { tenantId: string; view: "queue" | 
         {failed && <Alert variant="destructive" role="alert"><AlertDescription>{t("loadFailed")}</AlertDescription></Alert>}
         {mode === "month" ? <><MonthCalendar currentDate={month} events={events} selectedDay={selectedDay} onDaySelect={setSelectedDay} monthHref={(value) => href({ mode: "month", month: value })} namespace="SocialPublish.planner" weekStartsOn={1} renderChip={monthChip} onDropOnDay={dropOnDay} />
           <section aria-live="polite" aria-labelledby="planner-day" className="space-y-2"><h2 id="planner-day" className="text-sm font-medium text-muted-foreground">{selectedDay ? format(selectedDay, "EEEE, MMMM d") : t("selectDay")}</h2>
-            {selectedDay && (dayItems.length === 0 ? <p className="text-sm text-muted-foreground">{t("emptyDay")}</p> : <ul className="m-0 list-none space-y-2 p-0">{dayItems.map(row)}</ul>)}</section></>
+            {selectedDay && (dayItems.length + blogDay(selectedDay).length === 0 ? <p className="text-sm text-muted-foreground">{t("emptyDay")}</p> : <ul className="m-0 list-none space-y-2 p-0">{dayRows(dayItems, selectedDay)}</ul>)}</section></>
           : phone ? (items === null && !failed ? <Skeleton className="h-64 w-full" /> : agenda)
-          : <div className="overflow-hidden rounded-xl border bg-card"><div tabIndex={0} role="region" aria-label={t("calendarScroll")} className="max-h-[42rem] overflow-y-auto outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"><WeekView currentDate={weekStart} events={events} label={t("weekGrid")} overlap={{ moreText: (count) => t("overlapMore", { count }), moreLabel: (count) => t("overlapLabel", { count }), title: t("overlapTitle"), renderRow: overlapRow }} renderChip={weekChip} onEventSelect={(event) => { const item = byId.get(event.id); if (item) setDetail(item); }} onDropAt={dropAt} openAt={openAt} /></div></div>}
+          : <div className="overflow-hidden rounded-xl border bg-card"><div tabIndex={0} role="region" aria-label={t("calendarScroll")} className="max-h-[42rem] overflow-y-auto outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"><WeekView currentDate={weekStart} events={events} label={t("weekGrid")} overlap={{ moreText: (count) => t("overlapMore", { count }), moreLabel: (count) => t("overlapLabel", { count }), title: t("overlapTitle"), renderRow: overlapRow }} renderChip={weekChip} onEventSelect={(event) => { const copy = copyById.get(event.id); if (copy) { router.push(`/workspaces/${tenantId}/blog/${copy.postId}`); return; } const article = articleById.get(event.id); if (article) { router.push(`/workspaces/${tenantId}/blog/${article.id}`); return; } const item = byId.get(event.id); if (item) setDetail(item); }} onDropAt={dropAt} openAt={openAt} /></div></div>}
       </div>
       {wide && <aside aria-label={t("draftsTitle")} className="min-w-0 space-y-2 rounded-xl border bg-muted/30 p-3"><h2 className="text-sm font-semibold">{t("draftsTitle")}</h2>{drafts}</aside>}
     </div></div>;
