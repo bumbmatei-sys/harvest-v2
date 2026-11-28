@@ -186,8 +186,8 @@ it("validates photos, address, feeling and current unblocked mentions in the pos
     (await tx.execute(sql`select * from public.community_forum_read_details('forum-club', ${"{" + post.id + "}"}::uuid[])`)).rows)).toEqual([]);
   await f.admin.query("update community_memberships set status='left' where community_id=$1 and user_id='f-two'", [club]);
   try {
-    expect((await getPost(f.db, "f-one", "forum-club", post.id!)).post).toMatchObject({ authorId: null, authorName: "Former member", postDetails: { photos: [{ id: photo }] } });
-    expect((await listPosts(f.db, "f-one", "forum-club")).posts.find((item) => item.id === post.id)).toMatchObject({ authorId: null, authorName: "Former member" });
+    expect((await getPost(f.db, "f-one", "forum-club", post.id!)).post).toMatchObject({ authorId: null, authorName: null, postDetails: { photos: [{ id: photo }] } });
+    expect((await listPosts(f.db, "f-one", "forum-club")).posts.find((item) => item.id === post.id)).toMatchObject({ authorId: null, authorName: null });
   } finally {
     await f.admin.query("update community_memberships set status='active' where community_id=$1 and user_id='f-two'", [club]);
   }
