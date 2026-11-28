@@ -13,6 +13,7 @@ import { credentialBinding, openCredential, sealCredential } from "./social/cred
 import { SocialProviderError } from "./social/port";
 import { assertEnabled, defaultSocialDeps, type SocialDeps } from "./social/registry";
 import { withTenant } from "./tenancy";
+import { appOriginIfConfigured } from "../lib/site-address";
 
 const uuid = z.uuid();
 const mode = z.discriminatedUnion("mode", [
@@ -35,7 +36,7 @@ const problem = (reason: string) => new AccessError(400, message("Errors.checkTh
 const stale = (reason = "stale") => new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"), { reason });
 const match = (tenant: string, id: string) => and(eq(blogExternalDestinations.tenantId, tenant), eq(blogExternalDestinations.id, id));
 const canonical = (article: Article) => article.harvestPage ? "unsupported" as const : "not_requested" as const;
-const siteOrigin = () => process.env.BETTER_AUTH_URL;
+const siteOrigin = () => appOriginIfConfigured();
 async function withBlogAccess<T>(db: Database, user: string, workspace: string, permission: Permission,
   run: (tx: Transaction, tenant: string) => Promise<T>): Promise<T> {
   try { return await withTenant(db, user, uuid.parse(workspace), permission, run); }
