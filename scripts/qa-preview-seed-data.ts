@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
+import type { Pool } from "pg";
 import type { Database } from "../src/db/request";
 import { communities, contacts, users, workspaceMembers } from "../src/db/schema";
 import { qaAcceptedUserDomains, qaSyntheticEmail } from "../src/server/qa-preview-gate";
 import { createWorkspace, listWorkspaces, putMember } from "../src/server/workspaces";
-import { createContact, recordConsent } from "../src/server/contacts";
+import { createContact, getContact, recordConsent } from "../src/server/contacts";
 import { createCommunity, getCommunity, listCategories, listCommunities, publishCommunity, updateCommunity } from "../src/server/communities";
 import { enterCommunity } from "../src/server/community-joining";
 import { listPosts, saveComment, savePost } from "../src/server/community-forum";
@@ -23,6 +24,8 @@ import { withTenant } from "../src/server/tenancy";
 import type { SocialDeps } from "../src/server/social/registry";
 import { linkConnection, listConnections } from "../src/server/social/service";
 import { saveDraft } from "../src/server/social/drafts";
+import { preparePreviewPoints, seedChurchFeatures, type PreviewMedia } from "./qa-preview-features";
+import { seedPreviewNewsletterCampaigns } from "./qa-preview-newsletter";
 
 /**
  * QA-1 fake data for a preview or staging copy. Every write goes through the app's own service functions as the
@@ -77,7 +80,10 @@ export async function assertQaSeedDatabase(db: Database) {
   if (found?.n !== 0) throw new Error("QA_SEED_NON_SYNTHETIC_USERS");
 }
 
-export async function seedQaPreview(db: Database, options: { social?: SocialDeps } = {}): Promise<QaSeedSummary> {
+export async function seedQaPreview(db: Database, options: { social?: SocialDeps; media?: PreviewMedia; newsletterWorker?: Pool } = {}): Promise<QaSeedSummary> {
+  if ([process.env.NODE_ENV, process.env.HARVEST_ENV, process.env.VERCEL_ENV, process.env.VERCEL_TARGET_ENV].includes("production")) {
+    throw new Error("QA_SEED_ENV_REFUSED");
+  }
   await assertQaSeedDatabase(db);
   if (!qaPeople.every((person) => qaSyntheticEmail(person.email))) throw new Error("QA_SEED_IDENTITY_INVALID");
   // Accounts: the one direct write. Better Auth creates this row at first sign-in; nothing else about the account is set.
@@ -100,9 +106,13 @@ export async function seedQaPreview(db: Database, options: { social?: SocialDeps
       if (!members.some((row) => row.userId === staff[role].id && row.roleId === role)) await putMember(db, staff.owner.id, tenant, staff[role].email, role);
     }
     await seedContacts(db, staff.owner.id, tenant, ministry.key);
-    if ("community" in ministry) await seedCommunity(db, index, tenant, ministry.community);
     if ("campaign" in ministry) await seedCampaign(db, index, tenant, ministry.key, ministry.campaign);
-    await seedNewsletter(db, staff.owner.id, tenant, ministry.key);
+    const community = "community" in ministry ? await seedCommunity(db, index, tenant, ministry.community) : null;
+    const listId = await seedNewsletter(db, staff.owner.id, tenant, ministry.key);
+    if (ministry.key === "church" && community) {
+      await seedChurchFeatures(db, community, { media: options.media, socialCredential: options.social && QA_SOCIAL_CREDENTIAL });
+      await seedPreviewNewsletterCampaigns(db, staff.owner.id, tenant, listId, options.newsletterWorker);
+    }
   }
   const social = options.social ? await seedSocial(db, tenants[0], options.social) : null;
   return summarize(db, tenants, social);
@@ -113,10 +123,11 @@ async function seedContacts(db: Database, owner: string, tenant: string, key: st
     const name = `QA Contact ${key} ${String(n).padStart(2, "0")}`;
     const found = await withTenant(db, owner, tenant, "contacts:read", (tx, tenantId) =>
       tx.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.name, name))));
-    if (found.length) continue;
-    const contact = await createContact(db, owner, tenant, { name, email: `${qaUuid(`contact-${key}-${n}`)}@example.invalid`, notes: "Fake record for testing." });
-    // Four of six agree to the newsletter, so newsletter screens show both states.
-    if (n <= 4) {
+    const contact = found[0] ?? await createContact(db, owner, tenant,
+      { name, email: `${qaUuid(`contact-${key}-${n}`)}@example.invalid`, notes: "Fake record for testing." });
+    // The church needs a visible newsletter cohort. The two other ministries show a mix of consent states.
+    if ((key === "church" || n <= 4) &&
+        (!found.length || !(await getContact(db, owner, tenant, contact.id)).consents.some((event) => event.purpose === "newsletter"))) {
       await recordConsent(db, owner, tenant, contact.id, { noticeVersion: "notice-v1", purpose: "newsletter", channel: "email", status: "granted",
         source: "QA fake data", evidence: "Synthetic consent for testing only.", occurredAt: "2026-10-01T09:00:00Z" });
     }
@@ -140,6 +151,8 @@ async function seedCommunity(db: Database, index: number, tenant: string, spec: 
   const { rulesVersion } = await getCommunity(db, owner, tenant, community.id);
   for (const person of joiners) await enterCommunity(db, person.id, spec.slug, { rulesVersion, adult: true });
 
+  const church = { owner, tenant, community: community.id, slug: spec.slug, admin: staff.admin.id, member: staff.member.id, viewer: staff.viewer.id };
+  if (index === 0) await preparePreviewPoints(db, church);
   const category = (await listCategories(db, owner, tenant, community.id))[0].id;
   const titles = (await listPosts(db, owner, spec.slug)).posts.map((post) => post.title);
   const authors = [owner, ...joiners.map((person) => person.id)];
@@ -164,6 +177,7 @@ async function seedCommunity(db: Database, index: number, tenant: string, spec: 
     ok(await sendChatMessage(db, author, spec.slug, general, { client_id: qaUuid(`chat-${spec.slug}-${n}`), body: `Fake chat message ${n}.` }) as { outcome?: unknown }, "chat");
   }
   ok(await dmStart(db, joiners[0].id, spec.slug, { targetUserId: joiners[1].id, body: "Fake private message for testing.", client_id: qaUuid(`dm-${spec.slug}`) }) as { outcome?: unknown }, "dm");
+  return church;
 }
 
 async function seedCampaign(db: Database, index: number, tenant: string, key: string,
@@ -224,7 +238,7 @@ async function seedNewsletter(db: Database, owner: string, tenant: string, key: 
   const audience = audiences.find((row) => row.name === "QA Preview supporters") ?? await createNewsletterAudience(db, owner, tenant, { name: "QA Preview supporters" });
   const lists = (await pageNewsletterConfiguration(db, owner, tenant, "lists")).items;
   const list = lists.find((row) => row.name === "QA Preview monthly update") ?? await createNewsletterList(db, owner, tenant, audience.id, { name: "QA Preview monthly update" });
-  for (let n = 1; n <= 4; n++) {
+  for (let n = 1; n <= (key === "church" ? 6 : 4); n++) {
     const name = `QA Contact ${key} ${String(n).padStart(2, "0")}`;
     const [contact] = await withTenant(db, owner, tenant, "contacts:read", (tx, tenantId) =>
       tx.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.name, name))));
@@ -232,6 +246,7 @@ async function seedNewsletter(db: Database, owner: string, tenant: string, key: 
     // A rerun finds the subscription already at version 1: the stale-version refusal means it is already there.
     await tolerate([409], () => setNewsletterSubscription(db, owner, tenant, list.id, subscriber.id, { state: "subscribed", version: 0 }));
   }
+  return list.id;
 }
 
 async function seedSocial(db: Database, tenant: string, deps: SocialDeps) {

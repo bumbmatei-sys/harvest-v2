@@ -176,6 +176,21 @@ it("deduplicates lists, refuses changed membership and binds the reviewed schedu
   expect((await rows(campaign.id)).every(row => row.state === "skipped")).toBe(true);
 });
 
+it("limits a scoped synthetic worker run to the selected campaign", async () => {
+  const list = await makeList();
+  await subscribe([list]);
+  const selected = await queue(list);
+  const other = await queue(list);
+  const provider = new FakeNewsletterProvider();
+
+  expect(await runNewsletterWorker(fixture.workerPool, env, provider, { campaignId: selected })).toMatchObject({ claimed: 1, errors: 0 });
+  expect(await status(selected)).toBe("sent");
+  expect(await status(other)).toBe("scheduled");
+
+  expect(await worker(provider)).toMatchObject({ claimed: 1, errors: 0 });
+  expect(await status(other)).toBe("sent");
+});
+
 it.each(["withdraw", "erase", "disable", "merge"] as const)("lets %s win after claim and before authorization", async action => {
   const list = await makeList(), person = await subscribe([list]);
   const campaign = await queue(list);

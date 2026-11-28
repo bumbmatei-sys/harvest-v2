@@ -10,22 +10,39 @@ import { qaSeedTarget } from "../../src/server/qa-preview-gate";
 import { createTestKeyProvider, useKeyProvider } from "../../src/server/connect-key-provider";
 import { FakeProvider } from "../../src/server/social/fake-provider";
 import { socialPlatforms } from "../../src/lib/social/platforms";
+import { publicLanding } from "../../src/server/catalog-landing";
+import { listPosts } from "../../src/server/community-forum";
+import { readCommunityPoints } from "../../src/server/community-points";
+import { getPublicBio } from "../../src/server/link-in-bio";
+import { listExternalBlogs } from "../../src/server/external-blog";
+import { publicMinistryProfile } from "../../src/server/ministry-profile";
+import { paymentAccount } from "../../src/server/ministry-payments/service";
+import { getCampaign, listCampaigns } from "../../src/server/newsletter-campaigns/campaigns";
+import { newsletterStatistics } from "../../src/server/newsletter-campaigns/statistics";
+import { estimateRecipients } from "../../src/server/newsletter-campaigns/recipients";
+import { getVolunteerRoster } from "../../src/server/volunteer-roster";
+import { listGivingMethods } from "../../src/server/ways-to-give";
+import { storageMock } from "../storage-mock";
+import { previewMedia } from "../../scripts/qa-preview-media";
 import { listContacts } from "../../src/server/contacts";
 import { withTenant } from "../../src/server/tenancy";
 import { QA_SOCIAL_CREDENTIAL, qaPeople, seedQaPreview } from "../../scripts/qa-preview-seed-data";
 
 let f: Awaited<ReturnType<typeof testDatabase>>;
+let storage: Awaited<ReturnType<typeof storageMock>>;
 const fake = new FakeProvider({ validSecret: QA_SOCIAL_CREDENTIAL, accounts: socialPlatforms.map((platform) => ({ platform, accountRef: `test-${platform}`, displayName: `Test ${platform}` })) });
 const social = { enabled: true, provider: () => fake, now: () => new Date() };
 const count = async (table: string) => (await f.admin.query(`select count(*)::int as n from ${table}`)).rows[0].n as number;
 
 beforeAll(async () => {
   vi.stubEnv("HARVEST_COMMUNITIES", "enabled");
+  vi.stubEnv("HARVEST_NEWSLETTER_SUPPRESSION_KEYS", JSON.stringify(["45".repeat(32)]));
   vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("unexpected_network"));
   useKeyProvider(createTestKeyProvider({ keys: () => ({ "test-1": "45".repeat(32) }), current: "test-1" }));
   f = await testDatabase({ migrationOwner: true });
+  storage = await storageMock();
 }, 120_000);
-afterAll(async () => { useKeyProvider(null); vi.restoreAllMocks(); vi.unstubAllEnvs(); await f?.close(); });
+afterAll(async () => { useKeyProvider(null); vi.restoreAllMocks(); vi.unstubAllEnvs(); await storage?.close(); await f?.close(); });
 
 it("accepts the embedded test database only as a test target", () => {
   expect(qaSeedTarget({ HARVEST_ENV: "test", DATABASE_URL: f.appURL }).stage).toBe("test");
@@ -34,13 +51,14 @@ it("accepts the embedded test database only as a test target", () => {
 });
 
 it("seeds every area through the services, twice with the same result, with audits and no network", async () => {
-  const first = await seedQaPreview(f.db, { social });
+  const options = { social, media: previewMedia(storage.config), newsletterWorker: f.workerPool };
+  const first = await seedQaPreview(f.db, options);
   expect(first).toEqual({
-    ministries: 3, people: 12, contacts: 18, communities: 2, members: 10, posts: 8, comments: 16, chatMessages: 12, campaigns: 2, tasks: 8, milestones: 2,
-    events: 2, fundraisers: 2, pledges: 6, gifts: 4, newsletterLists: 3, subscribers: 12, socialConnections: 1, socialDrafts: 2, social: "seeded",
+    ministries: 3, people: 12, contacts: 18, communities: 2, members: 10, posts: 9, comments: 16, chatMessages: 12, campaigns: 2, tasks: 8, milestones: 2,
+    events: 2, fundraisers: 2, pledges: 6, gifts: 4, newsletterLists: 3, subscribers: 14, socialConnections: 2, socialDrafts: 2, social: "seeded",
   });
   const audits = await count("audit_logs");
-  expect(await seedQaPreview(f.db, { social })).toEqual(first);
+  expect(await seedQaPreview(f.db, options)).toEqual(first);
   // A rerun writes nothing new, not even an audit row.
   expect(await count("audit_logs")).toBe(audits);
   expect(await count("users")).toBe(12);
@@ -51,6 +69,43 @@ it("seeds every area through the services, twice with the same result, with audi
   // Real flows leave their audit trail: ministries, members, contacts, consent, posts, campaigns, gifts.
   const actions = (await f.admin.query("select distinct action from audit_logs")).rows.map((row) => row.action as string);
   expect(actions).toEqual(expect.arrayContaining(["workspace.create", "member.add", "campaign.draft.create", "campaign.task.create"]));
+  const owner = qaPeople[0].id, member = qaPeople[2].id;
+  const [{ tenant, community }] = (await f.admin.query(
+    "select tenant_id as tenant, id as community from communities where slug = 'qa-preview-church-circle'",
+  )).rows;
+  const points = await readCommunityPoints(f.db, member, tenant, community, "all");
+  expect(points.settings.thresholds).toEqual([5, 15, 40]);
+  expect(points.leaderboard).toContainEqual(expect.objectContaining({ userId: member, level: expect.any(Number), points: expect.any(Number) }));
+  expect(points.leaderboard.find((row) => row.userId === member)?.points).toBeGreaterThan(0);
+  expect(points.challenges).toEqual([expect.objectContaining({ title: "QA Preview: share a weekly reflection", joinedAt: expect.any(String) })]);
+  const roster = await getVolunteerRoster(f.db, owner, tenant, { from: "2026-01-01", to: "2099-12-31" });
+  expect(roster.roles).toHaveLength(2);
+  expect(roster.slots).toHaveLength(2);
+  expect(roster.requests).toHaveLength(1);
+  expect((await publicMinistryProfile(f.db, tenant)).locations).toHaveLength(2);
+  expect((await paymentAccount(f.db, owner, tenant)).account).toMatchObject({ status: "disconnected", chargesEnabled: false, payoutsEnabled: false });
+  expect(await publicLanding(f.db, "qa-preview-prayer-practice")).toMatchObject({ price: { cents: 1900, oldCents: 2900 }, rating: { count: 2 } });
+  const forum = await listPosts(f.db, member, "qa-preview-church-circle");
+  expect(forum.posts.find((post) => post.title === "Highlights from the neighborhood welcome day")?.postDetails).toMatchObject({
+    feeling: "grateful", location: "Riverside Hall, Sampleton",
+    photos: [expect.objectContaining({ name: "north-chapel.png" }), expect.objectContaining({ name: "riverside-hall.png" })],
+    linkedItems: [expect.objectContaining({ available: true, kind: "course" })],
+  });
+  expect((await listGivingMethods(f.db, owner, tenant)).map((method) => [method.kind, method.enabled])).toEqual([["paypal", false], ["bank_transfer", false]]);
+  expect((await listExternalBlogs(f.db, owner, tenant, social)).destinations).toContainEqual(expect.objectContaining({ title: "Community announcements" }));
+  const bio = await getPublicBio(f.db, "qa-preview-church");
+  expect(bio?.tabs.map((tab) => [tab.label, tab.blocks[0]?.type])).toEqual([["Welcome", "countdown"], ["Gallery", "gallery"]]);
+  expect(await count("bio_files")).toBe(3);
+  expect(await count("community_files")).toBe(2);
+  const campaigns = (await listCampaigns(f.db, owner, tenant, {})).items;
+  expect(campaigns.map((item) => item.name).sort()).toEqual(["QA Preview July newsletter", "QA Preview volunteer update"]);
+  for (const campaign of campaigns) {
+    const draft = await getCampaign(f.db, owner, tenant, campaign.id);
+    expect(await estimateRecipients(f.db, owner, tenant, draft.selection)).toMatchObject({ eligible: 6 });
+    if (campaign.name.includes("July")) {
+      expect(await newsletterStatistics(f.db, owner, tenant, { campaignId: campaign.id })).toMatchObject({ totals: { sends: 6 } });
+    }
+  }
   expect(fetch).not.toHaveBeenCalled();
   // Without social deps the social step is skipped and reported so.
   expect((await seedQaPreview(f.db)).social).toBe("skipped");
@@ -83,7 +138,7 @@ it("runs as the npm command against the test database and prints only counts", a
   const run = (env: Record<string, string>) => promisify(execFile)("npx", ["tsx", "--import", "./scripts/server-only-node.mjs", "scripts/qa-preview-seed.ts"], {
     env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", ...env } as unknown as NodeJS.ProcessEnv, timeout: 120_000 });
   const { stdout } = await run({ HARVEST_ENV: "test", DATABASE_URL: f.appURL, HARVEST_CONNECT_TEST_KEY: "45".repeat(32) });
-  expect(JSON.parse(stdout)).toMatchObject({ ministries: 3, people: 12, contacts: 18, posts: 8, chatMessages: 12, campaigns: 2, social: "seeded", socialDrafts: 2 });
+  expect(JSON.parse(stdout)).toMatchObject({ ministries: 3, people: 12, contacts: 18, posts: 9, chatMessages: 12, campaigns: 2, social: "seeded", socialDrafts: 2 });
   expect(stdout).not.toContain("example.invalid");
   await expect(run({ HARVEST_ENV: "production", DATABASE_URL: f.appURL })).rejects.toMatchObject({ stderr: "QA_SEED_ENV_REFUSED\n" });
 }, 180_000);
