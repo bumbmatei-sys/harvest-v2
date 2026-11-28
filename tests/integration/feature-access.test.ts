@@ -198,3 +198,20 @@ it("a collaborator of another account reads nothing here", async () => {
   await rejects(withTenant(f.db, "fa-other", tenant, "workspace:read", async () => 1), 403);
   expect(other).toBeTruthy();
 });
+
+it("clears the private grant scope after each refused definer call", async () => {
+  const result = await withTenant(f.db, "fa-viewer", tenant, "workspace:read", async (tx) => {
+    const queries = [
+      sql`select public.workspace_access_change('fa-owner','admin','{}'::jsonb,false)`,
+      sql`select public.workspace_invitation_create('fake@example.invalid','admin','{}'::jsonb,repeat('f',64),false)`,
+      sql`select public.workspace_invitation_revoke(gen_random_uuid())`,
+    ];
+    for (const query of queries) {
+      await tx.execute(query);
+      const { rows } = await tx.execute<{ scope: string }>(sql`select current_setting('app.access_tenant', true) as scope`);
+      expect(rows[0].scope).toBe("");
+    }
+    return "checked";
+  });
+  expect(result).toBe("checked");
+});

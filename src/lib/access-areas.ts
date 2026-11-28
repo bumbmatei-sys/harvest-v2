@@ -95,10 +95,10 @@ export function effectiveRoleFor(grants: AccessGrants, permission: Permission): 
   return level === "manage" ? "admin" : level === "view" ? "viewer" : "guest";
 }
 
-/** Navigation only: whether an entry without a capability (a plain link) belongs to someone. Legacy roles see everything they saw before; guests nothing. */
-export function canSeeArea(role: string, area: AccessArea): boolean {
-  const token = parseRoleToken(role);
-  if (token.role === "guest" || token.role === "campaign_guest") return false;
-  if (token.role === "collaborator") return Boolean(token.grants[area]);
-  return true;
+/** Only scoped roles need an explicit grant. Legacy capabilities are checked separately. */
+export function hasFeatureGrant(access: string, feature: AccessArea, level: AccessLevel): boolean {
+  const { role, grants } = parseRoleToken(access);
+  if (role === "viewer") return level === "view";
+  if (role !== "collaborator") return role === "owner" || role === "admin" || role === "member";
+  return grants[feature] === "manage" || (level === "view" && grants[feature] === "view");
 }

@@ -1,3 +1,4 @@
+import { appOrigin } from "../src/lib/site-address";
 import type { PoolClient } from "pg";
 import { createPool } from "../src/db/pool";
 import { requireWorkerRole, workerDatabaseUrl } from "../src/server/worker-role";
@@ -10,7 +11,7 @@ import { testMailboxSender } from "../src/server/community-email-sender";
 let pool: ReturnType<typeof createPool> | undefined;
 let client: PoolClient | undefined;
 try {
-  const path = process.env.HARVEST_COMMUNITY_TEST_MAILBOX, origin = new URL(process.env.BETTER_AUTH_URL ?? "");
+  const path = process.env.HARVEST_COMMUNITY_TEST_MAILBOX, origin = new URL(appOrigin());
   if (process.env.HARVEST_COMMUNITY_EMAIL !== "test" || !path || !["localhost", "127.0.0.1"].includes(origin.hostname)) throw new Error("TEST_MODE_REQUIRED");
   const secret = process.env.BETTER_AUTH_SECRET;
   if (!secret) throw new Error("SECRET_REQUIRED");

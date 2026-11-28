@@ -1,3 +1,4 @@
+import { appOrigin } from "@/lib/site-address";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb } from "@/db/client";
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
       : await saveOnboarding(getDb(), userId, { name: input.name, locale: input.locale, cityRegion: input.cityRegion });
     const response = NextResponse.json(profile, { headers: { "Cache-Control": "private, no-store" } });
     if (input.action === "save") {
-      if (profile.locale) response.cookies.set("locale", profile.locale, { path: "/", sameSite: "lax", secure: new URL(request.url).protocol === "https:", maxAge: 60 * 60 * 24 * 365 });
+      if (profile.locale) response.cookies.set("locale", profile.locale, { path: "/", sameSite: "lax", secure: appOrigin().startsWith("https:"), maxAge: 60 * 60 * 24 * 365 });
       else response.cookies.delete("locale");
     }
     return response;

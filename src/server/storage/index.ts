@@ -13,3 +13,9 @@ export function getFileStorage(subject: string | null) {
   const scope = workerSettings.getStore();
   return scope ? new R2FileStorage(scope.bucket, scope.origin, scope.grantSecret, subject) : getStorage();
 }
+
+/** Streams a private object after the caller authorizes the exact key. */
+export async function openPrivateFile(key: string) {
+  const scope = workerSettings.getStore();
+  return scope ? (await scope.bucket.get(key))?.body ?? null : getStorage().open(key);
+}

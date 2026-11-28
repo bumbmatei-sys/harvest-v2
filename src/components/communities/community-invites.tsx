@@ -24,10 +24,10 @@ export function CommunityInvites({ endpoint, initial }: { endpoint: string; init
   async function refresh() { const result = await request<CommunityInvite[]>(`${endpoint}/invites`, { method: "GET" }); if (result.ok) setInvites(result.data); }
   async function create(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError("");
-    const result = await request<{ path: string; expiresAt: string }>(`${endpoint}/invites`, { method: "POST", body: { email: email.trim() } });
+    const result = await request<{ url: string; expiresAt: string }>(`${endpoint}/invites`, { method: "POST", body: { email: email.trim() } });
     setBusy(false);
     if (!result.ok) { setError(result.error); return; }
-    setCreated({ url: `${location.origin}${result.data.path}`, expiresAt: result.data.expiresAt }); setCopied(false); await refresh();
+    setCreated({ url: result.data.url, expiresAt: result.data.expiresAt }); setCopied(false); await refresh();
   }
   async function revoke(id: string) {
     setError("");
