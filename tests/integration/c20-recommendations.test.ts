@@ -263,3 +263,17 @@ it("forces row security on the new table and gives the worker role nothing", asy
   }
   expect((await q("select has_table_privilege('harvest_worker','connect_community_join_counts','SELECT') ok")).rows[0].ok).toBe(false);
 });
+
+it("leaves out a course whose owner withdrew the opt-in or whose catalogue item is no longer public (same rule as search, 0144)", async () => {
+  expect(await names(null, "course")).toContain("Prayer basics");
+  await q("update discover_controls set owner_opt_in = false where resource_type = 'course' and resource_id = $1", [prayerCourse]);
+  try { expect(await names(null, "course")).not.toContain("Prayer basics"); }
+  finally { await q("update discover_controls set owner_opt_in = true where resource_type = 'course' and resource_id = $1", [prayerCourse]); }
+  for (const change of ["visibility = 'community'", "visibility = 'hidden'", "state = 'draft'"]) {
+    const before = (await q("select state, visibility from catalog_items where id = $1", [prayerCourse])).rows[0];
+    await q(`update catalog_items set ${change} where id = $1`, [prayerCourse]);
+    try { expect(await names(null, "course")).not.toContain("Prayer basics"); }
+    finally { await q("update catalog_items set state = $2, visibility = $3 where id = $1", [prayerCourse, before.state, before.visibility]); }
+  }
+  expect(await names(null, "course")).toContain("Prayer basics");
+});
