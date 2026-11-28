@@ -189,5 +189,5 @@ export function isEeaUkChPhone(phone: string | null | undefined) {
 export const adConsentQuestions = ["consent_newsletter", "consent_follow_up"] as const;
 export const conversionEventNames = ["Lead", "Contact", "CompleteRegistration", "QualifiedLead"] as const;
 export const audienceUploadInput = z.object({ adAccountId: uuidKey, audienceId: uuidKey, idempotencyKey: uuidKey, confirm: z.literal(true) }).strict();
-export const customerAudienceInput = z.object({ adAccountId: uuidKey, name: text(200), idempotencyKey: uuidKey }).strict();
+export const customerAudienceInput = z.object({ adAccountId: uuidKey, savedViewId: uuidKey, name: text(200), idempotencyKey: uuidKey }).strict();
 export const conversionSendInput = z.object({ adAccountId: uuidKey, destinationId: uuidKey, eventName: z.enum(conversionEventNames), leadIds: z.array(uuidKey).min(1).max(200), idempotencyKey: uuidKey, confirm: z.literal(true) }).strict();

@@ -139,7 +139,9 @@ export async function syncAdAccount(db: Database, user: string, workspace: strin
     }
     await applyTree(tx, tenant, id, campaigns);
     for (const a of audiences.slice(0, 500)) await tx.insert(adsAudiences).values({ tenantId: tenant, adAccountId: id, externalRef: a.ref, kind: a.kind, name: a.name.slice(0, 200) || a.ref, sizeEstimate: a.sizeEstimate, spec: a.spec && JSON.stringify(a.spec).length <= 16_000 ? a.spec : null, syncedAt: sql`now()` })
-      .onConflictDoUpdate({ target: [adsAudiences.tenantId, adsAudiences.adAccountId, adsAudiences.externalRef], set: { kind: a.kind, name: a.name.slice(0, 200) || a.ref, sizeEstimate: a.sizeEstimate, syncedAt: sql`now()` } });
+      .onConflictDoUpdate({ target: [adsAudiences.tenantId, adsAudiences.adAccountId, adsAudiences.externalRef], set: { kind: a.kind, name: a.name.slice(0, 200) || a.ref, sizeEstimate: a.sizeEstimate, syncedAt: sql`now()` },
+        // A collaborator with Social access syncs the account but leaves CRM-based audiences to owners and admins.
+        setWhere: sql`not ${adsAudiences.crmManaged} or public.ads_crm_audience_staff(${adsAudiences.tenantId})` });
     for (const f of forms.slice(0, 200)) await tx.insert(adsLeadForms).values({ tenantId: tenant, adAccountId: id, externalRef: f.ref, name: f.name.slice(0, 120) || f.ref, status: f.status, consentText: f.consentText.slice(0, 1000) || "-", privacyUrl: "", questions: f.questions.slice(0, 15) })
       .onConflictDoUpdate({ target: [adsLeadForms.tenantId, adsLeadForms.adAccountId, adsLeadForms.externalRef], set: { name: f.name.slice(0, 120) || f.ref, status: f.status, questions: f.questions.slice(0, 15) } });
     for (const d of destinations.slice(0, 100)) await tx.insert(adsConversionDestinations).values({ tenantId: tenant, adAccountId: id, externalRef: d.ref, kind: d.kind, name: d.name.slice(0, 200) || d.ref, lastEventAt: d.lastEventAt, status: d.status })

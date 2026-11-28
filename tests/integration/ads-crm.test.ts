@@ -1,3 +1,5 @@
+import { fullState } from "../../src/lib/crm-fields";
+import { createView } from "../../src/server/crm-views";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
@@ -5,6 +7,8 @@ import { sql } from "drizzle-orm";
 import { useKeyProvider } from "../../src/server/connect-key-provider";
 import { linkConnection } from "../../src/server/social/service";
 import { withTenant } from "../../src/server/tenancy";
+import { changeMemberAccess } from "../../src/server/access";
+import { users } from "../../src/db/schema";
 import { createContact, eraseContact, getContact, recordConsent } from "../../src/server/contacts";
 import { mergeContacts } from "../../src/server/crm-merge";
 import { FakeAdsProvider } from "../../src/server/ads/fake-provider";
@@ -125,37 +129,98 @@ it("includes only people with a valid marketing consent in an audience, hashed, 
   expect(none).toBeTruthy();
 });
 
-it("keeps the audience upload hard-off, then uploads hashes idempotently with an audit and counts only", async () => {
-  await expect(previewAudienceUpload(f.db, p.owner, p.tenant, off)).rejects.toMatchObject({ status: 404 });
-  await expect(uploadCrmAudience(f.db, p.owner, p.tenant, { adAccountId: acct, audienceId: randomUUID(), idempotencyKey: randomUUID(), confirm: true }, off)).rejects.toMatchObject({ status: 404 });
-  expect(ads.calls.filter(c => c.method === "uploadAudienceMembers")).toHaveLength(0);
-  await expect(previewAudienceUpload(f.db, p.member, p.tenant, on)).rejects.toMatchObject({ status: 404 });
-  expect(await previewAudienceUpload(f.db, p.owner, p.tenant, on)).toMatchObject({ eligible: 2 });
-  const { audienceId } = await createCustomerAudience(f.db, p.owner, p.tenant, { adAccountId: acct, name: "Supporters", idempotencyKey: randomUUID() }, on);
-  const key = randomUUID();
-  await expect(uploadCrmAudience(f.db, p.owner, p.tenant, { adAccountId: acct, audienceId, idempotencyKey: key }, on)).rejects.toMatchObject({ status: 422 });
-  // The fake refuses sends unless a test allows them, like the vendor adapter.
-  const refused = await uploadCrmAudience(f.db, p.owner, p.tenant, { adAccountId: acct, audienceId, idempotencyKey: key, confirm: true }, on);
-  expect(refused.upload).toMatchObject({ status: "failed" });
+it("syncs a shared saved view with hashes only, then clears it after a cross-channel withdrawal drops it below the minimum", async () => {
+  ads.audienceMinimum = 2;
+  const match = await createView(f.db, p.owner, p.tenant, { objectType: "person", name: "Supporters", shared: true,
+    state: fullState({ filters: [{ field: "email", op: "is_not_empty", value: null }, { field: "phone", op: "is_not_empty", value: null }] }) });
+  const view = { adAccountId: acct, savedViewId: match.id };
+  const first = await person("Supporter A", "supporter-a@example.invalid", "+12025550191");
+  const second = await person("Supporter B", "supporter-b@example.invalid", "+12025550192");
+  const outside = await person("Outside view", "outside-view@example.invalid");
+  for (const id of [first, second, outside]) await marketing(id, "granted");
+  await expect(previewAudienceUpload(f.db, p.owner, p.tenant, view, off)).rejects.toMatchObject({ status: 404 });
+  await expect(previewAudienceUpload(f.db, p.member, p.tenant, view, on)).rejects.toMatchObject({ status: 404 });
+  const privateView = await createView(f.db, p.owner, p.tenant, { objectType: "person", name: "Private", shared: false, state: fullState({}) });
+  await expect(previewAudienceUpload(f.db, p.owner, p.tenant, { ...view, savedViewId: privateView.id }, on))
+    .rejects.toMatchObject({ details: { code: "AUDIENCE_UNAVAILABLE" } });
+  const sensitive = await createView(f.db, p.owner, p.tenant, { objectType: "person", name: "Free text", shared: true, state: fullState({ q: "private" }) });
+  await expect(previewAudienceUpload(f.db, p.owner, p.tenant, { ...view, savedViewId: sensitive.id }, on))
+    .rejects.toMatchObject({ details: { code: "AUDIENCE_UNAVAILABLE" } });
+  expect(await previewAudienceUpload(f.db, p.owner, p.tenant, view, on)).toMatchObject({ eligible: 2 });
+  const { audienceId } = await createCustomerAudience(f.db, p.owner, p.tenant, { ...view, name: "Supporters", idempotencyKey: randomUUID() }, on);
+  const upload = (idempotencyKey: string) => uploadCrmAudience(f.db, p.owner, p.tenant,
+    { adAccountId: acct, audienceId, idempotencyKey, confirm: true }, on);
   ads.allowSends = true;
-  const key2 = randomUUID();
-  const sent = await uploadCrmAudience(f.db, p.owner, p.tenant, { adAccountId: acct, audienceId, idempotencyKey: key2, confirm: true }, on);
-  expect(sent).toMatchObject({ replayed: false, upload: { status: "sent", eligible: 2, sent: 2 } });
-  const audienceRef = (await q("select external_ref from ads_audiences where id=$1", [audienceId])).rows[0].external_ref;
-  expect(ads.audienceMembers.get(audienceRef)).toHaveLength(2);
-  expect((await uploadCrmAudience(f.db, p.owner, p.tenant, { adAccountId: acct, audienceId, idempotencyKey: key2, confirm: true }, on))).toMatchObject({ replayed: true, upload: { status: "sent", sent: 2 } });
-  expect(ads.audienceMembers.get(audienceRef)).toHaveLength(2);
-  await expect(uploadCrmAudience(f.db, p.owner, p.tenant, { adAccountId: acct, audienceId: randomUUID(), idempotencyKey: key2, confirm: true }, on)).rejects.toMatchObject({ status: 409 });
-  // A person who withdraws before the next upload is excluded at dispatch time.
-  const contact = (await q("select c.id from contacts c join contact_identifiers i on i.contact_id=c.id where i.normalized_value='yes@example.test'")).rows[0].id;
-  await marketing(contact, "withdrawn");
-  expect(await previewAudienceUpload(f.db, p.owner, p.tenant, on)).toMatchObject({ eligible: 1 });
-  const table = (await q("select * from ads_audience_uploads where status='sent'")).rows[0];
-  expect(JSON.stringify(table)).not.toMatch(/example\.test|[0-9a-f]{64}/);
-  const audits = (await q("select action, metadata from audit_logs where tenant_id=$1 and action like 'ads.audience_%'", [p.tenant])).rows;
-  expect(audits.map(a => a.action)).toEqual(expect.arrayContaining(["ads.audience_create", "ads.audience_upload_requested", "ads.audience_upload_outcome"]));
-  expect(JSON.stringify(audits)).not.toMatch(/example\.test|[0-9a-f]{64}/);
-  ads.allowSends = false;
+  try {
+    const key = randomUUID();
+    expect(await upload(key)).toMatchObject({ replayed: false, upload: { status: "sent", eligible: 2, sent: 2 } });
+    const audienceRef = (await q("select external_ref from ads_audiences where id=$1", [audienceId])).rows[0].external_ref;
+    expect(ads.audienceMembers.get(audienceRef)).toEqual(expect.arrayContaining([
+      hashedIdentity("supporter-a@example.invalid", null), hashedIdentity("supporter-b@example.invalid", null)]));
+    expect(await upload(key)).toMatchObject({ replayed: true });
+    await marketing(first, "withdrawn", "sms");
+    const replacement = await person("Supporter C", "supporter-c@example.invalid", "+12025550193");
+    await marketing(replacement, "granted");
+    expect(await upload(randomUUID())).toMatchObject({ upload: { status: "sent", eligible: 2, sent: 2 } });
+    expect(ads.audienceMembers.get(audienceRef)).toEqual(expect.arrayContaining([
+      hashedIdentity("supporter-b@example.invalid", null), hashedIdentity("supporter-c@example.invalid", null)]));
+    expect(ads.audienceMembers.get(audienceRef)).not.toContainEqual(hashedIdentity("supporter-a@example.invalid", null));
+    await eraseContact(f.db, p.owner, p.tenant, second);
+    await expect(upload(randomUUID())).rejects.toMatchObject({ status: 422, details: { code: "AUDIENCE_UNAVAILABLE" } });
+    expect(ads.audienceMembers.get(audienceRef)).toEqual([]);
+    await expect(previewAudienceUpload(f.db, p.owner, p.tenant, view, on)).rejects.toMatchObject({ details: { code: "AUDIENCE_UNAVAILABLE" } });
+    const audits = (await q("select metadata from audit_logs where tenant_id=$1 and action like 'ads.audience_%'", [p.tenant])).rows;
+    expect(audits.length).toBeGreaterThan(2);
+    expect(audits.every(audit => Object.values(audit.metadata).every(value => /^\d+$/.test(String(value))))).toBe(true);
+  } finally {
+    ads.allowSends = false;
+  }
+});
+
+it("lets only owners and admins build or sync a CRM audience; a collaborator with Social access gets the neutral 404 in the server and the database", async () => {
+  // Founder decision 28 Nov 2026.
+  ads.audienceMinimum = 1;
+  const collaborator = "ac-collaborator";
+  await f.db.insert(users).values({ id: collaborator, name: collaborator, email: `${collaborator}@example.test`, emailVerified: true });
+  await q("insert into workspace_members (tenant_id,user_id,role_id) values ($1,$2,'viewer')", [p.tenant, collaborator]);
+  const shared = await createView(f.db, p.owner, p.tenant, { objectType: "person", name: "Staff only", shared: true,
+    state: fullState({ filters: [{ field: "email", op: "is_not_empty", value: null }] }) });
+  const view = { adAccountId: acct, savedViewId: shared.id };
+  await marketing(await person("Staff audience A", "staff-a@example.invalid"), "granted");
+  const build = (user: string) => createCustomerAudience(f.db, user, p.tenant, { ...view, name: `Audience ${user}`, idempotencyKey: randomUUID() }, on);
+  const sync = (user: string, audienceId: string) => uploadCrmAudience(f.db, user, p.tenant, { adAccountId: acct, audienceId, idempotencyKey: randomUUID(), confirm: true }, on);
+  ads.allowSends = true;
+  try {
+    const audiences: Record<string, string> = {};
+    for (const staff of [p.owner, p.admin]) {
+      expect((await previewAudienceUpload(f.db, staff, p.tenant, view, on)).eligible).toBeGreaterThan(0);
+      audiences[staff] = (await build(staff)).audienceId;
+      expect(await sync(staff, audiences[staff])).toMatchObject({ upload: { status: "sent" } });
+    }
+    const asCollaborator = (statement: ReturnType<typeof sql>) => withTenant(f.db, collaborator, p.tenant, "ads:manage", tx => tx.execute(statement));
+    for (const grants of [{ social: "manage" }, { social: "manage", crm: "view" }] as const) {
+      await changeMemberAccess(f.db, p.owner, p.tenant, { userId: collaborator, role: "collaborator", grants });
+      const uploadsBefore = (await q("select count(*)::int n from ads_audience_uploads where tenant_id=$1", [p.tenant])).rows[0].n;
+      await expect(previewAudienceUpload(f.db, collaborator, p.tenant, view, on)).rejects.toMatchObject({ status: 404 });
+      await expect(build(collaborator)).rejects.toMatchObject({ status: 404 });
+      await expect(sync(collaborator, audiences[p.owner])).rejects.toMatchObject({ status: 404 });
+      expect((await q("select count(*)::int n from ads_audience_uploads where tenant_id=$1", [p.tenant])).rows[0].n).toBe(uploadsBefore);
+      // The database refuses the same writes for the stored collaborator role.
+      await expect(asCollaborator(sql`insert into ads_audiences (tenant_id, ad_account_id, external_ref, kind, name, crm_managed, crm_saved_view_id, size_estimate)
+        values (${p.tenant}::uuid, ${acct}::uuid, ${`rls-${randomUUID()}`}, 'customer_list', 'Direct', true, ${shared.id}::uuid, 0)`)).rejects.toMatchObject({ cause: { code: "42501" } });
+      expect((await asCollaborator(sql`update ads_audiences set name = 'Renamed' where id = ${audiences[p.owner]}::uuid returning id`)).rows).toEqual([]);
+      expect((await asCollaborator(sql`update ads_audiences set crm_managed = false, crm_saved_view_id = null where id = ${audiences[p.owner]}::uuid returning id`)).rows).toEqual([]);
+      await expect(asCollaborator(sql`insert into ads_audience_uploads (tenant_id, ad_account_id, audience_id, idempotency_key, requested_by, eligible, excluded, status)
+        values (${p.tenant}::uuid, ${acct}::uuid, ${audiences[p.owner]}::uuid, ${randomUUID()}::uuid, ${collaborator}, 0, '{}'::jsonb, 'pending')`)).rejects.toMatchObject({ cause: { code: "42501" } });
+      expect((await asCollaborator(sql`select id from ads_audience_uploads`)).rows).toEqual([]);
+      // Account sync still works for the collaborator and leaves CRM-based audiences untouched.
+      await expect(syncAdAccount(f.db, collaborator, p.tenant, acct, off)).resolves.toMatchObject({ synced: true });
+    }
+    const { rows } = await q("select name, crm_managed, crm_saved_view_id from ads_audiences where id = any($1::uuid[]) order by name", [Object.values(audiences)]);
+    expect(rows).toEqual([p.admin, p.owner].sort().map(staff => ({ name: `Audience ${staff}`, crm_managed: true, crm_saved_view_id: shared.id })));
+  } finally {
+    ads.allowSends = false;
+  }
 });
 
 it("sends conversion events only for converted leads whose person has a marketing consent, leaves out people without a grant (including EEA, UK and Swiss people) and stays off by default", async () => {

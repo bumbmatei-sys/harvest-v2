@@ -26,6 +26,7 @@ export class FakeAdsProvider implements AdsProvider {
   readonly conversionSends: ConversionEventBatch[] = [];
   readonly audienceMembers = new Map<string, import("./contract").HashedIdentity[]>();
   allowSends = false;
+  audienceMinimum = 100;
   readonly remotes = new Map<string, Remote>();
   private readonly byKey = new Map<string, unknown>();
   private readonly failures = new Map<string, { code: AdsProviderErrorCode; times: number }>();
@@ -184,10 +185,18 @@ export class FakeAdsProvider implements AdsProvider {
     const r = this.remote(q);
     return this.once(q.idempotencyKey, "createCustomerListAudience", () => { const a: RemoteAudience = { ref: this.nextRef("aud"), kind: "customer_list", name: q.name, sizeEstimate: 0, spec: null }; r.audiences.push(a); return a; });
   }
+  minimumAudienceSize() { return this.audienceMinimum; }
   async uploadAudienceMembers(cred: AdsCredential, spec: AudienceUploadSpec): Promise<{ received: number }> {
     this.enter("uploadAudienceMembers", cred, spec.idempotencyKey);
     if (!this.allowSends) throw new AdsProviderError("DISABLED");
-    return this.once(spec.idempotencyKey, "uploadAudienceMembers", () => { this.audienceMembers.set(spec.audienceRef, [...(this.audienceMembers.get(spec.audienceRef) ?? []), ...spec.members]); return { received: spec.members.length }; });
+    if ((spec.members.length > 0 && spec.members.length < this.minimumAudienceSize()) ||
+        spec.members.some(member => Object.keys(member).length === 0 || Object.values(member).some(value => !/^[0-9a-f]{64}$/.test(value)))) {
+      throw new AdsProviderError("INVALID_REQUEST");
+    }
+    return this.once(spec.idempotencyKey, "uploadAudienceMembers", () => {
+      this.audienceMembers.set(spec.audienceRef, spec.members.map(member => ({ ...member })));
+      return { received: spec.members.length };
+    });
   }
   verifyWebhook(rawBody: string, signature: string | null, secrets: readonly string[]) { return verifyBodySignature(rawBody, signature, secrets); }
   parseWebhookEvent(rawBody: string): AdsEvent | null { return parseAdsEvent(rawBody); }
