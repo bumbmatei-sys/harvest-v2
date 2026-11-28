@@ -4112,6 +4112,127 @@ export const blogPosts = pgTable("blog_posts", {
   check("blog_posts_version", sql`${t.version} >= 1`),
 ]);
 
+export const ministryPaymentAccounts = pgTable("ministry_payment_accounts", {
+  tenantId: uuid("tenant_id").primaryKey().references(() => workspaces.tenantId),
+  accountId: text("account_id").notNull().unique(),
+  provider: text("provider", { enum: ["fake", "stripe_connect"] }).notNull(),
+  legalName: text("legal_name").notNull(),
+  currency: text("currency").notNull(),
+  country: text("country").notNull(),
+  chargesEnabled: boolean("charges_enabled").notNull().default(false),
+  payoutsEnabled: boolean("payouts_enabled").notNull().default(false),
+  requirementsDue: text("requirements_due").array().notNull().default(sql`ARRAY[]::text[]`),
+  disconnectedAt: timestamp("disconnected_at", { withTimezone: true }),
+  statusReportedAt: timestamp("status_reported_at", { withTimezone: true }),
+}, (t) => [
+  unique("ministry_payment_account_tenant_identity").on(t.tenantId, t.accountId),
+  check("ministry_payment_account_name", sql`length(btrim(${t.legalName})) between 1 and 200`),
+  check("ministry_payment_account_geo", sql`${t.currency} ~ '^[A-Z]{3}$' and ${t.country} ~ '^[A-Z]{2}$'`),
+  check("ministry_payment_account_provider", sql`${t.provider} in ('fake','stripe_connect')`),
+]);
+
+export const ministryPaymentPrices = pgTable("ministry_payment_prices", {
+  tenantId: uuid("tenant_id").notNull(),
+  itemId: uuid("item_id").notNull(),
+  currency: text("currency").notNull(),
+  amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId] }),
+  foreignKey({ columns: [t.tenantId, t.itemId], foreignColumns: [catalogItems.tenantId, catalogItems.id] }).onDelete("cascade"),
+  check("ministry_payment_price_money", sql`${t.currency} ~ '^[A-Z]{3}$' and ${t.amountMinor} between 1 and 1000000000000`),
+]);
+
+export const ministryPaymentIntents = pgTable("ministry_payment_intents", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  payerId: text("payer_id").references(() => users.id, { onDelete: "set null" }),
+  accountId: text("account_id").notNull(),
+  kind: text("kind", { enum: ["donation", "sale"] }).notNull(),
+  cadence: text("cadence", { enum: ["once", "monthly"] }).notNull(),
+  itemId: uuid("item_id"),
+  amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(),
+  currency: text("currency").notNull(),
+  legalName: text("legal_name").notNull(),
+  personalSupport: boolean("personal_support").notNull().default(false),
+  requestKey: text("request_key").notNull(),
+  subscriptionEndedAt: timestamp("subscription_ended_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("ministry_payment_intent_request").on(t.tenantId, t.payerId, t.requestKey),
+  foreignKey({ columns: [t.tenantId, t.accountId], foreignColumns: [ministryPaymentAccounts.tenantId, ministryPaymentAccounts.accountId] }),
+  foreignKey({ columns: [t.tenantId, t.itemId], foreignColumns: [catalogItems.tenantId, catalogItems.id] }),
+  check("ministry_payment_intent_money", sql`${t.currency} ~ '^[A-Z]{3}$' and ${t.amountMinor} between 1 and 1000000000000`),
+  check("ministry_payment_intent_kind", sql`(${t.kind} = 'donation' and ${t.itemId} is null and ${t.cadence} in ('once','monthly'))
+    or (${t.kind} = 'sale' and ${t.itemId} is not null and ${t.cadence} = 'once')`),
+]);
+
+export const ministryPaymentLedger = pgTable("ministry_payment_ledger", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  accountId: text("account_id").notNull(),
+  intentId: uuid("intent_id"),
+  paymentRef: text("payment_ref"),
+  objectRef: text("object_ref").notNull(),
+  kind: text("kind", { enum: ["charge", "application_fee", "refund", "dispute_opened", "dispute_won", "dispute_lost", "payout"] }).notNull(),
+  amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(),
+  currency: text("currency").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("ministry_payment_ledger_provider_object").on(t.tenantId, t.accountId, t.kind, t.objectRef),
+  foreignKey({ columns: [t.tenantId, t.accountId], foreignColumns: [ministryPaymentAccounts.tenantId, ministryPaymentAccounts.accountId] }),
+  foreignKey({ columns: [t.tenantId, t.intentId], foreignColumns: [ministryPaymentIntents.tenantId, ministryPaymentIntents.id] }),
+  index("ministry_payment_ledger_tenant_date").on(t.tenantId, t.occurredAt, t.id),
+  index("ministry_payment_ledger_related_charge").on(t.tenantId, t.accountId, t.paymentRef),
+  check("ministry_payment_ledger_money", sql`${t.currency} ~ '^[A-Z]{3}$' and ${t.amountMinor} between 0 and 1000000000000`),
+  check("ministry_payment_ledger_kind", sql`${t.kind} in ('charge','application_fee','refund','dispute_opened','dispute_won','dispute_lost','payout')`),
+]);
+
+export const ministryDonationReceipts = pgTable("ministry_donation_receipts", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  ledgerId: uuid("ledger_id").notNull(),
+  intentId: uuid("intent_id").notNull(),
+  donorId: text("donor_id").references(() => users.id, { onDelete: "set null" }),
+  amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(),
+  currency: text("currency").notNull(),
+  paidAt: timestamp("paid_at", { withTimezone: true }).notNull(),
+  legalName: text("legal_name").notNull(),
+  personalSupport: boolean("personal_support").notNull(),
+  cadence: text("cadence", { enum: ["once", "monthly"] }).notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("ministry_donation_receipt_charge").on(t.tenantId, t.ledgerId),
+  foreignKey({ columns: [t.tenantId, t.ledgerId], foreignColumns: [ministryPaymentLedger.tenantId, ministryPaymentLedger.id] }),
+  foreignKey({ columns: [t.tenantId, t.intentId], foreignColumns: [ministryPaymentIntents.tenantId, ministryPaymentIntents.id] }),
+  index("ministry_donation_receipt_donor").on(t.donorId, t.paidAt, t.id),
+]);
+
+export const ministryPaymentEvents = pgTable("ministry_payment_events", {
+  provider: text("provider", { enum: ["fake", "stripe_connect"] }).notNull(),
+  eventId: text("event_id").notNull(),
+  accountId: text("account_id").notNull(),
+  outcome: text("outcome", { enum: ["recorded", "ignored"] }).notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.provider, t.eventId] }),
+  check("ministry_payment_event_outcome", sql`${t.outcome} in ('recorded','ignored')`),
+]);
+
+export const ministryPaymentGrants = pgTable("ministry_payment_grants", {
+  backend: integer("backend").primaryKey(),
+  transaction: text("transaction").notNull(),
+  mode: text("mode", { enum: ["checkout", "event"] }).notNull(),
+  accountId: text("account_id"),
+  provider: text("provider").notNull(),
+});
+
+export const ministryPaymentOnboarding = pgTable("ministry_payment_onboarding", {
+  tenantId: uuid("tenant_id").notNull().references(() => ministryPaymentAccounts.tenantId),
+  requestKey: text("request_key").notNull(),
+  fingerprint: text("fingerprint").notNull(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.requestKey] })]);
+
 export const ministryProfiles = pgTable("ministry_profiles", {
   tenantId: uuid("tenant_id").primaryKey().references(() => workspaces.tenantId),
   published: boolean("published").notNull().default(false),
