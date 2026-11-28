@@ -138,10 +138,18 @@ export async function syncAdAccount(db: Database, user: string, workspace: strin
       return { synced: false, code: failure };
     }
     await applyTree(tx, tenant, id, campaigns);
-    for (const a of audiences.slice(0, 500)) await tx.insert(adsAudiences).values({ tenantId: tenant, adAccountId: id, externalRef: a.ref, kind: a.kind, name: a.name.slice(0, 200) || a.ref, sizeEstimate: a.sizeEstimate, spec: a.spec && JSON.stringify(a.spec).length <= 16_000 ? a.spec : null, syncedAt: sql`now()` })
-      .onConflictDoUpdate({ target: [adsAudiences.tenantId, adsAudiences.adAccountId, adsAudiences.externalRef], set: { kind: a.kind, name: a.name.slice(0, 200) || a.ref, sizeEstimate: a.sizeEstimate, syncedAt: sql`now()` },
-        // A collaborator with Social access syncs the account but leaves CRM-based audiences to owners and admins.
-        setWhere: sql`not ${adsAudiences.crmManaged} or public.ads_crm_audience_staff(${adsAudiences.tenantId})` });
+    for (const audience of audiences.slice(0, 500)) {
+      const fields = { kind: audience.kind, name: audience.name.slice(0, 200) || audience.ref, sizeEstimate: audience.sizeEstimate, syncedAt: sql`now()` };
+      const [inserted] = await tx.insert(adsAudiences).values({
+        tenantId: tenant, adAccountId: id, externalRef: audience.ref, ...fields,
+        spec: audience.spec && JSON.stringify(audience.spec).length <= 16_000 ? audience.spec : null,
+      }).onConflictDoNothing({ target: [adsAudiences.tenantId, adsAudiences.adAccountId, adsAudiences.externalRef] })
+        .returning({ id: adsAudiences.id });
+      if (inserted) continue;
+      // A plain UPDATE can skip rows outside the collaborator's policy. An upsert raises before its filter can skip them.
+      await tx.update(adsAudiences).set(fields).where(and(eq(adsAudiences.tenantId, tenant),
+        eq(adsAudiences.adAccountId, id), eq(adsAudiences.externalRef, audience.ref)));
+    }
     for (const f of forms.slice(0, 200)) await tx.insert(adsLeadForms).values({ tenantId: tenant, adAccountId: id, externalRef: f.ref, name: f.name.slice(0, 120) || f.ref, status: f.status, consentText: f.consentText.slice(0, 1000) || "-", privacyUrl: "", questions: f.questions.slice(0, 15) })
       .onConflictDoUpdate({ target: [adsLeadForms.tenantId, adsLeadForms.adAccountId, adsLeadForms.externalRef], set: { name: f.name.slice(0, 120) || f.ref, status: f.status, questions: f.questions.slice(0, 15) } });
     for (const d of destinations.slice(0, 100)) await tx.insert(adsConversionDestinations).values({ tenantId: tenant, adAccountId: id, externalRef: d.ref, kind: d.kind, name: d.name.slice(0, 200) || d.ref, lastEventAt: d.lastEventAt, status: d.status })

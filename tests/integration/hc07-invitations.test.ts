@@ -168,7 +168,16 @@ it("rejects a QR that expires while its claim waits on a receipt lock",async()=>
   try{
    await expect.poll(async()=>Number((await f.admin.query("select count(*) as n from pg_stat_activity where usename='harvest_app' and datname=current_database() and wait_event_type='Lock' and query like '%connect_invitation_flow%' ")).rows[0].n)).toBeGreaterThanOrEqual(1);
    // Expire only the source while the older transaction waits; its response/token remain valid.
-   await f.admin.query("update campaign_response_links set expires_at=clock_timestamp() where id=$1",[s.link.id]);
+   const admin = await f.admin.connect();
+   try {
+    await admin.query("begin");
+    await admin.query("set local session_replication_role = replica");
+    await admin.query("update campaign_response_links set expires_at=clock_timestamp() where id=$1", [s.link.id]);
+    await admin.query("commit");
+   } catch (error) {
+    await admin.query("rollback");
+    throw error;
+   } finally { admin.release(); }
   }finally{release();}
   await lock;expect(await claim).toBe(409);
  }finally{await pool.end();}
