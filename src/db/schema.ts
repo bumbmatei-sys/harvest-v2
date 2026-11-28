@@ -1826,6 +1826,8 @@ export const communityEmailDeliveries = pgTable("community_email_deliveries", {
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
   lastError: text("last_error"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  feedbackHash: text("feedback_hash"),
+  feedbackMask: text("feedback_mask"),
   sentAt: timestamp("sent_at", { withTimezone: true }),
 }, (t) => [
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
@@ -1834,6 +1836,33 @@ export const communityEmailDeliveries = pgTable("community_email_deliveries", {
   check("community_email_delivery_kind", sql`${t.kind} in ('instant', 'digest') and (${t.kind} = 'instant') = (${t.notificationId} is not null)`),
   check("community_email_delivery_status", sql`${t.status} in ('queued', 'sending', 'sent', 'failed', 'skipped')`),
   check("community_email_delivery_error", sql`${t.lastError} is null or length(${t.lastError}) <= 40`)]);
+
+export const communityEmailFeedback = pgTable("community_email_feedback", {
+  eventId: uuid("event_id").primaryKey(),
+  deliveryId: uuid("delivery_id").notNull(),
+  outcome: text("outcome").notNull(),
+}, t => [
+  uniqueIndex("community_email_feedback_delivery_outcome_idx").on(t.deliveryId, t.outcome),
+  check("community_email_feedback_outcome", sql`${t.outcome} in ('soft_bounce', 'hard_bounce', 'complaint')`),
+]);
+
+export const communityEmailFeedbackGrants = pgTable("community_email_feedback_grants", {
+  token: uuid("token").primaryKey(),
+  transactionId: text("transaction_id").notNull(),
+});
+
+export const communityEmailSuppressions = pgTable("community_email_suppressions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId, { onDelete: "cascade" }),
+  addressHash: text("address_hash").notNull(),
+  maskedAddress: text("masked_address").notNull(),
+  reason: text("reason").notNull(),
+  softCount: integer("soft_count").notNull().default(0),
+  blockedAt: timestamp("blocked_at", { withTimezone: true }),
+}, t => [
+  uniqueIndex("community_email_suppression_address_idx").on(t.tenantId, t.addressHash),
+  check("community_email_suppression_reason", sql`${t.reason} in ('soft_bounce', 'hard_bounce', 'complaint')`),
+]);
 
 export const communityNotifications = pgTable("community_notifications", {
   id: uuid("id").primaryKey().defaultRandom(),

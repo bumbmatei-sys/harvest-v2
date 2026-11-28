@@ -1030,6 +1030,13 @@
       "when": 1795832028645,
       "tag": "0149_newsletter_analytics_owner",
       "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1795833830821,
+      "tag": "0150_community_email_feedback",
+      "breakpoints": true
     }
   ]
 }
