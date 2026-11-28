@@ -7,6 +7,7 @@ import { Client } from "pg";
 import { origin, signIn } from "./helpers/session";
 import { releaseSocialConnectionsAfterEach } from "./helpers/social-accounts";
 import { settleForAxe } from "./helpers/settle";
+import { platformLabels } from "../../src/lib/social/labels";
 
 // Social Publish screens: accounts, composer (rings, media, options, review), queue, calendar and drafts, against the real Publish routes with the
 // non-production fake provider. Media bytes are not inspected here (no media inspector exists), so the media routes are answered by the test and the
@@ -188,16 +189,17 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
   await page.getByLabel("Post text").fill("x".repeat(140));
   await expect(ring("twitter")).toContainText("About 140 / 280");
   await ring("twitter").hover();
-  const popup = page.locator('[data-testid="ring-popup"][data-state="open"]');
-  await expect(popup).toContainText("About 140 / 280");
-  await expect(popup).toContainText("140 left");
+  const popup = (platform: "twitter" | "bluesky") => page.locator('[data-testid="ring-popup"][data-state="open"]')
+    .filter({ hasText: new RegExp(`^${platformLabels[platform]}\\s`) });
+  await expect(popup("twitter")).toContainText("About 140 / 280");
+  await expect(popup("twitter")).toContainText("140 left");
   await page.mouse.move(0, 0);
-  await expect(popup).toBeHidden();
-  await overlayShots(page, "composer-ring-popup", () => rebuild("x".repeat(140), []), async () => { await ring("twitter").focus(); await expect(page.locator('[data-testid="ring-popup"][data-state="open"]')).toContainText("About 140 / 280"); }, async () => { await page.keyboard.press("Escape"); await ring("twitter").blur(); });
+  await expect(popup("twitter")).toBeHidden();
+  await overlayShots(page, "composer-ring-popup", () => rebuild("x".repeat(140), []), async () => { await ring("twitter").focus(); await expect(popup("twitter")).toContainText("About 140 / 280"); }, async () => { await page.keyboard.press("Escape"); await ring("twitter").blur(); });
   await rebuild("x".repeat(140), []);
   // Keyboard: focus shows the same popup.
   await ring("bluesky").focus();
-  await expect(page.locator('[data-testid="ring-popup"][data-state="open"]')).toContainText("140 / 300");
+  await expect(popup("bluesky")).toContainText("140 / 300");
   await page.keyboard.press("Escape");
   await page.getByLabel("Post text").fill("Come and see: Sunday worship at 10am, all are welcome. We gather to sing, pray and hear the Word together. Bring a friend and stay for lunch afterwards.");
   await expect(page.getByTestId("composer-preview")).toBeVisible();
@@ -212,7 +214,7 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
   await expect(page.getByTestId("blocked-reason")).toContainText(/Fix \d+ issues?/);
   await expect(page.getByRole("button", { name: "Publish now" })).toHaveAttribute("aria-disabled", "true");
   await ring("twitter").hover();
-  await expect(page.locator('[data-testid="ring-popup"][data-state="open"]')).toContainText("Over by 10");
+  await expect(popup("twitter")).toContainText("Over by 10");
   await snap(page, "composer-over-limit-1280-light");
   await page.mouse.move(0, 0);
   await audit(page, "composer-over-limit", { restore: async () => { await rebuild("a".repeat(290), []); } });
