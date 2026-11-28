@@ -7,6 +7,8 @@ import { sql } from "drizzle-orm";
 import { useKeyProvider } from "../../src/server/connect-key-provider";
 import { linkConnection } from "../../src/server/social/service";
 import { withTenant } from "../../src/server/tenancy";
+import { changeMemberAccess } from "../../src/server/access";
+import { users } from "../../src/db/schema";
 import { createContact, eraseContact, getContact, recordConsent } from "../../src/server/contacts";
 import { mergeContacts } from "../../src/server/crm-merge";
 import { FakeAdsProvider } from "../../src/server/ads/fake-provider";
@@ -170,6 +172,52 @@ it("syncs a shared saved view with hashes only, then clears it after a cross-cha
     const audits = (await q("select metadata from audit_logs where tenant_id=$1 and action like 'ads.audience_%'", [p.tenant])).rows;
     expect(audits.length).toBeGreaterThan(2);
     expect(audits.every(audit => Object.values(audit.metadata).every(value => /^\d+$/.test(String(value))))).toBe(true);
+  } finally {
+    ads.allowSends = false;
+  }
+});
+
+it("lets only owners and admins build or sync a CRM audience; a collaborator with Social access gets the neutral 404 in the server and the database", async () => {
+  // Founder decision 28 Nov 2026.
+  ads.audienceMinimum = 1;
+  const collaborator = "ac-collaborator";
+  await f.db.insert(users).values({ id: collaborator, name: collaborator, email: `${collaborator}@example.test`, emailVerified: true });
+  await q("insert into workspace_members (tenant_id,user_id,role_id) values ($1,$2,'viewer')", [p.tenant, collaborator]);
+  const shared = await createView(f.db, p.owner, p.tenant, { objectType: "person", name: "Staff only", shared: true,
+    state: fullState({ filters: [{ field: "email", op: "is_not_empty", value: null }] }) });
+  const view = { adAccountId: acct, savedViewId: shared.id };
+  await marketing(await person("Staff audience A", "staff-a@example.invalid"), "granted");
+  const build = (user: string) => createCustomerAudience(f.db, user, p.tenant, { ...view, name: `Audience ${user}`, idempotencyKey: randomUUID() }, on);
+  const sync = (user: string, audienceId: string) => uploadCrmAudience(f.db, user, p.tenant, { adAccountId: acct, audienceId, idempotencyKey: randomUUID(), confirm: true }, on);
+  ads.allowSends = true;
+  try {
+    const audiences: Record<string, string> = {};
+    for (const staff of [p.owner, p.admin]) {
+      expect((await previewAudienceUpload(f.db, staff, p.tenant, view, on)).eligible).toBeGreaterThan(0);
+      audiences[staff] = (await build(staff)).audienceId;
+      expect(await sync(staff, audiences[staff])).toMatchObject({ upload: { status: "sent" } });
+    }
+    const asCollaborator = (statement: ReturnType<typeof sql>) => withTenant(f.db, collaborator, p.tenant, "ads:manage", tx => tx.execute(statement));
+    for (const grants of [{ social: "manage" }, { social: "manage", crm: "view" }] as const) {
+      await changeMemberAccess(f.db, p.owner, p.tenant, { userId: collaborator, role: "collaborator", grants });
+      const uploadsBefore = (await q("select count(*)::int n from ads_audience_uploads where tenant_id=$1", [p.tenant])).rows[0].n;
+      await expect(previewAudienceUpload(f.db, collaborator, p.tenant, view, on)).rejects.toMatchObject({ status: 404 });
+      await expect(build(collaborator)).rejects.toMatchObject({ status: 404 });
+      await expect(sync(collaborator, audiences[p.owner])).rejects.toMatchObject({ status: 404 });
+      expect((await q("select count(*)::int n from ads_audience_uploads where tenant_id=$1", [p.tenant])).rows[0].n).toBe(uploadsBefore);
+      // The database refuses the same writes for the stored collaborator role.
+      await expect(asCollaborator(sql`insert into ads_audiences (tenant_id, ad_account_id, external_ref, kind, name, crm_managed, crm_saved_view_id, size_estimate)
+        values (${p.tenant}::uuid, ${acct}::uuid, ${`rls-${randomUUID()}`}, 'customer_list', 'Direct', true, ${shared.id}::uuid, 0)`)).rejects.toMatchObject({ cause: { code: "42501" } });
+      expect((await asCollaborator(sql`update ads_audiences set name = 'Renamed' where id = ${audiences[p.owner]}::uuid returning id`)).rows).toEqual([]);
+      expect((await asCollaborator(sql`update ads_audiences set crm_managed = false, crm_saved_view_id = null where id = ${audiences[p.owner]}::uuid returning id`)).rows).toEqual([]);
+      await expect(asCollaborator(sql`insert into ads_audience_uploads (tenant_id, ad_account_id, audience_id, idempotency_key, requested_by, eligible, excluded, status)
+        values (${p.tenant}::uuid, ${acct}::uuid, ${audiences[p.owner]}::uuid, ${randomUUID()}::uuid, ${collaborator}, 0, '{}'::jsonb, 'pending')`)).rejects.toMatchObject({ cause: { code: "42501" } });
+      expect((await asCollaborator(sql`select id from ads_audience_uploads`)).rows).toEqual([]);
+      // Account sync still works for the collaborator and leaves CRM-based audiences untouched.
+      await expect(syncAdAccount(f.db, collaborator, p.tenant, acct, off)).resolves.toMatchObject({ synced: true });
+    }
+    const { rows } = await q("select name, crm_managed, crm_saved_view_id from ads_audiences where id = any($1::uuid[]) order by name", [Object.values(audiences)]);
+    expect(rows).toEqual([p.admin, p.owner].sort().map(staff => ({ name: `Audience ${staff}`, crm_managed: true, crm_saved_view_id: shared.id })));
   } finally {
     ads.allowSends = false;
   }

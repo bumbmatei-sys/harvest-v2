@@ -43,6 +43,18 @@ async function audienceView(tx: Transaction, tenant: string, viewId: string): Pr
   }
 }
 
+/**
+ * Founder decision 28 Nov 2026: CRM-based audiences are for owners and admins only. The stored role decides, not the
+ * effective Social role, so a collaborator with Social access gets the neutral 404. RLS enforces the same check.
+ */
+function withCrmAudience<T>(db: Database, user: string, workspace: string, deps: AdsDeps, run: (tx: Transaction, tenant: string) => Promise<T>) {
+  return withAds(db, user, workspace, deps, async (tx, tenant) => {
+    const { rows: [staff] } = await tx.execute<{ allowed: boolean }>(sql`select public.ads_crm_audience_staff(${tenant}::uuid) as allowed`);
+    if (!staff?.allowed) throw unavailable();
+    return run(tx, tenant);
+  });
+}
+
 function fakeAccess(ctx: AccountContext, deps: AdsDeps) {
   if (ctx.account.status !== "active" || ctx.connection.provider !== "fake") throw unavailableAudience();
   const access = providerAccess(ctx, deps);
@@ -100,7 +112,7 @@ export async function computeEligibility(tx: Transaction, tenant: string, view?:
 export async function previewAudienceUpload(db: Database, user: string, workspace: string, raw: unknown, deps: AdsDeps) {
   requireOn(deps);
   const input = parse(previewInput, raw);
-  return withAds(db, user, workspace, deps, async (tx, tenant) => {
+  return withCrmAudience(db, user, workspace, deps, async (tx, tenant) => {
     const { minimum } = fakeAccess(await loadAccount(tx, tenant, input.adAccountId), deps);
     const view = await audienceView(tx, tenant, input.savedViewId);
     if (!view) throw unavailableAudience();
@@ -113,7 +125,7 @@ export async function previewAudienceUpload(db: Database, user: string, workspac
 export async function createCustomerAudience(db: Database, user: string, workspace: string, raw: unknown, deps: AdsDeps) {
   requireOn(deps);
   const input = parse(customerAudienceInput, raw);
-  return withAds(db, user, workspace, deps, async (tx, tenant) => {
+  return withCrmAudience(db, user, workspace, deps, async (tx, tenant) => {
     const ctx = await loadAccount(tx, tenant, input.adAccountId, true);
     const access = fakeAccess(ctx, deps);
     const view = await audienceView(tx, tenant, input.savedViewId);
@@ -145,7 +157,7 @@ export async function createCustomerAudience(db: Database, user: string, workspa
 export async function uploadCrmAudience(db: Database, user: string, workspace: string, raw: unknown, deps: AdsDeps) {
   requireOn(deps);
   const input = parse(audienceUploadInput, raw);
-  const result = await withAds(db, user, workspace, deps, async (tx, tenant) => {
+  const result = await withCrmAudience(db, user, workspace, deps, async (tx, tenant) => {
     const ctx = await loadAccount(tx, tenant, input.adAccountId, true);
     const access = fakeAccess(ctx, deps);
     const [audience] = await tx.select().from(adsAudiences).where(and(eq(adsAudiences.tenantId, tenant), eq(adsAudiences.id, input.audienceId),
