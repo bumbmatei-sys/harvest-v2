@@ -16,9 +16,7 @@ ALTER TABLE "connect_contact_decrypt_audit" ADD CONSTRAINT "connect_contact_decr
 -- Older audit rows have no recoverable scope. They stay invisible to the app.
 GRANT SELECT ON public.connect_contact_decrypt_audit TO harvest_app;
 CREATE POLICY connect_contact_staff_read ON public.connect_contact_decrypt_audit FOR SELECT TO harvest_app
-  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND EXISTS (
-    SELECT 1 FROM public.workspace_members m WHERE m.tenant_id = connect_contact_decrypt_audit.tenant_id
-      AND m.user_id = nullif(current_setting('app.user_id', true), '') AND m.role_id IN ('owner', 'admin')));
+  USING (public.ministry_profile_role(tenant_id) IN ('owner', 'admin'));
 --> statement-breakpoint
 CREATE FUNCTION public.connect_audit_contact_open(p_tenant uuid, p_record uuid, p_purpose text, p_actor_kind text, p_actor_id text)
 RETURNS void LANGUAGE sql SET search_path = pg_catalog, pg_temp AS $$
