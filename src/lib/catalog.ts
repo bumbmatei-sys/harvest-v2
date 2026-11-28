@@ -1,3 +1,4 @@
+import type { LandingPrice } from "./catalog-landing";
 import type { RichDoc } from "@/lib/rich-text";
 import { suggestSlug } from "@/lib/community-editor";
 import { defineStatusTones } from "@/lib/status-tone";
@@ -5,7 +6,7 @@ import { parseVideoLink, videoLink, type LessonVideo } from "@/lib/lesson-video"
 import { labelKinds, ordered, validLabel, type CourseLabels, type LevelForm, type SectionForm, type Structure } from "@/lib/course-structure";
 
 // Pure rules for the free catalogue screens (courses and downloadable products). The server owns every decision; this file only shapes forms, steps and
-// the publish checklist so the screens and their tests share one source. Free only: nothing here has a price.
+// the publish checklist so the screens and their tests share one source.
 export const catalogKinds = ["course", "download"] as const;
 export type CatalogKind = (typeof catalogKinds)[number];
 export const catalogStates = ["draft", "published", "archived"] as const;
@@ -22,7 +23,7 @@ export const legacyCatalogVisibility = (value: CatalogVisibility | "public" | "c
 export const stateTone = defineStatusTones({ draft: "neutral", published: "success", archived: "pending" });
 
 /** Editorial metadata, as the list and the item read return it. */
-export type CatalogRow = { id: string; kind: CatalogKind; slug: string; title: string; summary: string; state: CatalogState; visibility: CatalogVisibility; publicationVisibility?: CatalogPublicationVisibility; coverFileId?: string | null; priceLabel?: string; version: number; updatedAt: string };
+export type CatalogRow = { id: string; kind: CatalogKind; slug: string; title: string; summary: string; state: CatalogState; visibility: CatalogVisibility; publicationVisibility?: CatalogPublicationVisibility; coverFileId?: string | null; priceLabel?: string; paid?: boolean; price?: LandingPrice | null; version: number; updatedAt: string };
 export type CatalogLesson = { id: string; title: string; body: RichDoc; published: boolean; sectionId?: string; video?: LessonVideo | null; attachmentFileIds?: string[] };
 /** The item read: owners and admins also get lessons, structure, labels, file ids and the communities that show it; members and viewers get the metadata only. */
 export type CatalogItem = CatalogRow & { lessons?: CatalogLesson[]; levels?: { id: string; title: string }[]; sections?: { id: string; levelId: string | null; title: string }[];

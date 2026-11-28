@@ -50,6 +50,9 @@ export function landingBody(input: unknown): DocContent | null {
 }
 
 export type LandingPrice = { currency: LandingCurrency; cents: number; oldCents: number | null; saleEndsAt: string | null };
+export function catalogCardPrice(price: LandingPrice | null, freeLabel = "Free") {
+  return { price, paid: price !== null, priceLabel: price ? formatMoney(price.cents, price.currency) : freeLabel };
+}
 export type LandingReview = { name: string; rating: number; body: string; updatedAt: string };
 /** What public.catalog_landing returns for a public item. */
 export type PublicLanding = {

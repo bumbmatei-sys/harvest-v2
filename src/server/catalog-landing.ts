@@ -72,9 +72,9 @@ export function saveLanding(db: Database, user: string, tenant: string, id: stri
     const item = await ownItem(tx, scope, id, true);
     if (item.state === "archived") throw conflict();
     if (input.aboutPhotoId) {
-      const [photo] = await tx.select({ mime: files.mime, status: files.status, visibility: files.visibility }).from(files)
+      const [photo] = await tx.select({ mime: files.mime, status: files.status, visibility: files.visibility, socialUpload: files.socialUpload }).from(files)
         .where(and(eq(files.tenantId, scope), eq(files.id, input.aboutPhotoId)));
-      if (!photo || photo.visibility !== "private" || !imageMimes.includes(photo.mime)) throw invalid("photo");
+      if (!photo || photo.visibility !== "private" || photo.status !== "ready" || photo.socialUpload || !imageMimes.includes(photo.mime)) throw invalid("photo");
     }
     const [current] = await tx.select({ version: catalogLandings.version }).from(catalogLandings)
       .where(and(eq(catalogLandings.tenantId, scope), eq(catalogLandings.itemId, id))).for("update");
@@ -147,5 +147,5 @@ export async function landingPhoto(db: Database, slug: string) {
 /** The owner's ready private images, for the photo picker. */
 export function listLandingImages(db: Database, user: string, tenant: string) {
   return staff(db, user, tenant, (tx, scope) => tx.select({ id: files.id, name: files.name }).from(files)
-    .where(and(eq(files.tenantId, scope), eq(files.visibility, "private"), eq(files.status, "ready"), inArray(files.mime, imageMimes))).orderBy(desc(files.createdAt)).limit(100));
+    .where(and(eq(files.tenantId, scope), eq(files.visibility, "private"), eq(files.status, "ready"), eq(files.socialUpload, false), inArray(files.mime, imageMimes))).orderBy(desc(files.createdAt)).limit(100));
 }

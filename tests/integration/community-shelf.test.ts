@@ -8,6 +8,7 @@ import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { createCommunity, getCommunity, publishCommunity, updateCommunity } from "../../src/server/communities";
 import { enterCommunity, leaveCommunity } from "../../src/server/community-joining";
 import { arrangeCommunityShelf, createCatalogItem, enrolInCatalogItem, getCatalogContent, getPublicCatalogItem, listCatalog, listCommunityShelf, setCatalogState, setCommunityProductLink } from "../../src/server/free-catalog";
+import { saveLanding } from "../../src/server/catalog-landing";
 import { communityShelf } from "../../src/server/community-shelf";
 import { withUser } from "../../src/server/tenancy";
 
@@ -30,10 +31,10 @@ async function open(workspace: string, id: string, user: string) {
 
 beforeAll(async () => {
   f = await testDatabase();
-  await f.db.insert(users).values(people.map((id) => ({ id, name: id, email: `${id}@example.test`, emailVerified: true })));
+  await f.db.insert(users).values(people.map((id) => ({ id, name: id, email: `${id}@example.invalid`, emailVerified: true })));
   tenant = (await createWorkspace(f.db, owner, "Shelf Ministry", "church")).tenantId;
   foreignTenant = (await createWorkspace(f.db, other, "Other Ministry", "church")).tenantId;
-  await putMember(f.db, owner, tenant, `${viewer}@example.test`, "viewer");
+  await putMember(f.db, owner, tenant, `${viewer}@example.invalid`, "viewer");
   circle = (await createCommunity(f.db, owner, tenant, { name: "Shelf circle", slug: "shelf-circle" })).id;
   quiet = (await createCommunity(f.db, owner, tenant, { name: "Quiet circle", slug: "quiet-circle" })).id;
   foreignCircle = (await createCommunity(f.db, other, foreignTenant, { name: "Foreign circle", slug: "foreign-shelf" })).id;
@@ -74,7 +75,7 @@ it("gives owners every published item with this community's links, and nothing e
 
 it("shows members the classroom and products of their community only, without granting access", async () => {
   const classroom = await communityShelf(f.db, member, "shelf-circle", "course");
-  expect(classroom?.items).toEqual([{ id: course, kind: "course", slug: "shelf-course", title: "Foundations", summary: "", visibility: "unlisted", featured: false, enrolled: false }]);
+  expect(classroom?.items).toEqual([{ id: course, kind: "course", slug: "shelf-course", title: "Foundations", summary: "", visibility: "unlisted", featured: false, enrolled: false, paid: false, priceLabel: "Free", price: null }]);
   expect((await communityShelf(f.db, member, "shelf-circle", "download"))?.items.map((item) => item.slug)).toEqual(["shelf-guide"]);
   expect((await communityShelf(f.db, member, "quiet-circle", "course"))?.items.map((item) => item.slug)).toEqual(["spare-course"]);
   expect((await communityShelf(f.db, owner, "shelf-circle", "course"))?.items.map((item) => item.slug)).toEqual(["shelf-course"]);
@@ -169,4 +170,23 @@ it("orders a shelf and keeps one featured item per community and shelf", async (
   await expect(f.admin.query("update community_product_links set featured=true where community_id=$1 and item_id=$2", [quiet, spare])).rejects.toMatchObject({ code: "23505" });
   await expect(f.admin.query("update community_product_links set kind='download' where community_id=$1 and item_id=$2", [quiet, spare])).rejects.toMatchObject({ code: "23503" });
   await expect(withUser(f.db, member, (tx) => tx.update(communityProductLinks).set({ featured: true }).returning())).resolves.toEqual([]);
+});
+
+it("shows sale and regular prices on member and staff cards", async () => {
+  const now = Date.now();
+  const id = (await createCatalogItem(f.db, owner, tenant, courseInput("priced-course", "Priced course"))).id;
+  await publish(owner, tenant, id);
+  await setCommunityProductLink(f.db, owner, tenant, quiet, id, { position: 20 });
+  await saveLanding(f.db, owner, tenant, id, { version: 0, price: { cents: 2900, currency: "USD" },
+    sale: { cents: 1900, startsAt: new Date(now - 86_400_000).toISOString(), endsAt: new Date(now + 86_400_000).toISOString() } });
+  const staffCard = async () => (await listCatalog(f.db, owner, tenant, null)).find(item => item.id === id);
+  const viewerCard = async () => (await listCatalog(f.db, viewer, tenant, null)).find(item => item.id === id);
+  const memberCard = async () => (await communityShelf(f.db, member, "quiet-circle", "course"))?.items.find(item => item.id === id);
+  for (const read of [staffCard, viewerCard, memberCard]) {
+    expect(await read()).toMatchObject({ paid: true, priceLabel: "$19", price: { cents: 1900, oldCents: 2900 } });
+  }
+  await f.admin.query("update catalog_landings set sale_starts_at = now() - interval '2 days', sale_ends_at = now() - interval '1 day' where item_id = $1", [id]);
+  for (const read of [staffCard, viewerCard, memberCard]) {
+    expect(await read()).toMatchObject({ paid: true, priceLabel: "$29", price: { cents: 2900, oldCents: null } });
+  }
 });

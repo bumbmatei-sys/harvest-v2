@@ -8,6 +8,7 @@ import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { createCommunity, getCommunity, publishCommunity, updateCommunity } from "../../src/server/communities";
 import { enterCommunity, leaveCommunity } from "../../src/server/community-joining";
 import { createCatalogItem, enrolInCatalogItem, getCatalogDraft, getPublicCatalogItem, setCatalogPublication, setCatalogState, setCommunityProductLink } from "../../src/server/free-catalog";
+import { saveLanding } from "../../src/server/catalog-landing";
 import { courseResources, downloadCourseResource, editorCatalogCover, publicCatalogCover, publicCatalogDirectory, validCatalogResourceGrant } from "../../src/server/catalog-assets";
 import { changeListing } from "../../src/server/discover/owner";
 import { decideReview } from "../../src/server/discover/platform";
@@ -154,4 +155,14 @@ it("requires reviewed staff opt-in, lists author and free price data, and pages 
   await f.admin.query("update catalog_items set state='draft' where id=$1", [publicId]);
   expect((await publicCatalogDirectory(f.db, tenant, {})).items.map(i => i.id)).toEqual([productId]);
   expect((await searchDiscover(f.db, new URLSearchParams({ type: "course" }), deps)).items).toEqual([]);
+});
+
+it("projects the active sale and its old price in the public ministry directory", async () => {
+  const now = Date.now(), day = 86_400_000;
+  await saveLanding(f.db, owner, tenant, productId, { version: 0, price: { cents: 2900, currency: "USD" },
+    sale: { cents: 1900, startsAt: new Date(now - day).toISOString(), endsAt: new Date(now + day).toISOString() } });
+  const { rows: [control] } = await f.admin.query("select version from discover_controls where resource_id=$1", [productId]);
+  expect(await decideReview(f.workerPool, { tenantId: tenant, type: "product", id: productId, version: control.version, reviewer: other }, { decision: "approve" })).toBe("approved");
+  expect((await publicCatalogDirectory(f.db, tenant, {})).items).toMatchObject([{ id: productId, paid: true, priceLabel: "$19",
+    price: { cents: 1900, oldCents: 2900 } }]);
 });
