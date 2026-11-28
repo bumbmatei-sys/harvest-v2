@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./helpers/test";
 import { origin, signIn } from "./helpers/session";
 
 // CRM-08 has no new screen: outbound webhooks are an owner/admin API and the assistant tools have no runtime yet.

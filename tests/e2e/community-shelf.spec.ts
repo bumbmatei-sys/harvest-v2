@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
-import { expect as baseExpect, test, type Page } from "@playwright/test";
+import { expect as baseExpect, test, type Page } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { waitForCommunityResponse } from "./helpers/community";
 import { origin, signIn } from "./helpers/session";

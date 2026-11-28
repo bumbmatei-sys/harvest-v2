@@ -1,7 +1,7 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { deflateSync, crc32 } from "node:zlib";
 import { createHash } from "node:crypto";
-import { expect as base, test, type Page, type Route } from "@playwright/test";
+import { expect as base, test, type Page, type Route } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { Client } from "pg";
 import { origin, signIn } from "./helpers/session";

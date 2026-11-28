@@ -1,4 +1,4 @@
-import { test, type Page } from "@playwright/test";
+import { test, type Page } from "./helpers/test";
 import { adsSynced, adsWorkspace, audit, expect, releaseAfterEach } from "./helpers/ads";
 
 // Ads overview and flag-only rules against the real Ads routes and the in-memory test provider with invented accounts, campaigns and numbers. Nothing leaves the process: no network, no spend.

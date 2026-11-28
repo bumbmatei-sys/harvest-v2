@@ -1,3 +1,4 @@
+import { runtimeEnv } from "../lib/env";
 import { createHash, randomBytes } from "node:crypto";
 import { appendFileSync } from "node:fs";
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -50,7 +51,7 @@ export function inviteMember(db: Database, actorId: string, workspace: string, d
   return withTenant(db, actorId, workspace, "members:write", async (tx) => {
     const out = await call(tx, sql`select public.workspace_invitation_create(${input.email}, ${input.role}, ${JSON.stringify(input.grants)}::jsonb, ${tokenHash}, ${input.canManageAdmins}::boolean) as r`);
     if (out.outcome !== "ok") fail(out.outcome);
-    if (process.env.NODE_ENV !== "production") {
+    if (runtimeEnv().NODE_ENV !== "production") {
       invitationTestSink.push({ email: input.email, token });
       // Same test mailbox the sign-in codes use; nothing is ever sent.
       if (process.env.HARVEST_E2E_MAILBOX) appendFileSync(process.env.HARVEST_E2E_MAILBOX, `${JSON.stringify({ to: input.email, text: `invitation ${token}` })}\n`);
@@ -93,4 +94,4 @@ export function listMemberAccess(db: Database, actorId: string, workspace: strin
  * Founder decision (25 Nov): people are added by invitation the invitee accepts. The only direct add left is a non-production test gate for browser
  * fixtures: it needs the test mailbox variable the e2e configuration sets, and is always off in production.
  */
-export function directAddAllowed(): boolean { return process.env.NODE_ENV !== "production" && Boolean(process.env.HARVEST_E2E_MAILBOX); }
+export function directAddAllowed(): boolean { return runtimeEnv().NODE_ENV !== "production" && Boolean(process.env.HARVEST_E2E_MAILBOX); }

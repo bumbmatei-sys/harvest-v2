@@ -1,4 +1,4 @@
-// Included only in the development-only E2E webpack build. No network access.
+// Included only in the local E2E server. No network access.
 import { appendFile } from "node:fs/promises";
 export class Resend {
   emails = { send: async (message: { to: string; text: string }) => {

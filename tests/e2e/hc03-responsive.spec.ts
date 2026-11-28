@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "./helpers/test";
 import { expectFullWidthShell } from "./helpers/layout";
 import { origin, signIn } from "./helpers/session";
 
@@ -59,6 +59,10 @@ for (const viewport of [{ name: "mobile", width: 390, height: 844 }, { name: "ta
         const dialog = page.getByRole(role);
         await expect(dialog).toBeVisible();
         await expect.poll(() => dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+        // The opening zoom scales button dimensions until the animation finishes.
+        await dialog.evaluate(async (node) => {
+          await Promise.allSettled(node.getAnimations().map((animation) => animation.finished));
+        });
         const box = (await dialog.boundingBox())!;
         expect(box.y).toBeGreaterThanOrEqual(0);
         expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);

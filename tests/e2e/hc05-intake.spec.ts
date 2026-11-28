@@ -2,7 +2,7 @@ import { mkdir,writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { expect,test } from "@playwright/test";
+import { expect,test } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin,signIn } from "./helpers/session";
 import { expectFullWidthShell } from "./helpers/layout";

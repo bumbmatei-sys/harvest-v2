@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
-import { expect as check, test, type Page } from "@playwright/test";
+import { expect as check, test, type Page } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";

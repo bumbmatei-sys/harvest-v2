@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
-import { expect as playwrightExpect, test, type Browser, type Locator, type Page } from "@playwright/test";
+import { expect as playwrightExpect, test, type Browser, type Locator, type Page } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { signIn, origin } from "./helpers/session";
 
@@ -42,6 +42,19 @@ const column = (page: Page) => page.getByRole("complementary", { name: "Preview"
 const frame = (page: Page, name: RegExp | string = /^Page preview as a visitor/) => page.getByRole("region", { name });
 const short = (locator: Locator) => locator.evaluateAll((nodes) => nodes.filter((n) => { const r = n.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.height < 43.5; }).map((n) => `${n.tagName} ${(n.textContent ?? "").trim().slice(0, 30)}`));
 const width = (locator: Locator) => locator.evaluate((node) => Math.round(node.getBoundingClientRect().width));
+function observePreviewRequests(page: Page) {
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    // The shell prefetches its links on optimized builds, outside the preview interaction.
+    const shellPrefetch = request.method() === "GET" && url.origin === origin && !url.pathname.startsWith("/api/") &&
+      request.headers()["next-router-prefetch"] === "1" && !request.serviceWorker() && request.frame() === page.mainFrame();
+    if (!shellPrefetch && (["fetch", "xhr"].includes(request.resourceType()) || request.method() !== "GET")) {
+      requests.push(`${request.method()} ${request.url()}`);
+    }
+  });
+  return requests;
+}
 async function member(browser: Browser, owner: Page, tenant: string, role: string) {
   const context = await browser.newContext({ baseURL: origin, viewport: { width: 1280, height: 900 }, reducedMotion: "reduce" });
   const page = await context.newPage();
@@ -101,8 +114,7 @@ test("desktop 1280: live draft preview, typing, tabs, view as, device, Open in b
   await expect(preview.getByRole("link", { name: "Open page" })).toHaveCount(0);
 
   // Typing shows in the preview without saving.
-  const requests: string[] = [];
-  page.on("request", (request) => { if (["fetch", "xhr"].includes(request.resourceType()) || request.method() !== "GET") requests.push(`${request.method()} ${request.url()}`); });
+  const requests = observePreviewRequests(page);
   await page.locator("#community-name").fill("Grace Evening Study");
   await expect(shown.getByText("Grace Evening Study").first()).toBeVisible();
   await page.locator("#community-tagline").fill("Tuesday nights");
@@ -169,8 +181,7 @@ test("click-to-field and Edit this: scroll to and focus the control, switching s
   await page.goto(url);
   await expect(page.locator("[data-hydrated=true]")).toBeVisible();
   const shown = frame(page);
-  const requests: string[] = [];
-  page.on("request", (request) => { if (["fetch", "xhr"].includes(request.resourceType()) || request.method() !== "GET") requests.push(`${request.method()} ${request.url()}`); });
+  const requests = observePreviewRequests(page);
   // Same step.
   await shown.getByText("We read together every Tuesday.").click();
   await expect(page.locator("#community-description")).toBeFocused();
@@ -342,8 +353,7 @@ test("phone: Edit this closes the sheet, switches step and focuses the field; Es
   const { url } = await setup(page);
   await page.goto(url);
   await expect(page.locator("[data-hydrated=true]")).toBeVisible();
-  const requests: string[] = [];
-  page.on("request", (request) => { if (["fetch", "xhr"].includes(request.resourceType()) || request.method() !== "GET") requests.push(`${request.method()} ${request.url()}`); });
+  const requests = observePreviewRequests(page);
   const trigger = page.locator("[data-slot='editor-step-bar']").getByRole("button", { name: "Preview", exact: true });
   await trigger.click();
   await page.keyboard.press("Escape");

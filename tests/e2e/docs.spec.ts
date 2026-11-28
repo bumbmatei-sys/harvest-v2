@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { expect as baseExpect, test, type Page } from "@playwright/test";
+import { expect as baseExpect, test, type Page, type Request, type Route } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";
@@ -221,9 +221,24 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
   await page.getByLabel("Page title").fill("Weekly plan");
   await page.keyboard.press("Enter");
   await expect(editor).toBeFocused();
-  await page.keyboard.type("Hello brave world");
-  await expect(page.locator('[data-save-state="unsaved"]:visible, [data-save-state="saving"]:visible').first()).toBeVisible();
+  const savePath = (url: URL) => url.pathname === `${api}/${doc.id}/pages/${doc.pageId}`;
+  const savesBody = (request: Request) => request.method() === "PATCH" && (request.postData() ?? "").includes("Hello brave world");
+  let releaseSave = () => {};
+  const savePaused = new Promise<void>((resolve) => { releaseSave = resolve; });
+  const pauseAutosave = async (route: Route) => {
+    if (savesBody(route.request())) await savePaused;
+    await route.continue();
+  };
+  // Keep the body save pending while checking the transient status, even on a fast server.
+  await page.route(savePath, pauseAutosave);
+  try {
+    await page.keyboard.type("Hello brave world");
+    await expect(page.locator('[data-save-state="unsaved"]:visible, [data-save-state="saving"]:visible').first()).toBeVisible();
+  } finally {
+    releaseSave();
+  }
   await saved(page);
+  await page.unroute(savePath, pauseAutosave);
   await page.reload();
   await expect(page.getByLabel("Page title")).toHaveValue("Weekly plan");
   await expect(editor).toContainText("Hello brave world");
@@ -270,14 +285,19 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
   await tool(page, "Table").click(); await page.getByRole("menuitem", { name: "Delete table" }).click();
   await expect(editor.locator("table")).toHaveCount(0);
   await editor.locator("p").first().click(); await page.keyboard.press("Control+a");
+  const linkAddress = page.getByLabel("Link address");
+  const addLink = page.getByRole("button", { name: "Add link" });
   await tool(page, "Link").click();
-  await page.getByLabel("Link address").fill("javascript:alert(1)");
-  await page.getByRole("button", { name: "Add link" }).click();
+  await linkAddress.fill("javascript:alert(1)");
+  await addLink.click();
+  await expect(linkAddress).toBeHidden();
+  await expect(editor).toBeFocused();
   await expect(editor.locator("a")).toHaveCount(0);
   await page.keyboard.press("Control+a");
   await tool(page, "Link").click();
-  await page.getByLabel("Link address").fill("example.org/path");
-  await page.getByRole("button", { name: "Add link" }).click();
+  await expect(linkAddress).toBeVisible();
+  await linkAddress.fill("example.org/path");
+  await addLink.click();
   await expect(editor.locator("a")).toHaveAttribute("href", "https://example.org/path");
   await tool(page, "Remove link").click(); await expect(editor.locator("a")).toHaveCount(0);
   await tool(page, "Undo").click(); await expect(editor.locator("a")).toHaveCount(1);

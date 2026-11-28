@@ -1,4 +1,4 @@
-import { test, type Page } from "@playwright/test";
+import { test, type Page } from "./helpers/test";
 import { adsSynced, adsWorkspace, audit, expect, releaseAfterEach } from "./helpers/ads";
 
 // Guided create and Boost a post against the real Ads routes and the in-memory test provider. Nothing leaves the process: no network, no spend.

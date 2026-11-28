@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { deflateSync, crc32 } from "node:zlib";
-import { expect as baseExpect, test, type Page } from "@playwright/test";
+import { expect as baseExpect, test, type Page } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";

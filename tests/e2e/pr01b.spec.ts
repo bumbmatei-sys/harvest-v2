@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
-import { expect as playwrightExpect, test, type Page } from "@playwright/test";
+import { expect as playwrightExpect, test, type Page } from "./helpers/test";
 import { contrastRatio } from "../../src/lib/theme";
 import AxeBuilder from "@axe-core/playwright";
 // First navigation can include development route compilation in the shared browser harness.

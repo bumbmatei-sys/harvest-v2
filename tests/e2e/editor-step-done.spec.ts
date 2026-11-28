@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { expect as base, test, type Page } from "@playwright/test";
+import { expect as base, test, type Page } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";
@@ -27,17 +27,21 @@ test("a finished step gets a green check in the step list, in both colour scheme
   await signIn(page);
   const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Grace Community Church", audience: "church" } })).json()).tenantId as string;
   await page.goto(`/workspaces/${tenant}/events/new`);
-  await page.getByLabel("Title").fill("Easter service");
+  const shell = page.locator('[data-slot="sidebar-wrapper"]');
+  const title = page.getByLabel("Title");
+  await expect(shell).toHaveAttribute("data-hydrated", "true");
+  await title.fill("Easter service");
   const done = page.locator('[data-editor-steps] [data-slot="editor-step-indicator"][data-state="done"]').first();
   await expect(done).toBeVisible();
   await expect(done.locator("svg")).toBeVisible();
   for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
     await page.reload();
-    await page.getByLabel("Title").fill("Easter service");
+    await expect(shell).toHaveAttribute("data-hydrated", "true");
+    await title.fill("Easter service");
     await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
-    const color = await page.locator('[data-editor-steps] [data-slot="editor-step-indicator"][data-state="done"]').first().evaluate((el) => getComputedStyle(el).color);
-    if (prefix === "after") expect(color).toBe(rgb(scheme === "light" ? "#18793b" : "#6fd69a"));
+    await expect(done.locator("svg")).toBeVisible();
+    if (prefix === "after") await expect(done).toHaveCSS("color", rgb(scheme === "light" ? "#18793b" : "#6fd69a"));
     await audit(page, scheme, 1280, 900);
     await audit(page, scheme, 360, 800);
     await page.setViewportSize({ width: 1280, height: 900 });

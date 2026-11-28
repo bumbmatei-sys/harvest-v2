@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { signIn, origin } from "./helpers/session";
 

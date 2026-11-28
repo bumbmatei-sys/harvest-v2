@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Locator, type Page } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { joinAndWaitForForum, waitForCommunityResponse } from "./helpers/community";
 import { origin, signIn } from "./helpers/session";
@@ -122,9 +122,15 @@ test("forum: categories, a full post, likes and replies, edits, pinning and remo
     await expect(composer.getByText("plan.pdf", { exact: true })).toBeVisible();
     const body = composer.getByRole("textbox", { name: "Post", exact: true });
     await body.click();
-    await composer.getByRole("button", { name: "Heading", exact: true }).click();
+    const heading = composer.getByRole("button", { name: "Heading", exact: true });
+    await heading.click();
+    await expect(heading).toHaveAttribute("aria-pressed", "true");
+    await expect(body).toBeFocused();
     await a.keyboard.type("Week one"); await a.keyboard.press("Enter");
-    await composer.getByRole("button", { name: "Bulleted list", exact: true }).click();
+    const bullets = composer.getByRole("button", { name: "Bulleted list", exact: true });
+    await bullets.click();
+    await expect(bullets).toHaveAttribute("aria-pressed", "true");
+    await expect(body).toBeFocused();
     await a.keyboard.type("Chapters 1-4"); await a.keyboard.press("Enter"); await a.keyboard.type("Chapters 5-8");
     const [published] = await Promise.all([
       waitForCommunityResponse(a, "POST", `/api/communities/${slug}/posts`),

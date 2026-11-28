@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
 
@@ -49,6 +49,7 @@ test("shared filters: staged changes, edit/remove, saved views, exports and resp
     await expect(grid.getByRole("row")).toHaveCount(2);
     await expect(page).toHaveURL(/f=/);
     const filteredURL = page.url();
+    await expect(page).toHaveTitle(new RegExp(`^${title}\\b`));
     expect((await new AxeBuilder({ page }).analyze()).violations.map((item) => item.id)).toEqual([]);
     // Edit directly through a chip, validate locally, then cancel via Escape.
     await page.getByRole("button", { name: `Edit filter ${valueField} is not empty`, exact: true }).click();

@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { expect as baseExpect, test, type Page } from "@playwright/test";
+import { expect as baseExpect, test, type Page } from "./helpers/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
 
@@ -142,7 +142,8 @@ test("copy, composer and note actions work, and roles without write access see n
   expect((await api(page, "put", `${apiRoot}/members`, { email, role: "viewer" })).status).toBe(200);
   await other.goto(`${root}/crm/people/${person}`);
   await expect(other.getByRole("list", { name: "Contact actions" })).toBeVisible();
-  await expect(other.getByText("Synthetic note for viewer", { exact: true })).toBeVisible();
+  const activity = other.getByRole("tabpanel", { name: "Activity", exact: true });
+  await expect(activity.getByText("Synthetic note for viewer", { exact: true })).toBeVisible();
   await expect(other.getByLabel("New note")).toHaveCount(0);
   await expect(other.getByRole("button", { name: "Add note", exact: true })).toHaveCount(0);
   await expect(other.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
