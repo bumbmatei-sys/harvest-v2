@@ -8,6 +8,7 @@ import { normalizeShortCode, publicCodePattern } from "../lib/connect-links";
 import { message } from "../i18n/messages";
 import { syntheticIntakeEnabled } from "./connect-intake-mode";
 import { intakeFingerprint, receiptHash, sealIntakeV1, issueIntakeCapability, verifyIntakeCapability } from "./connect-intake-crypto";
+import { contactKeyVersion, sealContactEnvelope } from "./contact-envelope";
 import { AccessError } from "./permissions";
 import { enqueueInvitation } from "./connect-invitations";
 import { withTenant } from "./tenancy";
@@ -45,14 +46,15 @@ export async function submitIntake(db: Database, kind: string, code: string, raw
   const emailNeeded = input.purposes.includes("account_communications") || input.purposes.includes("newsletter") || (input.purposes.includes("outreach_follow_up") && manifest.definition.followUpChannel === "email");
   const phoneNeeded = input.purposes.includes("outreach_follow_up") && manifest.definition.followUpChannel === "phone";
   // Reserved synthetic contacts only. There is deliberately no path accepting real addresses.
-  if ((emailNeeded ? !/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@example\.test$/i.test(input.email) : Boolean(input.email))
+  if ((emailNeeded ? !/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@example\.(?:invalid|test)$/i.test(input.email) : Boolean(input.email))
     || (phoneNeeded ? !/^\+155555501\d{2}$/.test(input.phone) : Boolean(input.phone))
     || (!manifest.definition.preferredName && input.preferredName)
     || input.purposes.some(p => !manifest.purposes.includes(p))) throw new AccessError(400, message("Intake.checkDetails"));
   const data = { stamp: input.stamp, purposes: [...input.purposes].sort(), preferredName: input.preferredName,
     email: input.email.toLowerCase(), phone: input.phone };
   const fingerprint = intakeFingerprint(data), hash = receiptHash(input.receiptToken);
-  const sealed = sealIntakeV1(data, `${publicSource.kind}:${publicSource.code}:${input.submissionId}:${hash}`);
+  const binding = `${publicSource.kind}:${publicSource.code}:${input.submissionId}:${hash}`;
+  const sealed = contactKeyVersion() ? await sealContactEnvelope(data, binding) : sealIntakeV1(data, binding);
   const outcome = await withSyntheticIntake(db, async tx => {
     const result = await tx.execute<{ outcome: string }>(sql`select public.submit_connect_intake(${publicSource.kind},${publicSource.code},${input.submissionId}::uuid,${input.stamp},${hash},${fingerprint},${sql.param(data.purposes)}::text[],${emailNeeded},${phoneNeeded},${JSON.stringify(sealed)}::jsonb,${replayUntil}::timestamptz) as outcome`);
     const outcome=result.rows[0]?.outcome;
