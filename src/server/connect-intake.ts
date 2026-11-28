@@ -45,7 +45,7 @@ export async function submitIntake(db: Database, kind: string, code: string, raw
   const emailNeeded = input.purposes.includes("account_communications") || input.purposes.includes("newsletter") || (input.purposes.includes("outreach_follow_up") && manifest.definition.followUpChannel === "email");
   const phoneNeeded = input.purposes.includes("outreach_follow_up") && manifest.definition.followUpChannel === "phone";
   // Reserved synthetic contacts only. There is deliberately no path accepting real addresses.
-  if ((emailNeeded ? !/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@example\.test$/i.test(input.email) : Boolean(input.email))
+  if ((emailNeeded ? !/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@example\.(test|invalid)$/i.test(input.email) : Boolean(input.email))
     || (phoneNeeded ? !/^\+155555501\d{2}$/.test(input.phone) : Boolean(input.phone))
     || (!manifest.definition.preferredName && input.preferredName)
     || input.purposes.some(p => !manifest.purposes.includes(p))) throw new AccessError(400, message("Intake.checkDetails"));

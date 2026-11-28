@@ -2708,6 +2708,15 @@ export const catalogEnrolments = pgTable("catalog_enrolments", {
   foreignKey({ columns: [t.tenantId, t.itemId], foreignColumns: [catalogItems.tenantId, catalogItems.id] }),
 ]);
 
+export const connectCourseSettings = pgTable("connect_course_settings", {
+  tenantId: uuid("tenant_id").primaryKey().references(() => workspaces.tenantId),
+  beginnerCourseId: uuid("beginner_course_id"),
+}, (t) => [
+  // The SQL migration limits SET NULL to beginner_course_id.
+  foreignKey({ name: "connect_course_settings_course_fk", columns: [t.tenantId, t.beginnerCourseId],
+    foreignColumns: [catalogItems.tenantId, catalogItems.id] }).onDelete("set null"),
+]);
+
 // 0154 product and course landing page ("Sales page"). One row per course or download, public only while the item is published and visible
 // (public.catalog_landing). The price is shown only: checkout stays off until the ministry can take payments, and a priced item cannot be
 // enrolled through the free flow (catalog_access refuses it).

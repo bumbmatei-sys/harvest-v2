@@ -34,7 +34,7 @@ export async function requestInvitation(db:Database,raw:unknown) {
   const sealed=r.rows[0]?.envelope;if(!sealed)return "unavailable";
   if("limited" in sealed)return "limited";
   if(!sealed.binding.endsWith(`:${receiptHash(input.receiptToken)}`))return "unavailable";
-  const {email}=z.object({email:z.string().regex(/^[^@\s]+@example\.test$/i)}).parse(decryptContactDetails(sealed,sealed.binding,"invitation-request"));
+  const {email}=z.object({email:z.string().regex(/^[^@\s]+@example\.(test|invalid)$/i)}).parse(decryptContactDetails(sealed,sealed.binding,"invitation-request"));
   return enqueueInvitation(tx,receiptHash(input.receiptToken),email,true);
  });
  // Never disclose account/response existence or delivery success.
@@ -102,7 +102,7 @@ export async function dispatchInvitation(db:Database,send:InvitationSender,optio
   const r=await tx.execute<{ok:boolean}>(sql`select public.connect_invitation_dispatch(${job.id}::uuid,${lease}::uuid,${outcome},${backoff}) as ok`);return r.rows[0]?.ok;
  });
  try {
-  const payload=z.object({email:z.string().regex(/^[^@\s]+@example\.test$/i),token:secret}).strict().parse(decryptContactDetails(job.envelope,`invitation:${job.receiptHash}:${job.tokenHash}`,"invitation-dispatch"));
+  const payload=z.object({email:z.string().regex(/^[^@\s]+@example\.(test|invalid)$/i),token:secret}).strict().parse(decryptContactDetails(job.envelope,`invitation:${job.receiptHash}:${job.tokenHash}`,"invitation-dispatch"));
   if(job.tokenHash!==receiptHash(payload.token))throw new Error("INVALID_BINDING");
   if(!await dispatch("check"))return {status:"cancelled"} as const;
   // External I/O occurs after the reservation transaction commits. Generation key fences retries.

@@ -1,9 +1,9 @@
-import { createCipheriv, createDecipheriv, createHmac, createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { LEGACY_KEY_ID, getKeyProvider, type KeyPurpose } from "./connect-key-provider";
 
 // Keys come from the KeyProvider (HC-DEC5). Hashes and capabilities always use the current key id.
 const key = (purpose: KeyPurpose) => { const p = getKeyProvider(); return p.resolveKey(purpose, p.currentKeyId(purpose)); };
-export const receiptHash = (token: string) => createHash("sha256").update(token).digest("hex");
+export { receiptHash } from "./connect-receipt";
 export const intakeFingerprint = (value: unknown) => createHmac("sha256", key("intake-fingerprint:v1")).update(JSON.stringify(value)).digest("hex");
 // Version 1 envelopes carry no key id. Version 2 envelopes record the key id they were sealed under.
 type EnvelopeBody = { binding: string; iv: string; tag: string; ciphertext: string };
