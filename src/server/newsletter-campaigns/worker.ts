@@ -14,6 +14,27 @@ import { LIVE_NEWSLETTER_ENABLED } from "./ses-adapter";
 type DeliveryHealth = { pending: number; unknown: number; failed: number; operatorReview: number;
   unresolvedByMinistry: { ministryId: string; unknown: number; operatorReview: number; oldestUnknownAgeSeconds: number }[] };
 type Claimed = { tenant: string; key: string; lease: string };
+type CampaignScope = { tenantId: string; id: string };
+const claimQuery = "select public.newsletter_delivery_claim($1,$2) as claimed";
+
+async function claimDeliveries(pool: Pool, limit: number, seconds: number, campaign?: CampaignScope) {
+  if (!campaign) return (await pool.query<{ claimed: Claimed[] }>(claimQuery, [limit, seconds])).rows[0].claimed;
+  const client = await pool.connect();
+  let destroy = false;
+  try {
+    await client.query("begin");
+    await client.query("select set_config('app.qa_newsletter_campaign',$1::uuid::text||'/'||$2::uuid::text,true) is not null", [campaign.tenantId, campaign.id]);
+    const { rows: [{ claimed }] } = await client.query<{ claimed: Claimed[] }>(claimQuery, [limit, seconds]);
+    await client.query("commit");
+    return claimed;
+  } catch (error) {
+    await client.query("rollback").catch(() => { destroy = true; });
+    throw error;
+  } finally {
+    client.release(destroy);
+  }
+}
+
 type Authorized = { email: string; firstName: string; ministryName: string; from: string; fromName?: string | null; replyTo: string;
   subject: string; preheader: string | null; content: unknown; images: string[];
   campaignId: string; revision: number; clickTracking: boolean };
@@ -24,7 +45,7 @@ export function newsletterWorkerEnabled(env: Record<string, string | undefined>,
 }
 
 export async function runNewsletterWorker(pool: Pool, env: NodeJS.ProcessEnv, provider: FakeNewsletterProvider,
-  options: { limit?: number; leaseSeconds?: number; beforeAuthorize?: () => Promise<void>;
+  options: { limit?: number; leaseSeconds?: number; campaign?: CampaignScope; beforeAuthorize?: () => Promise<void>;
     log?: (metadata: string) => void } = {}) {
   if (!newsletterWorkerEnabled(env, "HARVEST_NEWSLETTER_WORKER_ENABLED")) return null;
   const key = newsletterKey(env);
@@ -32,8 +53,7 @@ export async function runNewsletterWorker(pool: Pool, env: NodeJS.ProcessEnv, pr
   const suppressionKeys = newsletterSuppressionKeys(env);
   await requireWorkerRole(pool);
   const origin = newsletterOrigin();
-  const { rows: [{ claimed }] } = await pool.query<{ claimed: Claimed[] }>(
-    "select public.newsletter_delivery_claim($1,$2) as claimed", [options.limit ?? 20, options.leaseSeconds ?? 120]);
+  const claimed = await claimDeliveries(pool, options.limit ?? 20, options.leaseSeconds ?? 120, options.campaign);
   let errors = 0;
   for (const job of claimed) {
     try {
@@ -90,8 +110,8 @@ export async function runNewsletterWorker(pool: Pool, env: NodeJS.ProcessEnv, pr
       }
     } catch { errors++; }
   }
-  const { rows: [{ markedForReview }] } = await pool.query<{ markedForReview: number }>(
-    'select public.newsletter_mark_unknown_for_review(250) as "markedForReview"');
+  const markedForReview = options.campaign ? 0 : (await pool.query<{ markedForReview: number }>(
+    'select public.newsletter_mark_unknown_for_review(250) as "markedForReview"')).rows[0].markedForReview;
   const { rows: [{ health }] } = await pool.query<{ health: DeliveryHealth }>(
     "select public.newsletter_delivery_health() as health");
   if (errors || health.unknown || health.operatorReview || health.failed || health.pending) {

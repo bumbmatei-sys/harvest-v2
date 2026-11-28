@@ -38,7 +38,7 @@ export class FakeNewsletterProvider implements NewsletterProvider {
   }
 
   async domain(domain: string, records: readonly DomainRecord[]) {
-    return domain.endsWith(".example.test") && domain !== "newsletter.example.test" &&
+    return (domain === "example.invalid" || (domain.endsWith(".example.test") && domain !== "newsletter.example.test")) &&
       ["ownership", "spf", "dkim", "bounce"].every(purpose => records.some(record => record.purpose === purpose))
       ? { ownership: true, spf: true, dkim: true, bounce: true, dmarc: records.some(record => record.purpose === "dmarc" && record.type === "TXT" &&
         record.name === "_dmarc." + domain && /^v=DMARC1;\s*p=(none|quarantine|reject)(?:\s*;|$)/i.test(record.value)) } : null;
