@@ -63,13 +63,20 @@ it("records rights changes and prunes only expired rows through worker capabilit
   const { rows: [old] } = await f.admin.query("insert into audit_logs (tenant_id, actor_id, action, created_at) values ($1,$2,'test.expired',now()-interval '13 months') returning id", [p.tenant, p.owner]);
   await f.admin.query("update crm_rights_requests set closed_at=now()-interval '4 years' where id=$1", [request.id]);
   await expect(f.admin.query("delete from audit_logs where id=$1", [old.id])).rejects.toThrow();
-  await expect(f.pool.query("select public.audit_retention_run(5,false)")).rejects.toMatchObject({ code: "42501" });
+  await expect(f.pool.query("select public.crm_rights_retention_run(5,false)")).rejects.toMatchObject({ code: "42501" });
   await expect(f.workerPool.query("select * from crm_rights_requests")).rejects.toMatchObject({ code: "42501" });
-  const health = async () => (await f.workerPool.query("select public.audit_retention_health() healthy")).rows[0].healthy;
+  const health = async () => (await f.workerPool.query("select public.crm_rights_retention_health() healthy")).rows[0].healthy;
   expect(await health()).toBe(false);
-  expect((await f.workerPool.query("select public.audit_retention_run(5,false) r")).rows[0].r).toEqual({ audits: 1, rightsRequests: 1 });
+  expect((await f.workerPool.query("select public.crm_rights_retention_run(5,false) r")).rows[0].r).toEqual({ rightsRequests: 1 });
   expect(await health()).toBe(true);
+  // Audit retention is the consolidated runner's job (PR 348): this job leaves every audit row in place.
+  expect((await f.admin.query("select id from audit_logs where id=$1", [old.id])).rowCount).toBe(1);
   expect((await f.admin.query("select action from audit_logs where target_id=$1", [request.id])).rowCount).toBeGreaterThan(0);
-  await f.workerPool.query("select public.audit_retention_run(5,true)");
+  for (const reset of ["blog_scope_clear()", "account_self_reset()"]) {
+    const { rows: [{ def }] } = await f.admin.query(`select pg_get_functiondef('public.${reset}'::regprocedure) def`);
+    expect(def).toContain("'app.rights_retention'");
+    expect(def).not.toContain("app.audit_retention");
+  }
+  await f.workerPool.query("select public.crm_rights_retention_run(5,true)");
   expect(await health()).toBe(false);
 });

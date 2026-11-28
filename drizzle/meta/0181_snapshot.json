@@ -3650,27 +3650,6 @@
           "method": "btree",
           "with": {}
         },
-        "audit_retention_due": {
-          "name": "audit_retention_due",
-          "columns": [
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "community_chat_mutations_idx": {
           "name": "community_chat_mutations_idx",
           "columns": [
@@ -3738,8 +3717,8 @@
       },
       "isRLSEnabled": false
     },
-    "public.audit_retention_runs": {
-      "name": "audit_retention_runs",
+    "public.crm_rights_retention_runs": {
+      "name": "crm_rights_retention_runs",
       "schema": "",
       "columns": {
         "id": {
@@ -3762,12 +3741,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "audit_deleted": {
-          "name": "audit_deleted",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
         "rights_deleted": {
           "name": "rights_deleted",
           "type": "integer",
@@ -3781,13 +3754,9 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "audit_retention_runs_audit_deleted_check": {
-          "name": "audit_retention_runs_audit_deleted_check",
-          "value": "\"audit_retention_runs\".\"audit_deleted\" between 0 and 1000"
-        },
-        "audit_retention_runs_rights_deleted_check": {
-          "name": "audit_retention_runs_rights_deleted_check",
-          "value": "\"audit_retention_runs\".\"rights_deleted\" between 0 and 1000"
+        "crm_rights_retention_runs_rights_deleted_check": {
+          "name": "crm_rights_retention_runs_rights_deleted_check",
+          "value": "\"crm_rights_retention_runs\".\"rights_deleted\" between 0 and 1000"
         }
       },
       "isRLSEnabled": false

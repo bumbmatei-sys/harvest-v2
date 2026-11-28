@@ -144,6 +144,6 @@ Tests use disposable local PostgreSQL (or an explicitly supplied local `harvest_
 
 Before real provider rollout: define provider ordering and remote idempotency contracts, connection/credential rotation and revocation, event retention/export/erasure requirements, queue monitoring/alert thresholds and production scheduling. These are future release decisions; Phase 1 does not claim production adapter readiness.
 
-## Audit and rights-request retention
+## Rights-request retention
 
-Run `npx tsx scripts/audit-retention.ts run` with the dedicated worker database login and `HARVEST_AUDIT_RETENTION_ENABLED=1` in development or test. Run the same script with `check` to check whether the last run succeeded within 26 hours. The job purges audit rows older than 12 months and rights requests closed more than three years ago. Its logs contain counts and run status.
+Run `npx tsx scripts/rights-retention.ts run` with the dedicated worker database login and `HARVEST_RIGHTS_RETENTION_ENABLED=1` in development or test. Run the same script with `check` to check whether the last run succeeded within 26 hours. The job purges rights requests closed more than three years ago. Its logs contain counts and run status. Audit-log retention is not part of this job; it belongs to the consolidated retention runner (PR 348).

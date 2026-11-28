@@ -133,7 +133,7 @@ export const auditLogs = pgTable("audit_logs", {
   action: text("action").notNull(), targetId: text("target_id"),
   metadata: jsonb("metadata").$type<Record<string, string>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), index("audit_retention_due").on(t.createdAt, t.id), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] }),
+}, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] }),
   index("community_chat_mutations_idx").on(t.actorId,t.action,t.createdAt),
   check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit', 'bio.message.submit', 'docs.trash.purge')`)]);
 export const crmRightsRequests = pgTable("crm_rights_requests", {
@@ -150,15 +150,13 @@ export const crmRightsRequests = pgTable("crm_rights_requests", {
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   index("crm_rights_retention_due").on(t.closedAt, t.tenantId, t.id).where(sql`${t.closedAt} is not null`)]);
 
-export const auditRetentionRuns = pgTable("audit_retention_runs", {
+export const crmRightsRetentionRuns = pgTable("crm_rights_retention_runs", {
   id: uuid("id").primaryKey().defaultRandom(),
   finishedAt: timestamp("finished_at", { withTimezone: true }).notNull().default(sql`clock_timestamp()`),
   succeeded: boolean("succeeded").notNull(),
-  auditDeleted: integer("audit_deleted").notNull(),
   rightsDeleted: integer("rights_deleted").notNull(),
 }, (t) => [
-  check("audit_retention_runs_audit_deleted_check", sql`${t.auditDeleted} between 0 and 1000`),
-  check("audit_retention_runs_rights_deleted_check", sql`${t.rightsDeleted} between 0 and 1000`),
+  check("crm_rights_retention_runs_rights_deleted_check", sql`${t.rightsDeleted} between 0 and 1000`),
 ]);
 export const authSchema = { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits };
 
