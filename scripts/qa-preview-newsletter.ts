@@ -81,7 +81,7 @@ export async function seedPreviewNewsletterCampaigns(db: Database, owner: string
     const run = await runNewsletterWorker(worker, {
       NODE_ENV: "test", HARVEST_NEWSLETTER_WORKER_ENABLED: "1",
       HARVEST_NEWSLETTER_TOKEN_KEY: randomBytes(32).toString("hex"), HARVEST_NEWSLETTER_SUPPRESSION_KEYS: suppressionKeys,
-    }, provider, { campaignId });
+    }, provider, { campaign: { tenantId: tenant, id: campaignId } });
     if (!run || run.errors || (await getCampaign(db, owner, tenant, campaignId)).state !== "sent") {
       throw new Error("QA_SEED_NEWSLETTER_DELIVERY_FAILED");
     }

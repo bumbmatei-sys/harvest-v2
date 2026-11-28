@@ -24,7 +24,7 @@ BEGIN
       $find$WHERE d.state='queued' AND c.state$find$,
       $patch$WHERE d.state='queued'
       AND (nullif(current_setting('app.qa_newsletter_campaign',true),'') IS NULL
-        OR d.campaign_id::text=current_setting('app.qa_newsletter_campaign',true))
+        OR d.tenant_id::text||'/'||d.campaign_id::text=current_setting('app.qa_newsletter_campaign',true))
       AND c.state$patch$
     ),
     (

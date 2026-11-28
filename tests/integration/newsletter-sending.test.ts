@@ -180,15 +180,16 @@ it("limits a scoped synthetic worker run to the selected campaign", async () => 
   const list = await makeList();
   await subscribe([list]);
   const selected = await queue(list);
-  const other = await queue(list);
+  const unselected = await queue(list);
   const provider = new FakeNewsletterProvider();
 
-  expect(await runNewsletterWorker(fixture.workerPool, env, provider, { campaignId: selected })).toMatchObject({ claimed: 1, errors: 0 });
+  expect(await runNewsletterWorker(fixture.workerPool, env, provider, { campaign: { tenantId: other, id: selected } })).toMatchObject({ claimed: 0, errors: 0 });
+  expect(await runNewsletterWorker(fixture.workerPool, env, provider, { campaign: { tenantId: tenant, id: selected } })).toMatchObject({ claimed: 1, errors: 0 });
   expect(await status(selected)).toBe("sent");
-  expect(await status(other)).toBe("scheduled");
+  expect(await status(unselected)).toBe("scheduled");
 
   expect(await worker(provider)).toMatchObject({ claimed: 1, errors: 0 });
-  expect(await status(other)).toBe("sent");
+  expect(await status(unselected)).toBe("sent");
 });
 
 it.each(["withdraw", "erase", "disable", "merge"] as const)("lets %s win after claim and before authorization", async action => {
