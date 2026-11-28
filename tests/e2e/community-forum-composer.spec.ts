@@ -90,7 +90,7 @@ async function seedItems(page: Page, tenant: string, communityId: string) {
   const db = await admin();
   try {
     const catalog = async (kind: "course" | "download", title: string) => (await db.query<{ id: string }>(
-      "insert into catalog_items(tenant_id,kind,slug,title,state,visibility) values($1,$2,$3,$4,'published','listed') returning id", [tenant, kind, title.toLowerCase().replaceAll(" ", "-"), title])).rows[0].id;
+      "insert into catalog_items(tenant_id,kind,slug,title,state,visibility) values($1,$2,$3,$4,'published','listed') returning id", [tenant, kind, `${title.toLowerCase().replaceAll(" ", "-")}-${randomUUID().slice(0, 8)}`, title])).rows[0].id;
     const course = await catalog("course", "Walking with God"), product = await catalog("download", "Prayer journal");
     const event = (await db.query<{ id: string }>("insert into events(tenant_id,id,title,time_zone,starts_at,ends_at,status,published_at) values($1,gen_random_uuid(),'Harvest supper','UTC',now()+interval '1 day',now()+interval '1 day 2 hours','published',now()) returning id", [tenant])).rows[0].id;
     await db.query("insert into community_event_links(tenant_id,event_id,community_id) values($1,$2,$3)", [tenant, event, communityId]);
